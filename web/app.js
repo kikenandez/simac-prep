@@ -187,7 +187,7 @@ renderers.offer = () => {
       </div>
       <div class="actions">
         <button class="btn ghost" id="offer-fetch">Lire les pages</button>
-        <label class="btn ghost" style="margin:0">Joindre plaquette / mail / texte <input type="file" id="offer-files" accept="${ACCEPT}" multiple hidden></label>
+        <label class="btn ghost" style="margin:0">Joindre plaquette / mail / image <input type="file" id="offer-files" accept="${ACCEPT}" multiple hidden></label>
         <span class="note" id="offer-src">${O.sources.length} source(s)</span>
       </div>
       <div id="offer-sources"></div>
@@ -293,7 +293,7 @@ renderers.offer = () => {
 async function addFiles(files, list, done) {
   let n = 0;
   for (const f of files) {
-    try { const src = await extractText(f); const i = list.findIndex((x) => x.source === src.source); if (i >= 0) list[i] = src; else list.push(src); n++; }
+    try { const src = await extractText(f, (msg) => toast(msg, 20000)); const i = list.findIndex((x) => x.source === src.source); if (i >= 0) list[i] = src; else list.push(src); n++; if (src.ocr) toast(`${f.name} : texte reconnu optiquement — relisez-le avant d’analyser.`, 6000); }
     catch (err) { toast(friendlyError(err), 6000); }
   }
   if (n) toast(`${n} document(s) lu(s).`);
