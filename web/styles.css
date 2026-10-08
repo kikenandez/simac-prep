@@ -223,5 +223,7 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .gaps.ok { background: var(--accent-soft); border-color: var(--accent); }
 .gaps .gap { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--panel); color: var(--ink); border: 1px solid var(--warn); font-size: 13px; }
 .gaps .gaps-go { margin-left: auto; }
-[data-bind].empty { border-color: var(--warn); background: var(--warn-soft); }
-@media print { .gaps { display: none; } [data-bind].empty { background: #fff; border-color: #bbb; } }
+/* champs : neutres par défaut ; un champ ESSENTIEL vide est signalé par un trait pointillé (pas de fond, pour que le signal reste rare et lisible) */
+[data-bind].missing { border: 1.5px dashed var(--warn); }
+[data-bind].missing::placeholder { color: var(--muted); }
+@media print { .gaps { display: none; } }
