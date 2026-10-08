@@ -8,6 +8,11 @@ export const CONFIG = {
   emailFields: { email: 'email', source: 'metadata__source', version: 'metadata__terms_version' },
   emailSource: 'simac-prep',
   emailRequired: true,
+  // Accès en échange d'une adresse confirmée : après l'envoi, la page d'accueil reste fermée et affiche
+  // « Vérifiez votre boîte mail » ; l'outil s'ouvre au retour du lien de confirmation (?ok=1, alias ?confirmed=1).
+  // false = ancien comportement (accès dès l'envoi du formulaire). Barrière « douce » : sans serveur, ?ok=1 suffit.
+  // IMPORTANT : dans Buttondown, la redirection après confirmation doit pointer vers https://simac.avapmo.com/?ok=1
+  confirmToUnlock: true,
 
   // Version des conditions : l'incrémenter force une nouvelle acceptation.
   termsVersion: '2026-10-08',

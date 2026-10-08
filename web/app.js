@@ -8,7 +8,7 @@ import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackSco
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { extractText, ACCEPT } from './lib/files.js';
-import { hasAccepted, accept, isEmail } from './lib/consent.js';
+import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
 import { marketDefaults, researchDefaults, mountMarket, mountClientResearch, renderEvidence, citations, clientFingerprint } from './lib/research-ui.js';
 
@@ -1077,22 +1077,67 @@ window.addEventListener('afterprint', () => { $('#print-view')?.remove(); docume
 // ----------------------------------------------------------------------------- accueil + conditions
 function showGate(readOnly = false) {
   const g = $('#gate'); g.hidden = false;
-  $('#gate-form').hidden = readOnly;
+  $('#gate-form').hidden = readOnly; $('#gate-wait').hidden = true;
   if (readOnly) { const close = document.createElement('button'); close.className = 'btn ghost'; close.textContent = 'Fermer'; close.onclick = () => (g.hidden = true); $('#gate-form').after(close); }
   $('#gate-email').required = !!CONFIG.emailRequired;
   $('#gate-email').closest('label').querySelector('input').placeholder = CONFIG.emailRequired ? 'vous@entreprise.fr' : 'vous@entreprise.fr (facultatif)';
+}
+// Attente de confirmation : la page d'accueil reste fermée tant que le lien du mail n'a pas été ouvert ici.
+let resendTimer = null;
+function showWaiting(rec, sentAt = Date.now()) {
+  $('#gate').hidden = false; $('#gate-form').hidden = true; $('#gate-wait').hidden = false;
+  $('#gate-wait-email').textContent = rec.email;
+  $('#gate-wait-status').textContent = rec.sent ? '' : 'L’envoi n’a pas pu être vérifié (connexion ?) : utilisez « Renvoyer le mail » si rien n’arrive.';
+  $('#gate-already-help').hidden = true;
+  throttleResend(sentAt);
+}
+function throttleResend(sentAt) {
+  const btn = $('#gate-resend'); clearInterval(resendTimer);
+  const tick = () => {
+    const left = Math.ceil((sentAt + 60000 - Date.now()) / 1000);
+    if (left > 0) { btn.disabled = true; btn.textContent = `Renvoyer le mail (${left} s)`; }
+    else { btn.disabled = false; btn.textContent = 'Renvoyer le mail'; clearInterval(resendTimer); }
+  };
+  tick(); resendTimer = setInterval(tick, 1000);
 }
 $('#gate-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = $('#gate-email').value.trim();
   if (!$('#gate-accept').checked) return ($('#gate-error').textContent = 'Cochez la case pour accepter les conditions.');
   if ((CONFIG.emailRequired || email) && !isEmail(email)) return ($('#gate-error').textContent = 'Adresse email invalide.');
+  $('#gate-error').textContent = '';
   const btn = $('#gate-form .btn'); btn.disabled = true;
-  await accept({ email });
-  btn.disabled = false; $('#gate').hidden = true;
+  const rec = await accept({ email });
+  btn.disabled = false;
+  if (rec.confirmed) $('#gate').hidden = true; else showWaiting(rec);
 });
+$('#gate-resend').addEventListener('click', async () => {
+  const btn = $('#gate-resend'); btn.disabled = true;
+  const sent = await resend();
+  $('#gate-wait-status').textContent = sent ? 'Mail renvoyé.' : 'L’envoi n’a pas pu être vérifié (connexion ?). Réessayez dans un instant.';
+  throttleResend(Date.now());
+});
+$('#gate-change').addEventListener('click', () => {
+  clearInterval(resendTimer);
+  const c = getConsent(); $('#gate-email').value = c?.email || '';
+  $('#gate-wait').hidden = true; $('#gate-form').hidden = false; $('#gate-email').focus();
+});
+$('#gate-already').addEventListener('click', (e) => { e.preventDefault(); $('#gate-already-help').hidden = false; });
 $('#show-terms').addEventListener('click', (e) => { e.preventDefault(); showGate(true); });
-if (!hasAccepted()) showGate(false);
+{
+  // Retour du lien de confirmation Buttondown : ?ok=1 (alias ?confirmed=1).
+  const params = new URLSearchParams(location.search);
+  if (params.has('ok') || params.has('confirmed')) {
+    const hadPending = confirmEmail();
+    params.delete('ok'); params.delete('confirmed');
+    const q = params.toString();
+    history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
+    toast(hadPending ? 'Adresse confirmée — bienvenue.' : 'Adresse confirmée sur ce navigateur.', 4000);
+  }
+  if (hasAccepted()) $('#gate').hidden = true;
+  else if (isPending()) { const c = getConsent(); showWaiting(c, Date.parse(c.resentAt || c.at) || 0); }
+  else showGate(false);
+}
 
 // ----------------------------------------------------------------------------- démarrage
 go(S.step || 'offer');
