@@ -6,8 +6,6 @@ puis dans le suivi centré sur l'appel à l'action.
 
 **Application en ligne : https://kikenandez.github.io/simac-prep/**
 
-Premier cas d'usage construit avec l'**Agentic Development Protocol** — [adp.avapmo.com](https://adp.avapmo.com).
-
 ## Ce que fait l'application
 
 | Étape | Ce que vous faites | Ce que fait l'IA |
@@ -57,7 +55,6 @@ web/
 docs/
   METHODE.md        # la méthode de vente, source de vérité pour les prompts
   ARCHITECTURE.md   # choix techniques et limites
-  prompts/, tasks/, plans/, skills/   # Agentic Development Protocol (rôles, dispatch, plans)
 tests/e2e.mjs       # parcours complet en mode démo (Playwright)
 ```
 
