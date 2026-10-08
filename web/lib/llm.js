@@ -259,6 +259,9 @@ function mockChat(messages, opts) {
   if (task === 'competition') {
     return delay(JSON.stringify({ summary: '[DEMO] Exemple fictif de comparaison : aucune recherche ni vérification par le modèle.', candidates: [{ name: '[DEMO] Réaliser en interne', type: 'alternative', target: 'Même besoin à confirmer', offer: 'Mobiliser une personne en interne', price: 'Non publié', difference: 'À vérifier : temps disponible et compétences', question: 'Comment traitez-vous ce besoin aujourd’hui ?', source_ids: [] }] }));
   }
+  if (task === 'positioning') {
+    return delay(JSON.stringify({ criteria: [{ label: '[DEMO] Prix', us: 'Publié, par cycle' }, { label: 'Format', us: 'Sur site' }], competitors: [{ cells: [{ mark: '?', value: 'Non publié' }, { mark: '=', value: 'Sur site' }] }], suggestions: ['[DEMO] Exemple fictif : appuyer chaque piste sur un écart de la grille.'] }));
+  }
   if (task === 'client_brief') {
     let client = {}; try { client = JSON.parse(/typed by user\):\n([^\n]+)/.exec(last)?.[1] || '{}'); } catch {}
 

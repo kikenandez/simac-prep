@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeSources, companySource, fetchNotices, groundBrief, makeSource, mergeSources, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources, clientQueries, rankSource, rankSources, competitorQuery } from '../web/lib/research.js';
+import { activeSources, companySource, fetchNotices, groundBrief, makeSource, mergeSources, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources, clientQueries, rankSource, rankSources, competitorQuery, sanitizePositioning, positionable } from '../web/lib/research.js';
 import { clientBriefMessages, competitionMessages, simacMessages } from '../web/lib/prompts.js';
 const json = data => new Response(JSON.stringify(data), { status: 200 });
 
@@ -148,4 +148,31 @@ test('suggested competitor query is short: category (not our brand), no figures,
   const short = { name: 'Cours de yoga 45 min', oneLiner: '', targets: '' };
   assert.equal(competitorQuery(short, 'France'), 'Cours de yoga France prestataires tarifs');
   assert.ok(competitorQuery({ name: '', oneLiner: 'x '.repeat(200), targets: '' }).length <= 120);
+});
+
+test('positioning grid: user picks up to 3 sourced competitors, 2-5 criteria, marks grounded, max 3 suggestions', () => {
+  const srcs = ['a', 'b', 'c', 'd'].map(k => ({ ...makeSource(`https://${k}.example`, 'web', `page ${k}`), included: true }));
+  const cand = (name, k) => ({ name, type: 'direct', source_ids: k ? [sourceId(srcs['abcd'.indexOf(k)])] : [] });
+  const chosen = [cand('B', 'b'), cand('Statu quo', ''), cand('C', 'c'), cand('D', 'd'), cand('A', 'a')];
+  const cells = (...marks) => marks.map(([mark, value]) => ({ mark, value }));
+  const result = {
+    criteria: [{ label: 'Prix', us: '1 390 € HT / 10 cours' }, { label: 'Format', us: '45 min sur site' }, { label: '' }, { label: 'Engagement', us: 'cycle de 10 cours' }, { label: 'Zone', us: 'Paris' }, { label: 'Preuves', us: '14 clients' }, { label: 'Sixième', us: 'x' }],
+    competitors: [{ cells: cells(['−', '900 €'], ['+', 'Non publié'], ['x', 'bizarre'], ['=', 'Paris']) }, { cells: cells(['=', '60 min']) }, { cells: [] }],
+    suggestions: ['Mettre le cycle court en avant', 'Publier un prix de pilote', 'Recueillir 2 témoignages', 'Une de trop'],
+  };
+  const p = sanitizePositioning(result, chosen, srcs);
+  assert.deepEqual(p.criteria.map(c => c.label), ['Prix', 'Format', 'Engagement', 'Zone', 'Preuves']);
+  assert.deepEqual(p.columns.map(c => c.name), ['B', 'C', 'D']); // ordre choisi, sans source exclu, 3 au plus
+  assert.deepEqual(p.columns[0].cells.map(c => c.mark), ['-', '?', '?', '=', '?']); // « Non publié » ne fonde pas un +, marque inconnue → ?
+  assert.equal(p.columns[0].cells[1].value, 'Non publié');
+  assert.deepEqual(p.columns[1].cells.map(c => c.mark), ['=', '?', '?', '?', '?']);
+  assert.deepEqual(p.suggestions, ['Mettre le cycle court en avant', 'Publier un prix de pilote', 'Recueillir 2 témoignages']);
+  assert.deepEqual(positionable(chosen, srcs).map(c => c.name), ['B', 'C', 'D', 'A']);
+});
+
+test('no positioning grid without at least 2 criteria and 1 sourced competitor', () => {
+  const s = { ...makeSource('https://a.example', 'web', 'x'), included: true };
+  const a = { name: 'A', type: 'direct', source_ids: [sourceId(s)] };
+  assert.equal(sanitizePositioning({ criteria: [{ label: 'Prix', us: 'x' }], competitors: [{ cells: [] }] }, [a], [s]), null);
+  assert.equal(sanitizePositioning({ criteria: [{ label: 'Prix', us: 'x' }, { label: 'Format', us: 'y' }] }, [{ name: 'Interne', type: 'alternative', source_ids: [] }], [s]), null);
 });
