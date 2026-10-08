@@ -25,15 +25,20 @@ export function isPending() {
   return !!(c && c.accepted && c.version === CONFIG.termsVersion && c.confirmed === false);
 }
 
+// Formulaire Buttondown soumis dans un nouvel onglet, comme son embed officiel : si son pare-feu demande une
+// vérification anti-spam (Cloudflare Turnstile), la personne la voit et la valide. Un fetch en arrière-plan
+// la rendait invisible : réponse 400, aucun mail parti. À appeler pendant le clic (sinon bloqueur de pop-up).
 async function subscribe(email) {
   if (!email || !CONFIG.emailEndpoint) return false;
   try {
-    const fd = new FormData();
-    fd.append(CONFIG.emailFields.email, email);
-    if (CONFIG.emailFields.source) fd.append(CONFIG.emailFields.source, CONFIG.emailSource || 'simac-prep');
-    if (CONFIG.emailFields.version) fd.append(CONFIG.emailFields.version, CONFIG.termsVersion);
-    // no-cors : la requête part, la réponse est opaque (Buttondown envoie ensuite le mail de confirmation).
-    await fetch(CONFIG.emailEndpoint, { method: 'POST', mode: 'no-cors', body: fd });
+    const form = document.createElement('form');
+    Object.assign(form, { action: CONFIG.emailEndpoint, method: 'post', target: '_blank', hidden: true });
+    form.setAttribute('rel', 'noopener');
+    const add = (name, value) => { if (!name) return; const i = document.createElement('input'); Object.assign(i, { type: 'hidden', name, value }); form.append(i); };
+    add(CONFIG.emailFields.email, email);
+    add(CONFIG.emailFields.source, CONFIG.emailSource || 'simac-prep');
+    add(CONFIG.emailFields.version, CONFIG.termsVersion);
+    document.body.append(form); form.submit(); form.remove();
     return true;
   } catch { return false; }
 }
