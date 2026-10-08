@@ -1,6 +1,6 @@
 ; ADP dispatch — wire v1.1 (auto-synced from docs/tasks/current.md)
 v 1.1
-upd 2026-10-08T12:34Z by=wire-sync
+upd 2026-10-08T12:36Z by=wire-sync
 
 dev
  take T4 — Vérifier Gemini, Mistral, OpenRouter (CORS + JSON + noms de modèles) et re-
