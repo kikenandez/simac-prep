@@ -87,11 +87,17 @@ function deleteOffer(id) {
   if (S.offerId === id) S.offerId = '';
   persist(); renderers.offer();
 }
-function newOffer() {
-  if (!confirm('Nouvelle offre ? La fiche produit, ses sources et la recherche marché sont vidées (l’offre actuelle reste dans « Mes offres » si elle est enregistrée).')) return;
-  saveOffer(true);
+function clearOffer() {
   const b = blank(); Object.assign(S, { product: b.product, offer: b.offer, market: b.market, offerId: '' });
   invalidatePreparation(); persist(); renderers.offer();
+}
+function newOffer() {
+  if (!confirm('Nouvelle offre ? L’offre en cours est d’abord enregistrée dans « Mes offres », puis la fiche, ses sources et la recherche marché sont vidées.')) return;
+  saveOffer(true); clearOffer();
+}
+function resetOffer() {
+  if (!confirm('Remettre la page à blanc ? Fiche produit, description, sources, questions, maturité et recherche marché sont effacées — sans enregistrement. (Les offres déjà dans « Mes offres » ne bougent pas.)')) return;
+  clearOffer(); toast('Page Offre remise à blanc.');
 }
 function renderOfferBar() {
   const el = $('#offer-bar'); if (!el) return;
@@ -102,11 +108,13 @@ function renderOfferBar() {
       <select id="offer-pick"><option value="">${all.length ? '— choisir une offre enregistrée —' : '— aucune offre enregistrée —'}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} · ${esc(o.savedAt.slice(0, 10))}</option>`).join('')}</select>
       <button class="btn ghost small" id="offer-save">Enregistrer l’offre</button>
       <button class="btn ghost small" id="offer-new">Nouvelle offre</button>
+      <button class="btn ghost small" id="offer-reset" title="Tout effacer sur cette page, sans enregistrer">Remettre à blanc</button>
       ${S.offerId && all.some((o) => o.id === S.offerId) ? '<button class="btn danger small" id="offer-del" title="Retirer de Mes offres">×</button>' : ''}
     </div>`;
   $('#offer-pick').onchange = (e) => { if (e.target.value) loadOffer(e.target.value); };
   $('#offer-save').onclick = () => { saveOffer(); renderOfferBar(); };
   $('#offer-new').onclick = newOffer;
+  $('#offer-reset').onclick = resetOffer;
   $('#offer-del')?.addEventListener('click', () => { if (confirm('Retirer cette offre de Mes offres ? (la fiche en cours reste affichée)')) deleteOffer(S.offerId); });
 }
 function invalidatePreparation() {
