@@ -103,7 +103,7 @@ Une version gérée (avec serveur) ferait une vraie vérification.
 
 ## Crédit et responsabilité
 
-Créé par Guillermo Blanco — [adp.avapmo.com](https://adp.avapmo.com) — utilisation gratuite.
+Créé par [adp.avapmo.com](https://adp.avapmo.com) — contact@avapmo.com — utilisation gratuite.
 
 Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l'IA) :
 chaque utilisateur l'emploie sous sa propre responsabilité. Aucun engagement ni responsabilité de Guillermo Blanco,
