@@ -2,6 +2,7 @@
 // Statique, sans serveur. L'IA est optionnelle et au choix (fournisseurs gratuits, ou mode démo).
 
 import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } from './lib/llm.js';
+import { OFFER_KEY_ORDER, OFFER_ESSENTIAL, blockersFrom, essentialGaps } from './lib/offer.js';
 import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, clientExtractMessages, clientQuestionMessages, debriefExtractMessages } from './lib/prompts.js';
 import { readUrl, notesSource, mergeSources, activeSources, groundBrief, sourceId, upsertSources, competitorQuery, sanitizeComparison } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS } from './lib/soncas.js';
@@ -22,7 +23,7 @@ function blank() {
   return {
     id: newId(), date: new Date().toISOString().slice(0, 10), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
-    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null },
+    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, blockers: [] },
     market: marketDefaults(), research: researchDefaults(),
     client: { preparationMode: 'meeting', location: '', company: '', sector: '', website: '', contacts: [blankContact('decide')], linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
     clientChat: { description: '', chat: [], pendingField: '' },
@@ -347,7 +348,8 @@ renderers.offer = () => {
     if (!S.product.oneLiner && !S.product.name) return toast('Remplissez au moins le nom et la phrase.');
     const r = await chatJSON(offerMaturityMessages({ lang: LANG, current: S.product }));
     O.maturity = { ...r, score: Math.min(5, Math.max(1, Number(r.score) || 1)) };
-    persist(); if (S.step === 'offer') renderMaturity();
+    O.blockers = blockersFrom(O.maturity); // survivent aux réponses suivantes : seule une nouvelle maturité les lève
+    persist(); if (S.step === 'offer') { renderers.offer(); $('#offer-maturity-out')?.scrollIntoView({ block: 'center' }); }
   });
 
   $('#next').onclick = () => go('client');
@@ -386,20 +388,18 @@ function renderSourceList(el, list, onChange) {
 }
 
 /** Dialogue guidé générique : l'IA pose une question par champ vide ; la réponse remplit le champ. */
-// Ordre d'importance pour vendre (le même que les questions guidées) ; les 7 premiers sont « essentiels ».
-const OFFER_KEY_ORDER = ['oneLiner', 'targets', 'problem', 'nextStep', 'mechanism', 'advantages', 'proofs', 'price', 'objections', 'name', 'who', 'floor', 'delays', 'constraints'];
-const OFFER_ESSENTIAL = 9;
 /** Indicateur de complétude : X / N remplis, ce qui manque, et un raccourci vers les questions. Se met à jour à la saisie. */
 function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
   if (!el) return;
   const isFilled = filled || ((k) => !!String(obj[k] || '').trim());
   const draw = () => {
     const missing = keys.filter((k) => !isFilled(k));
-    const essential = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL).filter((k) => !isFilled(k)) : missing;
+    // Offre : essentiels vides + champs jugés bloquants par la dernière maturité, même remplis.
+    const essential = prefix === 'product' ? essentialGaps(obj, S.offer.blockers) : missing;
     const n = keys.length - missing.length;
     el.className = 'gaps ' + (essential.length ? 'warn' : 'ok');
     el.innerHTML = essential.length
-      ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}</span>`).join(' ')}
+      ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}${isFilled(k) ? ' · à renforcer' : ''}</span>`).join(' ')}
          <button class="btn small gaps-go">Compléter par questions ↓</button>`
       : `<b>${n} / ${keys.length} champs remplis.</b> L’essentiel y est${missing.length ? ` — reste facultatif : ${missing.map((k) => labels[k] || k).join(', ')}` : ''}.`;
     const essentialKeys = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL) : keys;
@@ -416,7 +416,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   state.skipped ||= [];
   const hintAt = CHAT_HINT[step] || 6;
   const asked = state.chat.filter((m) => m.role === 'ai' && m.field).length;
-  const essentialGaps = step === 'offer' ? OFFER_KEY_ORDER.slice(0, OFFER_ESSENTIAL).filter((k) => !String(target[k] || '').trim()).length : 0;
+  const gapCount = step === 'offer' ? essentialGaps(target, state.blockers).length : 0;
   const log = state.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
   const last = state.chat[state.chat.length - 1];
   const waiting = last && last.role === 'ai' && state.pendingField;
@@ -424,7 +424,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
     <div class="chat-log">${log || '<div class="note">Aucune question pour l’instant.</div>'}</div>
     ${waiting ? `<div class="chat-input"><textarea class="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
       <button class="btn chat-send">Répondre</button><button class="btn ghost small chat-skip" title="Je ne sais pas / plus tard">Passer</button></div>` : ''}
-    ${asked >= hintAt && essentialGaps ? `<div class="card warn" style="margin:8px 0"><b>${asked} questions et il manque encore ${essentialGaps} élément(s) essentiel(s).</b> C’est le signe d’une offre pas encore mûre : continuez si les réponses viennent, sinon travaillez-la hors de l’outil (prix, preuves, objections) et revenez — la maturité ne s’atteint pas en répondant vite.</div>` : ''}
+    ${asked >= hintAt && gapCount ? `<div class="card warn" style="margin:8px 0"><b>${asked} questions et il manque encore ${gapCount} élément(s) essentiel(s).</b> C’est le signe d’une offre pas encore mûre : continuez si les réponses viennent, sinon travaillez-la hors de l’outil (prix, preuves, objections) et revenez — la maturité ne s’atteint pas en répondant vite.</div>` : ''}
     <div class="actions" style="margin-bottom:0">
       <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
       <span class="note">${asked} question${asked > 1 ? 's' : ''} posée${asked > 1 ? 's' : ''}</span>
@@ -433,7 +433,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
   const finish = (text) => { state.pendingField = ''; state.chat.push({ role: 'ai', text }); };
   const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
-    const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer, skipped: state.skipped }));
+    const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer, skipped: state.skipped, asked: state.chat.filter((m) => m.field).map((m) => m.field), blockers: state.blockers || [] }));
     if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(lastField); }
     if (r.done || !r.question) finish('La fiche est complète sur l’essentiel.');
     else { state.pendingField = r.next_field || ''; state.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
