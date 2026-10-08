@@ -37,18 +37,29 @@ await p.fill('#client-chat .chat-answer', 'Le directeur décide seul avant la To
 await p.waitForFunction(() => document.querySelector('[data-bind="client.decisionProcess"]').value.includes('Toussaint'));
 await p.fill('[data-bind="client.company"]', 'Atelier Dupont');
 await p.fill('[data-bind="client.sector"]', 'Menuiserie');
-await p.fill('[data-bind="client.contactName"]', 'Marie Dupont');
-await p.fill('[data-bind="client.contactRole"]', 'Gérante');
+// interlocuteurs : l'extraction démo en a posé 2 ; on renomme le 1er, on ajoute un 3e, le bouton + disparaît
+const afterExtract = await p.$$eval('.contact-row', r => r.length);
+await p.fill('.contact-row[data-i="0"] [data-ck="name"]', 'Marie Dupont');
+await p.fill('.contact-row[data-i="0"] [data-ck="role"]', 'Gérante');
+await p.click('#add-contact'); await p.fill('.contact-row[data-i="2"] [data-ck="name"]', 'Paul'); await p.selectOption('.contact-row[data-i="2"] [data-ck="weight"]', 'use');
+const contactRows = await p.$$eval('.contact-row', r => r.length);
+const addGone = await p.$('#add-contact') === null;
 await p.fill('[data-bind="client.notes"]', 'Entreprise familiale, 12 salariés.');
 await p.click('#brief'); await p.waitForSelector('#to-persona');
 await p.screenshot({ path: shots + '/2-client.png', fullPage: true });
 // persona
 await p.click('#to-persona'); await p.click('#ai'); await p.waitForSelector('.main-message:not(:placeholder-shown)');
+const tabs = await p.$$eval('#people-tabs button', b => b.length);
+const tensions = await p.$$eval('.card.warn h3', h => h.filter(x => /Tensions/.test(x.textContent)).length);
 await p.click('.score[data-code="O"] button[data-v="3"]');
+await p.click('#people-tabs button[data-p="1"]'); await p.waitForSelector('#people-tabs button[data-p="1"].on');
+const p2top = await p.$eval('#top3', el => el.textContent);
+await p.click('#people-tabs button[data-p="0"]');
 await p.screenshot({ path: shots + '/3-persona.png', fullPage: true });
 // simac
 await p.click('#next'); await p.fill('[data-bind="objective.primary"]', 'Accord pour un essai sur 3 RDV');
 await p.click('#ai'); await p.waitForSelector('#copy');
+const whoCol = await p.$$eval('#simac-out thead th', th => th.filter(x => x.textContent === 'Qui').length);
 await p.screenshot({ path: shots + '/4-simac.png', fullPage: true });
 // followup
 await p.click('#next');
@@ -64,10 +75,14 @@ await p.click('[data-step=simac]'); await p.emulateMedia({ media: 'print' }); aw
 await p.click('[data-step=history]');
 const rows = await p.$$eval('tbody tr', r => r.length);
 const csv = await p.evaluate(async () => { const m = await import('./lib/store.js'); return m.exportCSV(); });
-const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); return m.importCSV(csv) + '/' + m.listMeetings().length + '/' + m.listMeetings()[0].top3; }, csv);
+const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); const n = m.importCSV(csv); const r = m.listMeetings()[0]; return n + '/' + m.listMeetings().length + '/' + r.top3 + '/' + r.contact2_name + '/' + r.contact3_weight + '/' + r.soncas_2; }, csv);
+// recharger depuis l'historique : 3 interlocuteurs et leurs scores reviennent
+await p.click('[data-load]'); await p.waitForSelector('.contact-row[data-i="2"]');
+const reloaded = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return d.client.contacts.length + '/' + d.persona.people.length + '/' + d.persona.people[1].scores.N; });
 await p.screenshot({ path: shots + '/6-history.png' });
 await p.setViewportSize({ width: 390, height: 800 }); await p.click('[data-step=persona]'); await p.screenshot({ path: shots + '/7-mobile.png' });
 const radar = await p.$$eval('#radar svg polygon.me', s => s.length);
-const ok = rows === 1 && reimport.startsWith('1/1/') && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && radar === 1;
-console.log(JSON.stringify({ gateAgain, radar, extracted, maturity, rows, reimport, errors, ok }, null, 1));
+const ok = rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && radar === 1
+  && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3';
+console.log(JSON.stringify({ gateAgain, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);

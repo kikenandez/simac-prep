@@ -7,10 +7,13 @@ const KEY = 'simac.meetings';
 const DRAFT_KEY = 'simac.draft';
 
 export const COLUMNS = [
-  'id', 'date', 'company', 'sector', 'website', 'contact_name', 'contact_role',
+  'id', 'date', 'company', 'sector', 'website',
+  'contact_name', 'contact_role', 'contact_weight',
+  'contact2_name', 'contact2_role', 'contact2_weight', 'soncas_2', 'top3_2',
+  'contact3_name', 'contact3_role', 'contact3_weight', 'soncas_3', 'top3_3',
   'product', 'objective', 'fallback',
   'soncas_S', 'soncas_O', 'soncas_N', 'soncas_C', 'soncas_A', 'soncas_Y', 'soncas_E', 'top3',
-  'main_message', 'idea', 'conclusion', 'objections_prepared',
+  'main_message', 'tensions', 'idea', 'conclusion', 'objections_prepared',
   'outcome', 'objections_heard', 'decision_maker',
   'next_action', 'next_owner', 'next_due', 'next_output', 'lessons', 'notes',
 ];
@@ -60,17 +63,17 @@ export function newId() {
 
 /** Récupération : les k rendez-vous passés les plus proches (même société, secteur, offre, rôle), rendus en texte compact. */
 export function retrieve(query, k = 3) {
-  const q = tokens([query.company, query.sector, query.product, query.contactRole, query.contactName].join(' '));
+  const q = tokens([query.company, query.sector, query.product, query.contactRole, query.contactName, query.otherContacts].join(' '));
   if (!q.size) return '';
   const scored = listMeetings().map((m) => {
-    const t = tokens([m.company, m.sector, m.product, m.contact_role, m.contact_name, m.notes].join(' '));
+    const t = tokens([m.company, m.sector, m.product, m.contact_role, m.contact_name, m.contact2_name, m.contact2_role, m.contact3_name, m.contact3_role, m.notes].join(' '));
     let s = 0;
     for (const w of q) if (t.has(w)) s += 1;
     if (m.company && query.company && m.company.toLowerCase() === query.company.toLowerCase()) s += 5;
     return { m, s };
   }).filter((x) => x.s > 0).sort((a, b) => b.s - a.s || (b.m.date || '').localeCompare(a.m.date || '')).slice(0, k);
   return scored.map(({ m }) => (
-    `- ${m.date || '?'} | ${m.company || '?'} / ${m.contact_name || '?'} (${m.contact_role || '?'}) | offre : ${m.product || '?'}\n` +
+    `- ${m.date || '?'} | ${m.company || '?'} / ${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0]).map((c) => `${c[0]} (${c[1] || '?'})`).join(', ') || '?'} | offre : ${m.product || '?'}\n` +
     `  top SONCAS : ${m.top3 || '?'} | message : ${m.main_message || '-'}\n` +
     `  résultat : ${m.outcome || '-'} | objections entendues : ${m.objections_heard || '-'}\n` +
     `  suite : ${m.next_action || '-'} (${m.next_owner || '?'}, ${m.next_due || '?'}) | leçons : ${m.lessons || '-'}`

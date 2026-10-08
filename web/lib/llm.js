@@ -177,15 +177,15 @@ function mockChat(messages, opts) {
     }));
   }
   if (task === 'client_extract') {
-    return delay(JSON.stringify({ fields: { company: 'Collège privé, Paris', sector: 'Enseignement secondaire', website: '', contactName: 'Le directeur', contactRole: 'Directeur — décide des achats pédagogiques', meetingFormat: 'Rendez-vous sur place, 30 minutes', decisionProcess: '', notes: '[DEMO] Les professeurs se plaignent que les élèves ne lisent plus.' }, missing: ['decisionProcess', 'website'] }));
+    return delay(JSON.stringify({ fields: { company: 'Collège privé, Paris', sector: 'Enseignement secondaire', website: '', contacts: [{ name: 'Le directeur', role: 'Directeur — décide des achats pédagogiques', weight: 'decide' }, { name: 'La professeure d’histoire', role: 'Utilisera le support en classe', weight: 'use' }], meetingFormat: 'Rendez-vous sur place, 30 minutes', decisionProcess: '', notes: '[DEMO] Les professeurs se plaignent que les élèves ne lisent plus.' }, missing: ['decisionProcess', 'website'] }));
   }
   if (task === 'client_question') {
     const m = /DERNIÈRE RÉPONSE \(pour le champ "(\w+)"\) : ([\s\S]*?)\n\nRègles/.exec(last);
     const cur = /FICHE ACTUELLE :\n([\s\S]*?)\n\nDIALOGUE/.exec(last);
     let fiche = {}; try { fiche = JSON.parse(cur?.[1] || '{}'); } catch {}
     if (m) fiche[m[1]] = m[2].trim();
-    const order = ['contactRole', 'meetingFormat', 'company', 'decisionProcess'];
-    const qs = { contactRole: 'Quelle est la fonction de votre interlocuteur, et quel est son rôle dans la décision ?', meetingFormat: 'Sous quelle forme a lieu le rendez-vous : mail, visio, sur place, salon ? Quand, et combien de temps ?', company: 'Quel est l’établissement ou l’entreprise ?', decisionProcess: 'Qui d’autre participe à la décision, et à quelle échéance ?' };
+    const order = ['meetingFormat', 'company', 'decisionProcess'];
+    const qs = { meetingFormat: 'Sous quelle forme a lieu le rendez-vous : mail, visio, sur place, salon ? Quand, et combien de temps ?', company: 'Quel est l’établissement ou l’entreprise ?', decisionProcess: 'Qui d’autre participe à la décision, et à quelle échéance ?' };
     const next = order.find((k) => !String(fiche[k] || '').trim());
     return delay(JSON.stringify({ field_value: m ? m[2].trim() : '', next_field: next || '', question: next ? qs[next] : '', done: !next }));
   }
@@ -204,28 +204,22 @@ function mockChat(messages, opts) {
     }));
   }
   if (task === 'soncas') {
+    const m = /INTERLOCUTEURS PRÉSENTS AU RENDEZ-VOUS[^\n]*\n(\[[\s\S]*?\])\nFICHE CLIENT/.exec(last);
+    let people = []; try { people = JSON.parse(m?.[1] || '[]'); } catch {}
+    if (!people.length) people = [{ name: 'Interlocuteur', weight: 'decide' }];
+    const profiles = [
+      { scores: { S: 3, O: 1, N: 2, C: 3, A: 3, Y: 2, E: 1 }, rationale: { S: 'Veut être sûr que ça marche avant d’investir.', O: 'Peu de signaux de prestige.', N: 'Curieux des outils IA.', C: 'Manque de temps : simplicité attendue.', A: 'ROI et coût au centre.', Y: 'Relation directe.', E: 'Non mentionné.' },
+        arguments: { S: ['Cadre clair, étapes définies, essai limité avant engagement.'], O: ['Vous serez cité comme référence pilote.'], N: ['Une méthode que vos concurrents n’utilisent pas encore.'], C: ['Mise en place en une semaine, sans changer vos outils.'], A: ['Prix ramené par rendez-vous gagné ; pas de coût caché.'], Y: ['Un interlocuteur unique, joignable.'], E: ['Outils sobres, pas de déplacement.'] } },
+      { scores: { S: 2, O: 2, N: 3, C: 3, A: 1, Y: 3, E: 2 }, rationale: { S: 'Peu concerné par le risque financier.', O: 'Aime être moteur d’un projet.', N: 'Cherche du neuf pour ses classes.', C: 'Veut zéro préparation en plus.', A: 'Le budget n’est pas son sujet.', Y: 'Sensible à l’accompagnement humain.', E: 'Valeurs importantes.' },
+        arguments: { S: ['Un cadre testé, rien à inventer.'], O: ['Vous portez le projet pilote.'], N: ['Un support que les élèves n’ont jamais vu.'], C: ['Prêt à l’emploi, séance clé en main.'], A: ['Rien à avancer.'], Y: ['Un échange direct avec l’auteur.'], E: ['Papier recyclé, impression locale.'] } },
+      { scores: { S: 3, O: 2, N: 1, C: 2, A: 3, Y: 2, E: 2 }, rationale: { S: 'Veut des garanties.', O: '—', N: 'Méfiant envers la nouveauté.', C: '—', A: 'Tient les cordons de la bourse.', Y: '—', E: '—' },
+        arguments: { S: ['Références vérifiables.'], O: ['—'], N: ['Rien de risqué : un essai limité.'], C: ['—'], A: ['Coût par élève connu d’avance.'], Y: ['—'], E: ['—'] } },
+    ];
     return delay(JSON.stringify({
-      scores: { S: 3, O: 1, N: 2, C: 3, A: 3, Y: 2, E: 1 },
-      rationale: {
-        S: fr ? 'Veut être sûr que ça marche avant d’investir.' : 'Wants proof it works before investing.',
-        O: fr ? 'Peu de signaux de prestige.' : 'Few prestige signals.',
-        N: fr ? 'Curieux des outils IA.' : 'Curious about AI tools.',
-        C: fr ? 'Manque de temps : simplicité attendue.' : 'Short on time: expects simplicity.',
-        A: fr ? 'ROI et coût au centre.' : 'ROI and cost are central.',
-        Y: fr ? 'Relation directe fondateur-prestataire.' : 'Direct founder-vendor relationship.',
-        E: fr ? 'Non mentionné.' : 'Not mentioned.',
-      },
-      arguments: {
-        S: [fr ? 'Cadre clair, étapes définies, essai limité avant engagement.' : 'Clear frame, defined steps, limited trial before commitment.'],
-        O: [fr ? 'Vous serez cité comme référence pilote.' : 'You would be cited as a pilot reference.'],
-        N: [fr ? 'Une méthode outillée par l’IA que vos concurrents n’utilisent pas encore.' : 'An AI-assisted method your competitors don’t use yet.'],
-        C: [fr ? 'Mise en place en une semaine, sans changer vos outils.' : 'Set up in one week, no tool change.'],
-        A: [fr ? 'Prix ramené par rendez-vous gagné ; pas de coût caché.' : 'Price per won meeting; no hidden cost.'],
-        Y: [fr ? 'Un interlocuteur unique, joignable.' : 'One named contact, reachable.'],
-        E: [fr ? 'Outils sobres, pas de déplacement.' : 'Lightweight tools, no travel.'],
-      },
-      gaps: [fr ? 'Aucun témoignage client dans la fiche' : 'No client testimonial in the sheet'],
-      main_message: fr ? '[DEMO] Sécurisez vos ventes des 6 prochains mois avec une méthode simple, rentable dès le premier client signé.' : '[DEMO] Secure your next 6 months of sales with a simple method that pays for itself at the first signed client.',
+      people: people.slice(0, 3).map((p, i) => ({ name: p.name || p.role || `Personne ${i + 1}`, weight: p.weight || 'influence', ...profiles[i] })),
+      main_message: '[DEMO] Sécurisez la décision avec un essai limité, rentable dès la première classe — sans travail en plus pour l’équipe.',
+      tensions: people.length > 1 ? ['[DEMO] Argent fort chez le décideur, Nouveauté forte chez l’utilisatrice : présenter la nouveauté comme un essai gratuit pour une classe, donc sans risque financier.'] : [],
+      gaps: ['Aucun témoignage client dans la fiche'],
     }));
   }
   if (task === 'simac') {
@@ -233,11 +227,11 @@ function mockChat(messages, opts) {
       situation: fr ? '[DEMO] Vous m’avez dit que vous perdez des ventes faute de préparation et que vous visez +20 % de CA en 6 mois.' : '[DEMO] You told me you lose sales for lack of preparation and target +20% revenue in 6 months.',
       idea: fr ? 'Préparer chaque rendez-vous en 20 minutes avec une méthode guidée.' : 'Prepare each meeting in 20 minutes with a guided method.',
       mechanism: fr ? ['Diagnostic de votre offre (semaine 1)', 'Fiche client et persona avant chaque RDV', 'Déroulé SIMAC et réponses aux objections', 'Suivi J+1 avec appel à l’action', 'Prix : forfait mensuel, sans engagement'] : ['Offer diagnosis (week 1)', 'Client sheet and persona before each meeting', 'SIMAC script and objection answers', 'D+1 follow-up with call to action', 'Price: monthly flat fee, no lock-in'],
-      advantages: fr ? ['Vous gagnez du temps de préparation (besoin : manque de temps)', 'Vous concluez plus souvent (besoin : taux de closing)', 'Vous gardez la main : pas de nouvel outil imposé'] : ['You save prep time (need: lack of time)', 'You close more often (need: closing rate)', 'You stay in control: no new tool imposed'],
+      advantages: fr ? ['Pour le directeur : vous gagnez du temps de préparation (besoin : manque de temps)', 'Pour le directeur : vous concluez plus souvent (besoin : taux de closing)', 'Pour la professeure : vous gardez la main, rien de nouveau à apprendre (besoin : zéro friction)'] : ['You save prep time (need: lack of time)', 'You close more often (need: closing rate)', 'You stay in control: no new tool imposed'],
       conclusion: fr ? 'Préférez-vous démarrer par un essai sur vos 3 prochains rendez-vous, ou par le diagnostic complet de votre offre ? Dès votre choix, je vous envoie le calendrier mardi.' : 'Would you rather start with a trial on your next 3 meetings, or with the full offer diagnosis? Once you choose, I send the schedule on Tuesday.',
       objections: [
-        { objection: fr ? 'Je dois réfléchir' : 'I need to think', response: fr ? 'Bien sûr. Quel point précis mérite réflexion : le prix, le timing ou le résultat attendu ?' : 'Of course. Which point needs thought: price, timing, or expected result?' },
-        { objection: fr ? 'C’est trop cher' : 'Too expensive', response: fr ? 'Par rapport à quoi ? Ramené au rendez-vous gagné, qu’est-ce qui serait acceptable ?' : 'Compared with what? Per won meeting, what would be acceptable?' },
+        { who: 'Le directeur', objection: fr ? 'Je dois réfléchir' : 'I need to think', response: fr ? 'Bien sûr. Quel point précis mérite réflexion : le prix, le timing ou le résultat attendu ?' : 'Of course. Which point needs thought: price, timing, or expected result?' },
+        { who: 'Le directeur', objection: fr ? 'C’est trop cher' : 'Too expensive', response: fr ? 'Par rapport à quoi ? Ramené au rendez-vous gagné, qu’est-ce qui serait acceptable ?' : 'Compared with what? Per won meeting, what would be acceptable?' },
       ],
       gaps: [fr ? 'La fiche ne précise pas les conditions de résiliation' : 'The sheet does not state cancellation terms'],
       opening: fr ? 'Bonjour, je suis [Nom], j’aide les PME à conclure plus de ventes. Nous avions convenu de parler de votre prospection. Avant de commencer : quel est le point le plus important pour vous aujourd’hui ?' : 'Hello, I’m [Name], I help SMBs close more sales. We agreed to talk about your prospecting. Before we start: what matters most to you today?',

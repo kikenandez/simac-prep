@@ -188,3 +188,15 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .gate-form label.check input { width: auto; }
 .gate-form .btn { justify-self: start; }
 @media print { .gate { display: none; } }
+
+/* interlocuteurs (étape Client) et onglets persona */
+.contact-row { display: grid; grid-template-columns: 22px 1fr 1.3fr 120px 32px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.contact-row .contact-n { font-size: 12px; font-weight: 700; color: var(--muted); text-align: center; }
+.contact-row select { padding: 8px; }
+.tabs { display: flex; gap: 6px; flex-wrap: wrap; margin: 4px 0 12px; }
+.tabs button { padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink); cursor: pointer; font-weight: 600; }
+.tabs button small { font-weight: 400; color: var(--muted); }
+.tabs button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.tabs button.on small { color: inherit; opacity: .85; }
+@media (max-width: 760px) { .contact-row { grid-template-columns: 22px 1fr 32px; } .contact-row select, .contact-row input:nth-child(3) { grid-column: 2; } }
+@media print { .tabs button { border-color: #999; color: #000; } .tabs button.on { background: #000; color: #fff; } }
