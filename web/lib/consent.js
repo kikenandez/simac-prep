@@ -18,9 +18,9 @@ export async function accept({ email }) {
     try {
       const fd = new FormData();
       fd.append(CONFIG.emailFields.email, email);
-      fd.append(CONFIG.emailFields.accepted, rec.at);
-      fd.append(CONFIG.emailFields.version, CONFIG.termsVersion);
-      // no-cors : Google Forms ne renvoie pas de CORS ; la requête part, la réponse est opaque.
+      if (CONFIG.emailFields.source) fd.append(CONFIG.emailFields.source, CONFIG.emailSource || 'simac-prep');
+      if (CONFIG.emailFields.version) fd.append(CONFIG.emailFields.version, CONFIG.termsVersion);
+      // no-cors : la requête part, la réponse est opaque (Buttondown envoie ensuite le mail de confirmation).
       await fetch(CONFIG.emailEndpoint, { method: 'POST', mode: 'no-cors', body: fd });
       rec.sent = true;
     } catch { rec.sent = false; }
