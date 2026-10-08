@@ -1,6 +1,7 @@
 ; ADP tasks — wire v1.1 (auto-synced from docs/tasks/current.md)
 ; T{N} | role | state | prio | plan-ref | inst-ref | acc-summary
 
-T1    | dev | NEW      | P1 | @docs/plans/2026-10-08-mvp.md | inst@@docs/plans/2026-10-08-mvp.md#T1 | see-plan
-T2    | dev | NEW      | P1 | @docs/plans/2026-10-08-mvp.md | inst@@docs/plans/2026-10-08-mvp.md#T2 | see-plan
+T1    | dev | DONE     | P1 | @docs/plans/2026-10-08-mvp.md | inst@@docs/plans/2026-10-08-mvp.md#T1 | see-plan
+T2    | dev | DONE     | P1 | @docs/plans/2026-10-08-mvp.md | inst@@docs/plans/2026-10-08-mvp.md#T2 | see-plan
 T3    | des | NEW      | P2 | @docs/plans/2026-10-08-mvp.md | inst@@docs/plans/2026-10-08-mvp.md#T3 | see-plan
+T4    | dev | NEW      | P1 | @docs/plans/2026-10-08-mvp.md | inst@@docs/plans/2026-10-08-mvp.md#T4 | see-plan
