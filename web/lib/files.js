@@ -6,7 +6,8 @@ const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.min.mjs'
 const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.mjs';
 const MAMMOTH = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js';
 const TESSERACT = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
-const MAX_CHARS = 8000;
+import { CONFIG } from '../config.js';
+const MAX_CHARS = CONFIG.limits?.charsPerSource ?? 6000;
 const OCR_MAX_PAGES = 4; // un flyer, une plaquette courte ; au-delà, c'est long dans le navigateur
 
 export const ACCEPT = '.pdf,.docx,.txt,.md,.eml,.csv,.json,.png,.jpg,.jpeg,.webp,text/plain,application/pdf,image/png,image/jpeg,image/webp,application/vnd.openxmlformats-officedocument.wordprocessingml.document';

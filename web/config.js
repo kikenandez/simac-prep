@@ -11,5 +11,14 @@ export const CONFIG = {
 
   // Version des conditions : l'incrémenter force une nouvelle acceptation.
   termsVersion: '2026-10-08',
+
+  // Limites de la version gratuite (clé de l'utilisateur, appels depuis son navigateur).
+  // Dimensionnées pour qu'une réponse IA ne soit jamais coupée. Une version gérée (clés et appels pris en charge)
+  // pourra relever ces plafonds : c'est le seul endroit à changer.
+  limits: {
+    sourcesPerStep: 4,     // documents + pages lues, par étape (offre, client, marché)
+    charsPerSource: 6000,  // caractères conservés par source
+    totalChars: 20000,     // caractères envoyés à l'IA au total pour une analyse
+  },
   contact: 'contact@avapmo.com',
 };

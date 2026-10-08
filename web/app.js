@@ -308,7 +308,7 @@ renderers.offer = () => {
     const jinaKey = loadSettings().jinaKey || '';
     let n = 0;
     for (const u of urls) {
-      try { const src = await readUrl(u, { jinaKey }); O.sources = O.sources.filter((x) => x.source !== src.source); O.sources.push(src); n++; }
+      try { const src = await readUrl(u, { jinaKey }); const fresh = !O.sources.some((x) => x.source === src.source); if (fresh && !roomFor(O.sources)) break; O.sources = O.sources.filter((x) => x.source !== src.source); O.sources.push(src); n++; }
       catch (err) { toast(/linkedin|instagram/i.test(u) ? 'Ce site bloque la lecture automatique : collez le texte du profil dans « Texte collé ».' : friendlyError(err), 6000); }
     }
     persist(); if ($('#offer-src')) $('#offer-src').textContent = `${O.sources.length} source(s)`; renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
@@ -354,9 +354,17 @@ renderers.offer = () => {
   };
 };
 
+/** Version gratuite : au plus N sources par étape ; au-delà, on explique au lieu de couper la réponse IA. */
+function roomFor(list, adding = 1) {
+  const max = CONFIG.limits?.sourcesPerStep ?? 4;
+  if (list.length + adding <= max) return true;
+  toast(`Version gratuite : ${max} sources par étape (vous en avez ${list.length}). Retirez-en une, ou choisissez les plus utiles — c’est ce qui garde les réponses complètes.`, 7000);
+  return false;
+}
 async function addFiles(files, list, done) {
   let n = 0;
   for (const f of files) {
+    if (!list.some((x) => x.source === f.name) && !roomFor(list)) break;
     try { const src = await extractText(f, (msg) => toast(msg, 20000)); const i = list.findIndex((x) => x.source === src.source); if (i >= 0) list[i] = src; else list.push(src); n++; if (src.ocr) toast(`${f.name} : texte reconnu optiquement — relisez-le avant d’analyser.`, 6000); }
     catch (err) { toast(friendlyError(err), 6000); }
   }
@@ -546,6 +554,7 @@ renderers.client = () => {
       try {
         const src = await readUrl(u, { jinaKey });
         if (S !== state || clientFingerprint(S) !== fingerprint) return;
+        if (!S.sources.some((x) => x.source === src.source) && !roomFor(S.sources)) break;
         src.included = false; S.sources = upsertSources(S.sources, [src]);
       } catch (err) { toast(friendlyError(err), 5000); }
     }
@@ -953,6 +962,8 @@ renderers.settings = () => {
         <li><b>Ollama</b> — 100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.</li>
         <li><b>Mode démo</b> — génération IA sans réseau ; les boutons de recherche contactent les sources publiques.</li>
       </ul>
+      <h3>Limites de la version gratuite</h3>
+      <p class="note">${CONFIG.limits.sourcesPerStep} sources par étape, ${CONFIG.limits.charsPerSource.toLocaleString('fr-FR')} caractères conservés par source, ${CONFIG.limits.totalChars.toLocaleString('fr-FR')} caractères envoyés à l’IA par analyse. Dimensionné pour que les réponses soient toujours complètes. Une version gérée (clés et appels pris en charge) pourra étendre ces plafonds.</p>
       <h3>Données sensibles : trois niveaux</h3>
       <ul class="plain">
         <li><b>Tester</b> — clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.</li>
