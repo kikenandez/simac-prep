@@ -1,0 +1,23 @@
+; ADP dispatch — wire v1.1 (auto-synced from docs/tasks/current.md)
+v 1.1
+upd 2026-10-08T10:27Z by=wire-sync
+
+dev
+ take T1 — Validation avec Groq et Gemini sur une fiche offre réelle
+ next T2 (publication GitHub Pages)
+ no   T3 (designer) ; aucune refonte de web/app.js sans tâche
+ cap  end session at ≤30% remaining
+ rem  Gate 0 on every bug. Stage by exact path; git status --short before every commit
+
+des
+ take T3 — Revue design mobile / impression / états vides (après T1)
+ next —
+ cap  end session at ≤30% remaining
+ rem  Préserver les sélecteurs utilisés par tests/e2e.mjs (data-step, data-bind, #ai, 
+
+rev
+
+usr
+ - Créer le repo GitHub public simac-prep et pousser main (déclenche Pages) ; activer Pages →
+ - Obtenir une clé gratuite Groq et une clé Gemini pour T1.
+ - Remplir la fiche Offre avec une offre réelle (export JSON à ranger hors repo).

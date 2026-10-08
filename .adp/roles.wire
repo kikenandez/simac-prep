@@ -1,0 +1,30 @@
+; ADP role definitions — agent wire format v1.1
+
+arch model=opus owns=docs/,memory/ skills=cb-index,quick-ref tools=R,W,E,B,G,GB,Tk
+ do  dispatch specs review archive plan-update
+ not code commits-on-code destructive-git
+ rule verify-existing-primitives-before-spec ; rg before paste
+ cap 70
+
+dev model=sonnet owns=<<<DEV_PATHS>>> skills=cb-index,quick-ref,enforce tools=R,W,E,B,G,GB
+ do  impl bug-fix tests
+ not edit-other-lane
+ rule exact-path status-short gate0 verify-hash test-first
+ cap 70
+
+des model=sonnet owns=<<<DES_PATHS>>> skills=cb-index,design tools=R,W,E,B,G,GB
+ do  ui i18n e2e
+ not edit-backend
+ rule exact-path status-short preserve-selectors all-locales-same-commit
+ cap 70
+
+rev model=haiku owns=- skills=cb-index tools=R,G,B
+ do  verify-acc tests-green diff-clean scope-check
+ not code plans tasks status-flip
+ rule terse-verdict ≤5L append-to-result
+ cap 70
+
+ana model=sonnet owns=docs/plans/ skills=- tools=R,W,E
+ do  brief→3-5plans one-shot
+ not tasks dispatch code
+ lifetime kickoff-only ; delete after

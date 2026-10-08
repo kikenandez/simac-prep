@@ -1,0 +1,5 @@
+{"t":"T1","ts":"2026-06-06T15:00Z","by":"dev","st":"IN_PROG","commits":[]}
+{"t":"T1","ts":"2026-06-06T15:42Z","by":"dev","st":"DONE","commits":["abc1234","def5678"],"tests":"15/15","acc":"ok","note":"fixed cross-phase regression"}
+{"t":"T2","ts":"2026-06-06T15:50Z","by":"des","st":"REVIEW","commits":["ghi9012"],"tests":"85/85","note":"proposal-only-no-code"}
+{"t":"T1","ts":"2026-06-06T16:01Z","by":"rev","st":"PASS","verdict":"acc-met,scope-clean,tests-green"}
+{"t":"T1","ts":"2026-06-06T16:05Z","by":"arch","st":"ARCHIVED","archive":"archive/2026-06-06-t1-bootstrap.md"}
