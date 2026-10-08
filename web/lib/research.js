@@ -186,7 +186,7 @@ export function sanitizeComparison(result, sources) {
 }
 // Grille de positionnement : 3 concurrents au plus, choisis par l'utilisateur (3 proposés par défaut).
 const POSITION_MAX = 3, CRITERIA_MAX = 5, SUGGESTIONS_MAX = 3;
-const MARKS = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=', '?': '?' };
+const MARKS = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=', '?': '?', nous: '+', eux: '-', 'égal': '=', egal: '=', inconnu: '?' };
 const TYPE_ORDER = { direct: 0, indirect: 1, alternative: 2 };
 const UNDOCUMENTED = /^(?:$|-$|n\/a$|non publi|à vérifier|a verifier|inconnu|non document)/i;
 /** Candidats positionnables : nommés et appuyés sur une source incluse ; directs puis indirects, ordre d'origine sinon. */
@@ -210,7 +210,8 @@ export function sanitizePositioning(result, chosen, sources) {
     .map(({ c, cells }) => ({ name: c.name, source_ids: c.source_ids, cells: criteria.map((_, j) => {
       const cell = Array.isArray(cells) ? cells[j] || {} : {};
       const value = String(cell.value || '').trim();
-      const mark = UNDOCUMENTED.test(value) ? '?' : MARKS[String(cell.mark || '').trim()] || '?';
+      // « avantage » (nous / eux / égal / inconnu) : plus fiable que des symboles pour les petits modèles
+      const mark = UNDOCUMENTED.test(value) ? '?' : MARKS[normalize(cell.avantage ?? cell.mark).trim()] || MARKS[String(cell.mark || '').trim()] || '?';
       return { mark, value };
     }) }));
   if (criteria.length < 2 || !columns.length) return null;
