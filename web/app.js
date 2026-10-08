@@ -973,20 +973,86 @@ renderers.settings = () => {
 
 // ----------------------------------------------------------------------------- impression / PDF
 const STEP_TITLES = { offer: 'Offre', client: 'Client', persona: 'Persona SONCAS', simac: 'Déroulé SIMAC', followup: 'Suivi', history: 'Historique', settings: 'Réglages' };
+const STEP_SLUG = { offer: 'offre', client: 'client', persona: 'persona', simac: 'simac', followup: 'suivi', history: 'historique', settings: 'reglages' };
 $('#btn-print').onclick = () => window.print();
+
+// ----------------------------------------------------------------------------- impression / PDF
+// Une vue dédiée, construite depuis l'état (pas depuis le formulaire) : pas de zone de texte, pas de panneau
+// collant ni de recherche brute → nombre de pages prévisible. Nom de fichier proposé par le navigateur = titre.
+const P = {
+  text: (v) => esc(String(v ?? '')).replace(/\n/g, '<br>'),
+  row: (label, v) => (String(v ?? '').trim() ? `<div class="pf"><b>${esc(label)}</b><div>${P.text(v)}</div></div>` : ''),
+  ul: (arr, f = (x) => esc(typeof x === 'string' ? x : x.fact || JSON.stringify(x))) => (Array.isArray(arr) && arr.length ? `<ul>${arr.map((x) => `<li>${f(x)}</li>`).join('')}</ul>` : ''),
+};
+const printViews = {
+  offer() {
+    const M = S.offer?.maturity; const m = S.market?.comparison;
+    return `<h1>Offre — ${esc(S.product.name || '')}</h1>
+      <div class="pgrid">${OFFER_KEY_ORDER.map((k) => P.row(FIELD_LABELS[k] || k, S.product[k])).join('')}</div>
+      ${M ? `<h2>Maturité : ${M.score} / 5 — ${esc(M.label || MATURITY[M.score])} · ${esc(M.verdict || VERDICT[M.score])}</h2><p>${esc(M.summary || '')}</p>
+        <div class="pgrid"><div><b>Points forts</b>${P.ul(M.strengths)}</div><div><b>Ce qui bloque la vente</b>${P.ul(M.gaps, (g) => `<b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} → ${esc(g.fix)}`)}</div></div>
+        ${M.next_step ? `<p><b>À faire avant le prochain rendez-vous :</b> ${esc(M.next_step)}</p>` : ''}` : ''}
+      ${m && (m.summary || m.alternatives) ? `<h2>Concurrents et alternatives (candidats à vérifier)</h2><p>${esc(m.summary || '')}</p>${P.ul(m.alternatives || m.items, (a) => `<b>${esc(a.name || '')}</b> — ${esc(a.positioning || a.summary || '')}`)}` : ''}`;
+  },
+  client() {
+    const b = S.brief; const C = S.client;
+    return `<h1>Client — ${esc(C.company || '')}</h1>
+      <div class="pgrid">${P.row('Entreprise', C.company)}${P.row('Secteur', C.sector)}${P.row('Commune / pays', C.location)}${P.row('Format du rendez-vous', C.meetingFormat)}
+        ${P.row('Interlocuteurs', contacts().map((c, i) => `${contactLabel(c, i)} — ${c.role || ''} (${WEIGHTS[c.weight] || ''})`).join('\n'))}${P.row('Processus de décision', C.decisionProcess)}${P.row('Site web', C.website)}</div>
+      ${b ? `<h2>Fiche client</h2><p><b>Entreprise.</b> ${esc(b.company_summary || '')}</p><p><b>Interlocuteurs.</b> ${esc(b.contact_summary || '')}</p><p><b>Enjeu.</b> ${esc(b.stakes || '')}</p>
+        <div class="pgrid"><div><b>Problèmes possibles à vérifier</b>${P.ul(b.likely_problems)}</div><div><b>Faits (sourcés)</b>${P.ul(b.facts)}</div><div><b>Hypothèses à vérifier</b>${P.ul(b.assumptions)}</div><div><b>Questions de découverte</b>${P.ul(b.questions_to_ask)}</div></div>
+        ${(b.participants || []).map((p) => `<p><b>${esc(p.name)}</b> — ${esc(p.documented_role || '')}. À explorer : ${esc(p.hypothesis || '')}. <i>Question : ${esc(p.question || '')}</i></p>`).join('')}
+        ${b.preparation ? `<h3>${C.preparationMode === 'email' ? 'Email de prise de contact' : 'Ouverture du rendez-vous'}</h3><p>${P.text(b.preparation.opening)}</p>${C.preparationMode === 'email' ? `<p><b>Objet :</b> ${esc(b.preparation.email_subject || '')}</p><p>${P.text(b.preparation.email_body)}</p>` : ''}` : ''}` : '<p class="note">Fiche client non générée.</p>'}`;
+  },
+  persona() {
+    syncPeople();
+    const blocks = S.client.contacts.map((c, i) => { const pp = S.persona.people[i]; const t3 = top3(pp.scores);
+      return `<h2>${esc(contactLabel(c, i))} <small>· ${esc(c.role || '')} · ${WEIGHTS[c.weight] || ''}</small> — top 3 : ${t3.map(label).join(' · ')}</h2>
+        <table class="ptable"><thead><tr><th>Motivation</th><th>Score</th><th>Pourquoi</th><th>Arguments</th></tr></thead><tbody>
+        ${SONCAS.map((d) => `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${d.label}</td><td>${pp.scores[d.code]}</td><td>${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(pp.arguments?.[d.code])}</td></tr>`).join('')}</tbody></table>`; }).join('');
+    return `<h1>Persona SONCAS — ${esc(S.client.company || '')}</h1>${blocks}
+      ${(S.persona.tensions || []).length ? `<h3>Tensions entre interlocuteurs</h3>${P.ul(S.persona.tensions)}` : ''}
+      <div class="pbox"><b>Message principal</b><br>${P.text(S.persona.main_message)}</div>`;
+  },
+  simac() {
+    const M = S.simac || {}; const multi = contacts().length > 1;
+    return `<h1>Déroulé SIMAC — ${esc(S.client.company || '')} / ${esc(contacts().map((c, i) => contactLabel(c, i)).join(', '))}</h1>
+      <p><b>Objectif :</b> ${esc(S.objective.primary || '')} <b>· Repli :</b> ${esc(S.objective.fallback || '')}</p>
+      <div class="pbox"><b>Message principal</b><br>${P.text(S.persona.main_message)}</div>
+      ${P.row('Ouverture (20 premières secondes)', M.opening)}${P.row('Situation', M.situation)}${P.row('Idée', M.idea)}
+      ${P.row('Mécanisme — prix en dernier', (M.mechanism || []).map((x, i) => `${i + 1}. ${x}`).join('\n'))}
+      ${P.row('Avantages — chacun reformule un besoin', (M.advantages || []).map((x) => `– ${x}`).join('\n'))}
+      ${P.row('Conclusion — question, deux options, étape suivante', M.conclusion)}
+      ${(M.objections || []).length ? `<h2>Objections probables</h2><table class="ptable"><thead><tr>${multi ? '<th>Qui</th>' : ''}<th>Objection</th><th>Accueillir → creuser → répondre → relancer</th></tr></thead><tbody>${M.objections.map((o) => `<tr>${multi ? `<td>${esc(o.who || '')}</td>` : ''}<td>${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${(M.mistakes_watch || []).length ? `<h3>Erreurs à surveiller</h3>${P.ul(M.mistakes_watch)}` : ''}
+      <p class="note">Avant d’entrer : plancher connu · leviers sans remise listés · on ne repart jamais sans une date et le nom du décideur.</p>`;
+  },
+  followup() {
+    const D = S.debrief; const F = S.followup;
+    return `<h1>Suivi — ${esc(S.client.company || '')}</h1>
+      <div class="pgrid">${P.row('Résultat', D.outcome)}${P.row('Décideur', D.decisionMaker)}${P.row('Action convenue', D.nextAction)}${P.row('Responsable', D.nextOwner === 'me' ? 'Moi' : 'Le client')}${P.row('Échéance', D.nextDue)}${P.row('Livrable attendu', D.nextOutput)}${P.row('Objections entendues', D.objectionsHeard)}${P.row('Notes', D.notes)}</div>
+      ${F ? `<h2>Mail de suivi</h2><p><b>Objet :</b> ${esc(F.email_subject || '')}</p><div class="pbox">${P.text(F.email_body)}</div>${(F.lessons || []).length ? `<h3>Leçons pour la prochaine fois</h3>${P.ul(F.lessons)}` : ''}` : ''}`;
+  },
+  history() {
+    const all = listMeetings();
+    return `<h1>Historique — ${all.length} rendez-vous</h1><table class="ptable"><thead><tr><th>Date</th><th>Entreprise / contact</th><th>Offre</th><th>Top SONCAS</th><th>Résultat</th><th>Suite</th></tr></thead><tbody>
+      ${all.map((m) => `<tr><td>${esc(m.date)}</td><td>${esc(m.company)}<br><small>${esc(m.contact_name)}</small></td><td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td><td>${esc(m.next_action)} ${esc(m.next_due)}</td></tr>`).join('')}</tbody></table>`;
+  },
+};
+let savedTitle = document.title, printing = false;
 window.addEventListener('beforeprint', () => {
+  const step = printViews[S.step] ? S.step : 'offer';
+  if (!printing) { savedTitle = document.title; printing = true; } // l'événement peut être émis deux fois
+  document.title = `${S.date}_simac_prep_${STEP_SLUG[step]}`; // nom de fichier proposé par « Enregistrer en PDF »
+  $('#print-view')?.remove();
   const who = [S.client.company, contacts().map((c, i) => contactLabel(c, i)).join(', ')].filter(Boolean).join(' — ');
-  $('#print-head')?.remove();
-  const head = document.createElement('div'); head.id = 'print-head'; head.className = 'print-head';
-  head.innerHTML = `<b>SIMAC Prep · ${esc(STEP_TITLES[S.step] || '')}</b> · ${esc(S.product.name || '')}${who ? ' · ' + esc(who) : ''} · ${esc(S.date)}`;
-  $('#main').prepend(head);
-  // hauteur = contenu, bornée : un scrollHeight aberrant (élément masqué, police non chargée) ne doit pas produire des pages vides
-  $$('textarea').forEach((t) => { t.dataset.h = t.style.height; t.style.height = 'auto'; const h = t.scrollHeight; t.style.height = (h > 0 && h < 1400 ? h + 2 : 72) + 'px'; });
+  const v = document.createElement('div'); v.id = 'print-view';
+  v.innerHTML = `<div class="print-head"><b>SIMAC Prep · ${esc(STEP_TITLES[step])}</b> · ${esc(S.product.name || '')}${who ? ' · ' + esc(who) : ''} · ${esc(S.date)}</div>
+    ${printViews[step]()}
+    <div class="print-foot">Créé par Guillermo Blanco · adp.avapmo.com · utilisation gratuite — outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.</div>`;
+  document.body.appendChild(v);
 });
-window.addEventListener('afterprint', () => {
-  $('#print-head')?.remove();
-  $$('textarea').forEach((t) => { t.style.height = t.dataset.h || ''; });
-});
+window.addEventListener('afterprint', () => { $('#print-view')?.remove(); document.title = savedTitle; printing = false; });
 
 // ----------------------------------------------------------------------------- accueil + conditions
 function showGate(readOnly = false) {

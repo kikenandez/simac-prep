@@ -119,29 +119,22 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .print-head { display: none; }
 @media print {
   @page { margin: 14mm; }
-  html, body { background: #fff; color: #000; font-size: 12px; }
-  .topbar, .steps, .actions, .toast, button, .chat-input, .note:empty, label.btn, datalist { display: none !important; }
-  .layout { display: block; }
-  .panel { max-width: none; padding: 0; }
-  .print-head { display: block; font-size: 11px; color: #555; border-bottom: 1px solid #999; padding-bottom: 6px; margin-bottom: 12px; }
-  h1 { font-size: 18px; } h2 { font-size: 14px; } p.lead { display: none; }
-  .card { break-inside: avoid; border: 1px solid #bbb; background: #fff; padding: 10px 12px; }
-  .grid { gap: 6px 14px; }
-  input, textarea, select { border: 0; border-bottom: 1px solid #ccc; border-radius: 0; padding: 2px 0; background: transparent; color: #000; resize: none; overflow: hidden; }
-  input::placeholder, textarea::placeholder { color: transparent; }
-  .soncas .dim { break-inside: avoid; border-color: #bbb; }
-  .score button { display: inline-block !important; border-color: #999; color: #000; }
-  .score button.on { background: #000; color: #fff; }
-  .simac-block { break-inside: avoid; }
-  a { color: #000; text-decoration: none; }
-  .footer { display: block !important; border-top: 1px solid #999; margin-top: 16px; font-size: 10px; color: #555; }
-  /* n'imprimer que la fiche : pas de dialogue, pas de sources brutes, pas de panneaux de recherche, pas d'accueil */
-  .gate, .toast, .chat-log, .chat-input, #offer-chat-card, #client-chat, #market-research, #client-research, .source-text, details, .gaps, #sources, #offer-sources, .radar-legend { display: none !important; }
-  .layout { min-height: 0; }
-  .topbar, .radar-card, .steps { position: static !important; }
-  textarea { max-height: 90vh; }
-  * { overflow: visible !important; }
-  .card, .simac-block, .soncas .dim { break-inside: auto; }
+  html, body { background: #fff; color: #000; font-size: 11.5px; height: auto; }
+  /* on n'imprime que la vue dédiée, construite depuis l'état au moment de l'impression */
+  body > *:not(#print-view) { display: none !important; }
+  #print-view { display: block; }
+  #print-view h1 { font-size: 18px; margin: 0 0 8px; } #print-view h2 { font-size: 14px; margin: 14px 0 6px; } #print-view h3 { font-size: 12.5px; margin: 10px 0 4px; }
+  #print-view h2 small { font-weight: 400; color: #555; }
+  #print-view .print-head { font-size: 10.5px; color: #555; border-bottom: 1px solid #999; padding-bottom: 6px; margin-bottom: 12px; }
+  #print-view .print-foot { font-size: 9.5px; color: #555; border-top: 1px solid #999; padding-top: 6px; margin-top: 16px; }
+  #print-view .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
+  #print-view .pf { break-inside: avoid; margin: 0 0 6px; } #print-view .pf b { display: block; font-size: 10.5px; color: #444; text-transform: uppercase; letter-spacing: .02em; }
+  #print-view .pbox { border: 1px solid #999; padding: 8px 10px; margin: 8px 0; }
+  #print-view ul { margin: 2px 0 6px; padding-left: 18px; } #print-view li { margin: 1px 0; }
+  #print-view .ptable { width: 100%; border-collapse: collapse; margin: 6px 0; } #print-view .ptable th, #print-view .ptable td { border: 1px solid #bbb; padding: 4px 6px; vertical-align: top; text-align: left; }
+  #print-view .ptable tr.top td { background: #eee; }
+  #print-view .note { color: #555; font-size: 10.5px; }
+}
 }
 
 .footer { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 14px 28px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; background: var(--panel); }
