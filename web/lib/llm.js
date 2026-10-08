@@ -31,6 +31,14 @@ export const PROVIDERS = {
     keyUrl: 'https://openrouter.ai/keys',
     needsKey: true,
   },
+  anthropic: {
+    label: 'Claude — Anthropic (payant, données non utilisées pour l’entraînement)',
+    baseUrl: 'https://api.anthropic.com/v1',
+    model: 'claude-haiku-5-5',
+    keyUrl: 'https://console.anthropic.com/settings/keys',
+    needsKey: true,
+    native: 'anthropic', // API Messages native : pas de /chat/completions
+  },
   ollama: {
     label: 'Ollama (local, no key)',
     baseUrl: 'http://localhost:11434/v1',
@@ -63,8 +71,8 @@ export function saveSettings(s) {
 export async function listModels(settings = loadSettings()) {
   const cfg = resolve(settings);
   if (cfg.provider === 'mock') return ['mock'];
-  const headers = {};
-  if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
+  const headers = cfg.native === 'anthropic' ? anthropicHeaders(cfg) : {};
+  if (cfg.apiKey && cfg.native !== 'anthropic') headers.Authorization = `Bearer ${cfg.apiKey}`;
   const res = await fetch(`${cfg.baseUrl}/models`, { headers });
   if (!res.ok) throw new Error(`LLM_HTTP_${res.status}`);
   const data = await res.json();
@@ -81,7 +89,33 @@ export function resolve(settings = loadSettings()) {
     model: settings.model || p.model,
     apiKey: settings.apiKey || '',
     needsKey: p.needsKey,
+    native: p.native || '',
   };
+}
+
+function anthropicHeaders(cfg) {
+  return {
+    'Content-Type': 'application/json',
+    'x-api-key': cfg.apiKey,
+    'anthropic-version': '2023-06-01',
+    // Appel direct depuis le navigateur, assumé : la clé est celle de l'utilisateur, dans SON navigateur (BYOK).
+    'anthropic-dangerous-direct-browser-access': 'true',
+  };
+}
+
+/** API Messages d'Anthropic : system à part, réponse dans content[].text. */
+async function anthropicChat(cfg, messages, opts) {
+  const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
+  const rest = messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }));
+  const body = { model: cfg.model, max_tokens: 4096, temperature: opts.temperature ?? 0.4, messages: rest };
+  if (system) body.system = system;
+  const res = await fetch(`${cfg.baseUrl}/messages`, { method: 'POST', headers: anthropicHeaders(cfg), body: JSON.stringify(body), signal: opts.signal });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`LLM_HTTP_${res.status}: ${txt.slice(0, 300)}`);
+  }
+  const data = await res.json();
+  return (data?.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
 }
 
 /**
@@ -92,6 +126,7 @@ export async function chat(messages, opts = {}) {
   const cfg = resolve(opts.settings);
   if (cfg.provider === 'mock') return mockChat(messages, opts);
   if (cfg.needsKey && !cfg.apiKey) throw new Error('NO_API_KEY');
+  if (cfg.native === 'anthropic') return anthropicChat(cfg, messages, opts);
 
   const body = {
     model: cfg.model,
