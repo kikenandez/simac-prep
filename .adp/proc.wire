@@ -1,0 +1,62 @@
+; ADP process rules — agent wire format v1.1
+; Comments ; — Fields KEY=val or KEY val
+; Reference syntax: @path  @path#anchor  @path:Ln-Lm
+
+v 1.1
+
+flow PLAN→PROGRESS→TEST→DOC→COMMIT
+states NEW IN_PROG REVIEW DONE BLOCKED CANCEL DEFER
+prio P0 P1 P2 P3
+
+commit
+ stage exact-path
+ ban  -A . -a
+ pre  git-status-short  ; verify staged
+ post branch-contains   ; verify hash not orphan
+ reset no-hard-without-stash
+ hook fix=new-commit not=amend
+
+bug
+ gate0 git-pull restart-local-stack
+ gates per-bug numbered
+ close not-a-bug if gate0-fixes
+
+session
+ cap 70% util
+ reread @dispatch.wire on=task-end
+ endrit hashes done-ids stop ; no chat handoff
+
+archive
+ full  @../docs/tasks/archive/YYYY-MM-DD-tN-slug.md
+ stub  5-8L in @../docs/tasks/current.md
+ limit 800L active
+ lookup index-row→grep→chunk→full ; default-deny full read
+
+dispatch
+ own arch
+ update on=state-change
+ read on=startup on=task-end
+ size 3-5 tasks-per-role
+
+lanes
+ arch @../docs/{plans,prompts,tasks}/ @../memory/
+ dev  see roles.wire
+ des  see roles.wire
+ rev  result-block-only
+
+skills
+ levels 1=frontmatter 2=skill-md-≤5k 3=refs+scripts-on-demand
+ trigger DO-list + NOT-list + keyword-examples
+ inherit subagent ≠ parent  ; must declare
+
+model
+ arch opus    own architecture-design
+ dev  sonnet  own implementation
+ des  sonnet  own ui
+ rev  haiku   own verify-only
+ default subagent inherits ; pin explicit or pay opus rates
+
+handoff
+ medium files-on-disk ; never chat
+ atom one-task-per-commit
+ msg-format conventional ; <type>: <desc> (T{N})

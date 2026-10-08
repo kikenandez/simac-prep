@@ -1,0 +1,23 @@
+.DS_Store
+node_modules/
+test-results/
+*.log
+.env
+
+# --- added by Agentic Development Protocol ---
+Thumbs.db
+~$*
+*.swp
+*.swo
+.idea/
+.vscode/
+.env.*
+!.env.example
+.envrc
+*.pem
+*.key
+.claude/cache/
+.cursor/cache/
+*.adp-bak
+*.adp-hooks
+settings.json.pre-uninstall-*

@@ -1,0 +1,49 @@
+; ADP wire-format — agent-only files
+; v1.1 — minimize tokens for session→session communication
+
+purpose
+ minimize tokens
+ no human in loop
+ prose stays in @../docs/  ; for human/onboarding/debug
+ wire is for active work between sessions
+
+files
+ proc.wire     process rules ; ~280 tok (vs ~5300 markdown)
+ roles.wire    role defs     ; ~250 tok (vs ~4300 markdown)
+ dispatch.wire who-does-what ; ~150 tok (vs ~770 markdown)
+ tasks.wire    task index    ; ~30 tok/task (vs ~500 markdown/task)
+ results.jsonl append-log    ; ~40 tok/event
+ status        one-liner state per role
+
+syntax
+ ; comment
+ KEY value           single field
+ KEY=value           inline
+ SECTION
+  field val           indented child
+ @path               file-ref (cwd=.adp/)
+ @path#anchor        sub-ref
+ @path:Ln-Lm         line-range
+ →                   flow (arrow)
+ ≤≥                  bounds
+ lists space-sep     ; "P0 P1 P2 P3"
+
+read-order on session start
+ 1 @proc.wire        ; 280 tok
+ 2 @roles.wire       ; 250 tok — pick your row
+ 3 @dispatch.wire    ; 150 tok — what to do now
+ 4 @tasks.wire       ; grep your role's tasks ; 30 tok/match
+ 5 @plans/...        ; only for tasks you take
+ total ~700-900 tok startup vs ~7700 prose ; ~9x compression
+
+write rules
+ arch writes dispatch.wire tasks.wire (status fields only)
+ anyone appends results.jsonl
+ status one-liner self-updated by each role on take/complete
+ prose docs/ stay canonical for humans ; wire derived
+ reconcile arch runs ./scripts/wire-sync.sh end-of-session
+
+trust
+ wire is truth for "right now"
+ prose is truth for "how to think about it"
+ conflict → arch resolves ; updates wire from prose

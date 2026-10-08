@@ -1,0 +1,14 @@
+{
+  "name": "simac-prep",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Préparation de rendez-vous commerciaux (SIMAC / SONCAS) pour TPE-PME — statique, gratuit, IA au choix",
+  "type": "module",
+  "scripts": {
+    "serve": "python3 -m http.server 8765 --directory web",
+    "test": "node tests/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.47.0"
+  }
+}
