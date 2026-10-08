@@ -52,6 +52,9 @@ try {
   await page.click('#market-search');
   await page.waitForSelector('#market-sources .evidence');
   assert.equal(await page.isChecked('#market-sources input[type=checkbox]'), false);
+  // recherche proposée courte ; chaque candidat affiche ses critères de correspondance
+  assert.ok(queries[0].length <= 140 && !/Dirigeants/.test(queries[0]), queries[0]);
+  assert.match(await page.textContent('#market-sources .match'), /Correspondance \d+ \/ \d+.*✓ page de prestataire/s);
   await page.check('#market-sources input[type=checkbox]');
   await page.click('#market-compare');
   await page.waitForSelector('[data-candidate="0"]');

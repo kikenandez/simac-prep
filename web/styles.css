@@ -208,6 +208,9 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .evidence { overflow-wrap: anywhere; }
 .evidence .check { display: flex; gap: 8px; align-items: center; }
 .evidence input[type="checkbox"] { width: auto; flex: none; }
+.evidence .match { display: flex; flex-wrap: wrap; gap: 4px 10px; margin: 6px 0; font-size: 13px; }
+.evidence .match .ok { color: var(--accent); }
+.evidence .match .ko { color: var(--muted); }
 .source-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-height: 300px; overflow: auto; }
 #market-research, #client-research { min-width: 0; }
 #market-comparison textarea { min-height: 60px; }
