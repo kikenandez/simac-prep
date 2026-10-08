@@ -304,3 +304,16 @@ Propose au plus 6 candidats pertinents : directs, indirects, alternatives. Un ca
 JSON : {"summary":"périmètre, limites et informations manquantes", "candidates":[{"name":"nom de la solution","type":"direct|indirect|alternative","target":"cible","offer":"offre attribuée au prestataire","price":"prix public ou Non publié","difference":"différence étayée ou À vérifier","question":"question de comparaison pour le rendez-vous","source_ids":["ID EXACT de source fournie"]}]}` },
   ];
 }
+
+// Grille de positionnement : notre offre face aux 3 concurrents choisis, critère par critère, + 3 pistes au plus.
+export function positioningMessages({ lang, product, competitors, sources }) {
+  return [
+    { role: 'system', content: sys('positioning', lang, `Situe NOTRE offre face à chaque concurrent choisi, critère par critère. Utilise seulement notre fiche et les sources fournies ; une valeur concurrente absente des sources vaut "Non publié" et la marque "?". Une page muette ne prouve pas une absence. Les déclarations d'un prestataire lui sont attribuées, pas certifiées. Marque du point de vue du CLIENT : "+" notre offre est plus favorable, "-" le concurrent est plus favorable, "=" équivalent, "?" non documenté.`) },
+    { role: 'user', content: `NOTRE OFFRE : ${JSON.stringify(product)}
+CONCURRENTS CHOISIS (dans cet ordre) : ${JSON.stringify(competitors.map(c => ({ name: c.name, type: c.type, offer: c.offer, price: c.price, difference: c.difference, source_ids: c.source_ids })))}
+SOURCES :
+${mergeSources(sources)}
+Choisis 3 à 5 critères qui comptent pour le client ET documentés pour au moins un concurrent (ex. prix et unité, format, engagement, zone, preuves). Pour chaque concurrent, dans l'ordre donné, une cellule par critère, dans l'ordre des critères (valeur courte, ≤ 10 mots). Puis au plus 3 pistes concrètes pour mieux positionner notre offre, chacune appuyée sur un écart de la grille ; aucune piste n'invente un chiffre ni une preuve.
+JSON : {"criteria":[{"label":"critère","us":"notre valeur, ≤ 10 mots"}],"competitors":[{"cells":[{"mark":"+|-|=|?","value":"valeur du concurrent ou Non publié"}]}],"suggestions":["piste 1"]}` },
+  ];
+}

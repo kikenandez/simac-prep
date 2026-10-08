@@ -184,6 +184,39 @@ export function sanitizeComparison(result, sources) {
     source_ids: (Array.isArray(c.source_ids) ? c.source_ids : []).filter(id => ids.has(id)),
   })).filter(c => c.source_ids.length || c.type === 'alternative') };
 }
+// Grille de positionnement : 3 concurrents au plus, choisis par l'utilisateur (3 proposés par défaut).
+const POSITION_MAX = 3, CRITERIA_MAX = 5, SUGGESTIONS_MAX = 3;
+const MARKS = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=', '?': '?' };
+const TYPE_ORDER = { direct: 0, indirect: 1, alternative: 2 };
+const UNDOCUMENTED = /^(?:$|-$|n\/a$|non publi|à vérifier|a verifier|inconnu|non document)/i;
+/** Candidats positionnables : nommés et appuyés sur une source incluse ; directs puis indirects, ordre d'origine sinon. */
+export function positionable(candidates, sources) {
+  const ids = new Set(activeSources(sources).map(sourceId));
+  return (candidates || []).filter(c => c?.name && (c.source_ids || []).some(id => ids.has(id)))
+    .map((c, i) => ({ c, i })).sort((a, b) => (TYPE_ORDER[a.c.type] ?? 2) - (TYPE_ORDER[b.c.type] ?? 2) || a.i - b.i).map(x => x.c);
+}
+/** Choix de l'utilisateur ramené aux candidats positionnables, dans son ordre, 3 au plus. */
+export function positioningChoice(chosen, sources) {
+  const ok = new Set(positionable(chosen, sources));
+  return (chosen || []).filter(c => ok.has(c)).slice(0, POSITION_MAX);
+}
+/** Grille contrôlée dans l'application : critères bornés, une marque +/−/= exige une valeur concurrente documentée, sinon « ? ». */
+export function sanitizePositioning(result, chosen, sources) {
+  const criteria = (Array.isArray(result?.criteria) ? result.criteria : []).filter(c => c && String(c.label || '').trim())
+    .slice(0, CRITERIA_MAX).map(c => ({ label: String(c.label).trim(), us: String(c.us || '').trim() }));
+  const answers = Array.isArray(result?.competitors) ? result.competitors : [];
+  // réponses alignées sur la liste réellement envoyée à l'IA (choix positionnables, 3 au plus)
+  const columns = positioningChoice(chosen, sources).map((c, i) => ({ c, cells: answers[i]?.cells }))
+    .map(({ c, cells }) => ({ name: c.name, source_ids: c.source_ids, cells: criteria.map((_, j) => {
+      const cell = Array.isArray(cells) ? cells[j] || {} : {};
+      const value = String(cell.value || '').trim();
+      const mark = UNDOCUMENTED.test(value) ? '?' : MARKS[String(cell.mark || '').trim()] || '?';
+      return { mark, value };
+    }) }));
+  if (criteria.length < 2 || !columns.length) return null;
+  const suggestions = (Array.isArray(result.suggestions) ? result.suggestions : []).map(x => String(x || '').trim()).filter(Boolean).slice(0, SUGGESTIONS_MAX);
+  return { criteria, columns, suggestions };
+}
 function clean(t) { return String(t).replace(/\r/g, '').replace(/[ \t]+\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim(); }
 
 // La liaison des citations est contrôlée dans l'application, pas laissée au modèle.

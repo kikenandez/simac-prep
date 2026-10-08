@@ -38,6 +38,7 @@ await page.route('**/*', async route => {
     const id = /— ID: ([^\n]+)/.exec(text)?.[1];
     let result;
     if (task === 'competition') result = { summary: 'Comparaison fondée sur les sources sélectionnées.', candidates: [{ name: 'Prestataire Exemple', type: 'direct', target: 'TPE', offer: 'Formation collective', price: 'Non publié', difference: 'À vérifier : individuel ou collectif', question: 'Quel format vous conviendrait ?', source_ids: [id] }] };
+    else if (task === 'positioning') result = { criteria: [{ label: 'Prix', us: '900 € HT' }, { label: 'Format', us: 'Individuel' }, { label: 'Zone', us: 'Lyon' }], competitors: [{ cells: [{ mark: '+', value: 'Non publié' }, { mark: '-', value: 'Collectif' }, { mark: '=', value: 'Lyon' }] }], suggestions: ['Publier le prix', 'Mettre en avant l’individuel', 'Citer un client lyonnais', 'Quatrième de trop'] };
     else if (task === 'client_brief') result = { company_summary: 'Atelier Test, établissement sélectionné à Lyon.', contact_summary: 'Alice Martin, interlocutrice déclarée.', likely_problems: ['Coordination à explorer'], stakes: 'Comprendre le besoin', facts: [{ fact: 'Identité officielle sélectionnée', source_ids: [id], date: '2026' }, { fact: 'Affirmation sans preuve', source_ids: ['invented-id'] }], assumptions: [], participants: [{ name: 'Alice Martin', documented_role: 'Direction', identity_check: 'Entreprise et rôle à confirmer', hypothesis: 'Organisation du nouveau site', question: 'Comment coordonnez-vous les sites ?', source_ids: ['client'] }], signals: [], competitive_context: ['Comparer au format collectif'], preparation: { opening: 'Quels sont vos objectifs ?', email_subject: 'Un échange sur votre organisation', email_body: 'Bonjour Alice,\nQuel serait le bon moment pour échanger sur votre organisation ?' }, questions_to_ask: ['Quelle est votre priorité ?'] };
     else throw new Error(`Unexpected LLM task ${task}`);
     return respond({ choices: [{ message: { content: JSON.stringify(result) } }] });
@@ -59,6 +60,13 @@ try {
   await page.click('#market-compare');
   await page.waitForSelector('[data-candidate="0"]');
   assert.equal(await page.inputValue('[data-field="price"]'), 'Non publié');
+  // grille de positionnement : le concurrent sourcé est proposé par défaut, « Non publié » ne vaut jamais un +
+  assert.equal(await page.isChecked('[data-pick="0"]'), true);
+  await page.click('#market-position'); await page.waitForSelector('.grid-pos');
+  const grid = await page.$$eval('.grid-pos tbody tr', rows => rows.map(r => [...r.querySelectorAll('th,td')].map(c => c.className + ':' + c.textContent.trim()).join('|')));
+  assert.deepEqual(grid, [':Prix|us:900 € HT|mark-unk:? Non publié', ':Format|us:Individuel|mark-minus:− Collectif', ':Zone|us:Lyon|mark-eq:= Lyon']);
+  assert.equal(await page.$$eval('.positioning ol li', li => li.length), 3);
+  assert.match(prompts.at(-1)[1].content, /CONCURRENTS CHOISIS[^\n]*Prestataire Exemple/);
   await page.fill('[data-field="question"]', 'Préférez-vous un accompagnement individuel ?');
   assert.equal(await page.inputValue('[data-bind="product.oneLiner"]'), 'Accompagnement de prospection pour TPE');
   assert.match(prompts[0][0].content, /DONNÉES NON FIABLES/);

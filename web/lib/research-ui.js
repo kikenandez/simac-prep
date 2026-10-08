@@ -1,5 +1,5 @@
-import { activeSources, clientQueries, competitorQuery, companySource, fetchNotices, readUrl, safeUrl, rankSources, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
-import { competitionMessages } from './prompts.js';
+import { activeSources, clientQueries, competitorQuery, companySource, fetchNotices, readUrl, safeUrl, positionable, positioningChoice, rankSources, sanitizeComparison, sanitizePositioning, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
+import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const link = (url, label) => safeUrl(url) ? `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${esc(label || url)}</a>` : esc(label || url);
@@ -80,11 +80,45 @@ export function mountMarket(el, getState, { save, invalidate, busy, toast }) {
   const comparison = m.comparison;
   if (!comparison) return;
   const out = el.querySelector('#market-comparison');
+  const sourced = new Set(positionable(comparison.candidates, m.sources));
+  // 3 concurrents proposés par défaut (sourcés, directs d'abord) ; l'utilisateur peut changer, 3 au plus
+  if (!Array.isArray(comparison.pick)) comparison.pick = positionable(comparison.candidates, m.sources).slice(0, 3).map(c => comparison.candidates.indexOf(c));
+  const pick = comparison.pick;
   out.innerHTML = `<h3>Comparaison à relire et corriger</h3><p>${esc(comparison.summary)}</p>` + comparison.candidates.map((c, i) => `<div class="card soft"><b>${esc(c.name)}</b> <small>${esc(c.type)}${!c.source_ids.length ? ' — hypothèse à vérifier' : ''}</small>
+    ${sourced.has(c) ? `<label class="check"><input type="checkbox" data-pick="${i}" ${pick.includes(i) ? 'checked' : pick.length >= 3 ? 'disabled' : ''}> Positionner mon offre face à ce concurrent</label>` : ''}
     ${[['target', 'Cible'], ['offer', 'Offre / solution'], ['price', 'Prix publié et conditions'], ['difference', 'Différence étayée avec mon offre'], ['question', 'Question à poser au client']].map(([key, label]) => `<label>${label}<textarea data-candidate="${i}" data-field="${key}">${esc(c[key])}</textarea></label>`).join('')}
-    <p class="note">${citations(c.source_ids, m.sources)}</p><button class="btn ghost small" data-remove-candidate="${i}">Retirer ce candidat</button></div>`).join('');
+    <p class="note">${citations(c.source_ids, m.sources)}</p><button class="btn ghost small" data-remove-candidate="${i}">Retirer ce candidat</button></div>`).join('')
+    + (sourced.size ? `<div class="actions"><button class="btn" id="market-position" ${pick.length ? '' : 'disabled'}>Positionner mon offre (${pick.length} / 3)</button></div>` : '')
+    + (comparison.positioning ? positioningGrid(comparison.positioning, m.sources) : '');
   out.querySelectorAll('[data-candidate]').forEach(input => input.oninput = () => { comparison.candidates[+input.dataset.candidate][input.dataset.field] = input.value; invalidate(); save(); });
-  out.querySelectorAll('[data-remove-candidate]').forEach(button => button.onclick = () => { comparison.candidates.splice(+button.dataset.removeCandidate, 1); invalidate(); save(); redraw(); });
+  out.querySelectorAll('[data-remove-candidate]').forEach(button => button.onclick = () => { comparison.candidates.splice(+button.dataset.removeCandidate, 1); comparison.pick = null; comparison.positioning = null; invalidate(); save(); redraw(); });
+  out.querySelectorAll('[data-pick]').forEach(input => input.onchange = () => {
+    const i = +input.dataset.pick;
+    comparison.pick = input.checked ? [...pick, i].slice(0, 3) : pick.filter(x => x !== i);
+    comparison.positioning = null; save(); redraw();
+  });
+  out.querySelector('#market-position')?.addEventListener('click', e => busy(e.currentTarget, async () => {
+    const chosen = positioningChoice(pick.map(i => comparison.candidates[i]), m.sources);
+    if (!chosen.length) return toast('Cochez au moins un concurrent appuyé sur une source.');
+    const fingerprint = JSON.stringify([marketFingerprint(state), m.sources, pick]);
+    const result = await chatJSON(positioningMessages({ lang: 'fr', product: state.product, competitors: chosen, sources: m.sources }));
+    if (!current() || m.comparison !== comparison || JSON.stringify([marketFingerprint(state), m.sources, comparison.pick]) !== fingerprint) return;
+    comparison.positioning = sanitizePositioning(result, chosen, m.sources);
+    if (!comparison.positioning) toast('Pas assez d’éléments documentés pour une grille : ajoutez ou cochez des sources plus détaillées.');
+    save(); redraw(); el.querySelector('.positioning')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }));
+}
+
+const MARK_LABEL = { '+': ['plus', '+', 'notre offre plus favorable'], '-': ['minus', '−', 'concurrent plus favorable'], '=': ['eq', '=', 'équivalent'], '?': ['unk', '?', 'non documenté'] };
+/** Grille « où se situe mon offre » : critères en lignes, notre offre puis les concurrents choisis en colonnes. */
+function positioningGrid(p, sources) {
+  const cell = ({ mark, value }) => { const [cls, sym, title] = MARK_LABEL[mark] || MARK_LABEL['?']; return `<td class="mark-${cls}" title="${title}"><b>${sym}</b> ${esc(value || 'Non publié')}</td>`; };
+  return `<div class="positioning"><h3>Où se situe mon offre</h3>
+    <p class="note">Du point de vue du client. <span class="mark-plus">+ notre offre plus favorable</span> · <span class="mark-minus">− concurrent plus favorable</span> · <span class="mark-eq">= équivalent</span> · <span class="mark-unk">? non documenté</span>. Grille à relire : elle ne vaut que par ses sources.</p>
+    <div class="table-scroll"><table class="grid-pos"><thead><tr><th>Critère</th><th>Notre offre</th>${p.columns.map(c => `<th>${esc(c.name)}</th>`).join('')}</tr></thead>
+    <tbody>${p.criteria.map((k, j) => `<tr><th>${esc(k.label)}</th><td class="us">${esc(k.us)}</td>${p.columns.map(c => cell(c.cells[j])).join('')}</tr>`).join('')}</tbody></table></div>
+    <p class="note">Sources : ${p.columns.map(c => `${esc(c.name)} — ${citations(c.source_ids, sources)}`).join(' · ')}</p>
+    ${p.suggestions.length ? `<h3>Pistes pour mieux se positionner</h3><ol>${p.suggestions.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>`;
 }
 
 export function mountClientResearch(el, getState, { save, invalidate, busy, toast, sourcesChanged }) {
