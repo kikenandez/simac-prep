@@ -196,6 +196,7 @@ renderers.offer = () => {
     </div>
 
     <h2>Fiche produit</h2>
+    <div id="offer-gaps" class="gaps"></div>
     <div class="grid">
       ${field('product.name', 'Produit / service')}
       ${field('product.oneLiner', 'En une phrase, sans jargon', { placeholder: 'Ex. : un accompagnement de 3 mois pour structurer la prospection' })}
@@ -232,6 +233,7 @@ renderers.offer = () => {
       <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
   bindInputs($('#main'), O, 'offer');
+  renderGaps({ el: $('#offer-gaps'), obj: S.product, keys: OFFER_KEY_ORDER, labels: FIELD_LABELS, chatCard: '#offer-chat', prefix: 'product' });
   renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: () => { O.maturity = null; S.market.comparison = null; invalidatePreparation(); } });
   renderMaturity();
   mountMarket($('#market-research'), () => S, { save: persist, invalidate: invalidatePreparation, busy, toast });
@@ -307,6 +309,29 @@ function renderSourceList(el, list, onChange) {
 }
 
 /** Dialogue guidé générique : l'IA pose une question par champ vide ; la réponse remplit le champ. */
+// Ordre d'importance pour vendre (le même que les questions guidées) ; les 7 premiers sont « essentiels ».
+const OFFER_KEY_ORDER = ['oneLiner', 'targets', 'problem', 'nextStep', 'mechanism', 'advantages', 'proofs', 'price', 'objections', 'name', 'who', 'floor', 'delays', 'constraints'];
+const OFFER_ESSENTIAL = 9;
+/** Indicateur de complétude : X / N remplis, ce qui manque, et un raccourci vers les questions. Se met à jour à la saisie. */
+function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
+  if (!el) return;
+  const isFilled = filled || ((k) => !!String(obj[k] || '').trim());
+  const draw = () => {
+    const missing = keys.filter((k) => !isFilled(k));
+    const essential = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL).filter((k) => !isFilled(k)) : missing;
+    const n = keys.length - missing.length;
+    el.className = 'gaps ' + (essential.length ? 'warn' : 'ok');
+    el.innerHTML = essential.length
+      ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}</span>`).join(' ')}
+         <button class="btn small gaps-go">Compléter par questions ↓</button>`
+      : `<b>${n} / ${keys.length} champs remplis.</b> L’essentiel y est${missing.length ? ` — reste facultatif : ${missing.map((k) => labels[k] || k).join(', ')}` : ''}.`;
+    $$('[data-bind]', $('#main')).forEach((inp) => { const k = inp.dataset.bind.split('.')[1]; if (inp.dataset.bind.startsWith(prefix + '.') && keys.includes(k)) inp.classList.toggle('empty', !isFilled(k)); });
+    $('.gaps-go', el)?.addEventListener('click', () => { const card = $(chatCard); card?.scrollIntoView({ block: 'center', behavior: 'smooth' }); $('.chat-start', card)?.click(); });
+  };
+  draw();
+  $$(`[data-bind^="${prefix}."]`, $('#main')).forEach((inp) => inp.addEventListener('input', draw));
+  if (prefix === 'client') $('#contacts')?.addEventListener('input', draw);
+}
 const CHAT_MAX = { offer: 7, client: 4 }; // questions par série : au-delà, on s'arrête — le reste se remplit à la main
 function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   if (!el) return;
@@ -385,6 +410,7 @@ renderers.client = () => {
     </div>
 
     <h2>Fiche client</h2>
+    <div id="client-gaps" class="gaps"></div>
     <div class="grid">
       ${field('client.company', 'Entreprise / établissement')}
       ${field('client.sector', 'Secteur / activité')}
@@ -418,6 +444,7 @@ renderers.client = () => {
   bindInputs($('#main'), S.client, 'client');
   bindInputs($('#main'), C, 'clientChat');
   renderContacts();
+  renderGaps({ el: $('#client-gaps'), obj: S.client, keys: ['company', 'sector', 'contacts', 'meetingFormat', 'decisionProcess'], labels: CLIENT_LABELS, chatCard: '#client-chat', prefix: 'client', filled: (k) => k === 'contacts' ? contacts().length > 0 : !!String(S.client[k] || '').trim() });
   renderGuidedChat({ el: $('#client-chat'), state: C, target: S.client, build: clientQuestionMessages, step: 'client', onFilled: (key) => { if (key === 'company') invalidateClientResearch(); else invalidatePreparation(); } });
   renderSources();
   renderBrief();
