@@ -31,3 +31,15 @@ export function top3(scores) {
 export function label(code) {
   return SONCAS.find((d) => d.code === code)?.label || code;
 }
+
+/** Scores → "S3 O1 N2 C3 A3 Y2 E1" (colonne CSV à plat) et retour. */
+export function packScores(scores) {
+  return SONCAS.map((d) => d.code + (scores?.[d.code] ?? 2)).join(' ');
+}
+export function unpackScores(str) {
+  const out = {};
+  for (const m of String(str || '').matchAll(/([SONCAYE])([123])/g)) out[m[1]] = +m[2];
+  return clampScores(out);
+}
+
+export const WEIGHTS = { decide: 'décide', influence: 'influence', use: 'utilise' };

@@ -42,7 +42,7 @@ ${history || '(aucun / none)'}
 Produis / Produce JSON:
 {
  "company_summary": "2-3 phrases / sentences",
- "contact_summary": "rôle, pouvoir de décision, préoccupations probables / role, decision power, likely concerns",
+ "contact_summary": "pour CHAQUE interlocuteur (jusqu'à 3) : rôle, pouvoir de décision, préoccupations probables — une phrase par personne, nommée / for EACH contact (up to 3): role, decision power, likely concerns — one named sentence each",
  "likely_problems": ["3 problèmes avec les mots du client / 3 problems in the client's words"],
  "stakes": "pourquoi sa décision est importante / why the decision matters",
  "facts": [{"fact":"...","source":"site|linkedin|notes|history"}],
@@ -53,27 +53,31 @@ Produis / Produce JSON:
 }
 
 export function soncasMessages({ lang, product, client, brief, history }) {
+  const contacts = (client.contacts || []).filter((c) => c.name || c.role);
   return [
     { role: 'system', content: sys('soncas', lang) },
     { role: 'user', content:
 `OFFRE / OFFER:\n${JSON.stringify(product)}
 CLIENT:\n${JSON.stringify(client)}
+INTERLOCUTEURS PRÉSENTS AU RENDEZ-VOUS / PEOPLE IN THE MEETING (${contacts.length || 1}) :\n${JSON.stringify(contacts.length ? contacts : [{ name: client.contactName || 'Interlocuteur', role: client.contactRole || '', weight: 'decide' }])}
 FICHE CLIENT / CLIENT BRIEF:\n${JSON.stringify(brief)}
 HISTORIQUE / HISTORY:\n${history || '(none)'}
 
-Évalue chaque motivation SONCAS-E de 1 (faible) à 3 (forte) d'après les indices disponibles — par défaut 2 si aucun indice. AU PLUS TROIS dimensions peuvent être à 3 : ce sont les motivations dominantes.
-Rate each SONCAS-E motivation 1 (weak) to 3 (strong) from available cues — default 2 when no cue.
+Pour CHAQUE interlocuteur, évalue chaque motivation SONCAS-E de 1 (faible) à 3 (forte) d'après les indices disponibles — par défaut 2 si aucun indice. AU PLUS TROIS dimensions à 3 par personne : ce sont ses motivations dominantes. weight = decide (décide) | influence | use (utilise).
+For EACH person, rate each SONCAS-E motivation 1 (weak) to 3 (strong) from available cues — default 2 when no cue.
 Codes: S=Sécurité/Security, O=Orgueil/Pride, N=Nouveauté/Novelty, C=Confort/Comfort, A=Argent/Money, Y=Sympathie/Affinity, E=Environnement/Environment.
-Pour CHAQUE dimension, 2 arguments CABP (caractéristique → bénéfice → preuve) tirés de l'OFFRE, formulés pour ce client.
-For EACH dimension, 2 CABP arguments (characteristic → benefit → proof) drawn from the OFFER, phrased for this client.
-"main_message" = 1-2 phrases bâties sur les 3 dimensions les plus fortes / built on the 3 strongest dimensions.
-PREUVES : uniquement celles présentes dans l'OFFRE (champ proofs) ou la FICHE CLIENT. Un argument sans preuve se formule sans preuve (caractéristique → bénéfice), jamais avec une preuve inventée. Liste dans "gaps" les preuves ou caractéristiques qui manquent à la fiche pour mieux convaincre ce client.
+Pour chaque dimension de chaque personne, 2 arguments CABP (caractéristique → bénéfice → preuve) tirés de l'OFFRE, formulés pour CETTE personne.
+"main_message" = UN SEUL message principal pour le rendez-vous : 1-2 phrases bâties sur les 3 motivations les plus fortes de la personne qui DÉCIDE, et qui ne contredit pas les motivations fortes des autres / ONE main message for the meeting, built on the decision-maker's 3 strongest motivations, compatible with the others.
+"tensions" = si plusieurs personnes : les motivations qui s'opposent entre elles (ex. Argent fort chez l'un, Nouveauté chez l'autre) et comment les concilier en une phrase ; [] si une seule personne.
+PREUVES : uniquement celles présentes dans l'OFFRE (champ proofs) ou la FICHE CLIENT. Un argument sans preuve se formule sans preuve (caractéristique → bénéfice), jamais avec une preuve inventée. Liste dans "gaps" les preuves ou caractéristiques qui manquent à la fiche pour mieux convaincre.
 
-JSON:
-{"scores":{"S":2,"O":2,"N":2,"C":2,"A":2,"Y":2,"E":2},
- "rationale":{"S":"...","O":"...","N":"...","C":"...","A":"...","Y":"...","E":"..."},
- "arguments":{"S":["..",".."],"O":[],"N":[],"C":[],"A":[],"Y":[],"E":[]},
+JSON (people dans le MÊME ORDRE que la liste des interlocuteurs / same order as the list):
+{"people":[{"name":"...","weight":"decide|influence|use",
+   "scores":{"S":2,"O":2,"N":2,"C":2,"A":2,"Y":2,"E":2},
+   "rationale":{"S":"...","O":"...","N":"...","C":"...","A":"...","Y":"...","E":"..."},
+   "arguments":{"S":["..",".."],"O":[],"N":[],"C":[],"A":[],"Y":[],"E":[]}}],
  "main_message":"...",
+ "tensions":["..."],
  "gaps":["ce qui manque à la fiche offre pour ce client (preuve, chiffre, condition…)"]}` },
   ];
 }
@@ -85,7 +89,8 @@ export function simacMessages({ lang, product, client, brief, persona, objective
 `OFFRE / OFFER:\n${JSON.stringify(product)}
 CLIENT:\n${JSON.stringify(client)}
 FICHE CLIENT / BRIEF:\n${JSON.stringify(brief)}
-PERSONA SONCAS (scores validés par l'utilisateur / user-validated) + MESSAGE PRINCIPAL:\n${JSON.stringify(persona)}
+INTERLOCUTEURS PRÉSENTS / PEOPLE IN THE MEETING: ${JSON.stringify((client.contacts || []).filter((c) => c.name || c.role))}
+PERSONA SONCAS PAR PERSONNE (scores validés par l'utilisateur / user-validated) + MESSAGE PRINCIPAL UNIQUE + TENSIONS:\n${JSON.stringify(persona)}
 OBJECTIF DU RDV / MEETING OBJECTIVE: ${objective.primary || '?'} — REPLI / FALLBACK: ${objective.fallback || '?'}
 
 Rédige le déroulé de l'entretien / Write the meeting script. JSON:
@@ -93,12 +98,12 @@ Rédige le déroulé de l'entretien / Write the meeting script. JSON:
  "situation":"reformulation des besoins avec SES mots, à valider / restate needs in THEIR words, to validate",
  "idea":"1 phrase simple, claire, concise / 1 simple clear sentence",
  "mechanism":["3-5 étapes ; la dernière mentionne le prix et les conditions / 3-5 steps; last one states price and terms"],
- "advantages":["3-5 ; chacun commence par le bénéfice puis '(besoin : ...)' ; au moins un que la concurrence n'a pas / 3-5; each starts with the benefit then '(need: ...)'; at least one competitors lack"],
- "conclusion":"question de décision avec un choix entre deux propositions + étape suivante datée / decision question offering two options + dated next step",
- "objections":[{"objection":"...","response":"accueillir → question → réponse → relance / acknowledge → question → answer → move on"}],
+ "advantages":["3-5 ; chacun commence par le bénéfice puis '(besoin : ...)' ; au moins un que la concurrence n'a pas ; S'IL Y A PLUSIEURS INTERLOCUTEURS, chaque avantage commence par 'Pour <prénom ou rôle> : ' et chaque personne en reçoit au moins un, bâti sur SES motivations fortes / 3-5; each starts with the benefit then '(need: ...)'; with several people, prefix each with 'For <name or role>: ' and give each person at least one"],
+ "conclusion":"question de décision adressée à la personne qui DÉCIDE, avec un choix entre deux propositions + étape suivante datée / decision question addressed to the decision-maker, offering two options + dated next step",
+ "objections":[{"who":"prénom ou rôle de la personne qui l'émettra probablement ('' si une seule personne) / likely speaker ('' if one person)","objection":"...","response":"accueillir → question → réponse → relance / acknowledge → question → answer → move on"}],
  "mistakes_watch":["2-3 erreurs auxquelles CE rdv est exposé / 2-3 mistakes THIS meeting is exposed to"],
  "gaps":["ce que la fiche offre ne permet pas de dire ou de répondre dans ce rendez-vous — à travailler avant / what the offer sheet cannot support in this meeting — to work on before"]}
-Prépare 5 à 7 objections probables pour ce client / Prepare 5-7 likely objections for this client.
+Prépare 5 à 7 objections probables pour ce client ; avec plusieurs interlocuteurs, répartis-les selon qui les portera probablement (le DAF parle d'argent, l'utilisateur de confort…) / Prepare 5-7 likely objections; with several people, attribute each to its likely speaker.
 PREUVES et CHIFFRES : uniquement ceux de l'OFFRE ou de la FICHE CLIENT. Rien d'inventé. Si la fiche ne permet pas de répondre à une objection, la réponse se limite à accueillir et à poser la question qui creuse, et l'objection est reportée dans "gaps".` },
   ];
 }
@@ -108,7 +113,7 @@ export function followupMessages({ lang, product, client, simac, debrief }) {
     { role: 'system', content: sys('followup', lang) },
     { role: 'user', content:
 `OFFRE / OFFER: ${product.name || ''} — ${product.oneLiner || ''}
-CLIENT: ${client.company || ''} / ${client.contactName || ''} (${client.contactRole || ''})
+CLIENT: ${client.company || ''} / ${(client.contacts || []).filter((c) => c.name || c.role).map((c) => `${c.name || c.role} (${c.role || '?'}, ${c.weight || '?'})`).join(', ') || `${client.contactName || ''} (${client.contactRole || ''})`}
 SIMAC PRÉPARÉ / PREPARED: ${JSON.stringify({ idea: simac.idea, conclusion: simac.conclusion }, null, 1)}
 DÉBRIEF SAISI APRÈS LE RDV / POST-MEETING DEBRIEF:\n${JSON.stringify(debrief)}
 
@@ -200,8 +205,8 @@ JSON : {"score":3,"verdict":"prêt pour des réunions à blanc","label":"libell�
 // Étape 2 — décrire le client / le rendez-vous en texte libre, puis compléter par questions.
 
 const CLIENT_FIELDS = `Champs de la fiche client (clé → sens) :
-company = entreprise / établissement ; sector = secteur ou activité ; website = site web ; contactName = interlocuteur·rice (nom ou fonction si le nom est inconnu) ;
-contactRole = fonction et rôle dans la décision ; meetingFormat = format et contexte du rendez-vous (mail, visio, sur place, salon, téléphone ; date ; durée ; qui a pris l'initiative) ;
+company = entreprise / établissement ; sector = secteur ou activité ; website = site web ;
+contacts = les personnes présentes au rendez-vous, AU PLUS 3, chacune { name (nom, ou fonction si le nom est inconnu), role (fonction et rôle dans la décision), weight ∈ decide | influence | use } — au moins une ; la première est l'interlocuteur principal ; meetingFormat = format et contexte du rendez-vous (mail, visio, sur place, salon, téléphone ; date ; durée ; qui a pris l'initiative) ;
 decisionProcess = processus de décision connu (qui d'autre, quand, budget) ; notes = tout ce qu'on sait d'autre (historique, contexte, ce qui a été dit).`;
 
 export function clientExtractMessages({ lang, description, current }) {
@@ -217,7 +222,7 @@ ${JSON.stringify(current)}
 ${CLIENT_FIELDS}
 
 Remplis chaque champ UNIQUEMENT à partir de la description. Information absente → "" (rien d'inventé, aucun nom supposé).
-JSON : {"fields":{"company":"","sector":"","website":"","contactName":"","contactRole":"","meetingFormat":"","decisionProcess":"","notes":""},
+JSON : {"fields":{"company":"","sector":"","website":"","contacts":[{"name":"","role":"","weight":"decide"}],"meetingFormat":"","decisionProcess":"","notes":""},
  "missing":["clés vides, par ordre d'importance pour préparer le rendez-vous"]}` },
   ];
 }
@@ -237,7 +242,7 @@ ${transcript || '(début)'}
 
 ${lastField ? `DERNIÈRE RÉPONSE (pour le champ "${lastField}") : ${lastAnswer}` : 'Aucune réponse encore : pose la première question.'}
 
-Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout). Ne redemande JAMAIS un champ déjà abordé : une réponse courte est une réponse. Puis choisis le champ encore VIDE le plus utile pour préparer le rendez-vous (ordre conseillé : contactRole, meetingFormat, company, decisionProcess, sector, website, notes) et pose UNE question concrète. Quand les champs utiles sont remplis, done = true.
+Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout). Ne redemande JAMAIS un champ déjà abordé : une réponse courte est une réponse. Puis choisis le champ encore VIDE le plus utile pour préparer le rendez-vous (ordre conseillé : meetingFormat, company, decisionProcess, sector, website, notes ; les interlocuteurs se saisissent dans le formulaire, ne les demande pas) et pose UNE question concrète. Quand les champs utiles sont remplis, done = true.
 JSON : {"field_value":"","next_field":"","question":"","done":false}` },
   ];
 }
