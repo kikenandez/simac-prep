@@ -4,17 +4,19 @@
 
 ---
 
-## Dispatch — architect-maintained (updated 2026-10-08 12:30)
+## Dispatch — architect-maintained (updated 2026-10-08 13:10)
 
 ### Status snapshot
 - Publié : https://kikenandez.github.io/simac-prep/ (Pages via Actions). Charte adp.avapmo.com + crédit + clause de non-responsabilité.
 - Étape 1 enrichie (texte libre → fiche, questions guidées, maturité 1-5) ; `npm test` vert.
-- T1 partiellement fait en session live avec Groq (`openai/gpt-oss-120b`) sur une offre réelle (nom retiré) : étape 1 OK (13/14 champs sourcés, maturité 2/5), 429 par minute sur gros prompts. Bug corrigé : modèle Groq par défaut retiré → bouton « Lister les modèles ». Étapes 2-5 et Gemini restent à valider.
+- T1 fait avec Groq (`openai/gpt-oss-120b`) sur une offre réelle (nom retiré) × directeur de collège privé : 5 étapes OK de bout en bout, RDV enregistré, CSV et récupération vérifiés. Constats : 429 sur prompts > ~10 k caractères (corrigé : JSON compact, persona top 3) ; preuves et caractéristiques inventées (corrigé par règles de prompt, à re-vérifier) ; modèle par défaut retiré (corrigé). Gemini non testé → T4.
+- T2 fait : Pages actif, Groq OK en CORS depuis l'origine publiée ; Gemini/Mistral/OpenRouter à vérifier en CORS (T4).
+- Nouveau : étape 2 en texte libre + questions, pièces jointes PDF/Word/texte, 3 motivations fortes max.
 - Architect inbox : vide.
 
 ### Developer session (next)
-- **Pick up:** T1 — Validation avec Groq et Gemini sur une fiche offre réelle
-- **After T1:** T2 (publication GitHub Pages)
+- **Pick up:** T4 — Vérifier Gemini, Mistral, OpenRouter (CORS + JSON + noms de modèles) et re-tester l'anti-invention sur le SIMAC
+- **After T4:** —
 - **Do not start:** T3 (designer) ; aucune refonte de `web/app.js` sans tâche
 - **Context budget:** end session at ≤30% remaining
 - **Standing reminders:** Gate 0 on every bug. Stage by exact path; `git status --short` before every commit. Serveur `:8765` requis pour `npm test`.
@@ -29,9 +31,9 @@
 - (vide)
 
 ### User actions pending (no session needed)
-- Créer le repo GitHub public `simac-prep` et pousser `main` (déclenche Pages) ; activer Pages → Source : GitHub Actions.
-- Obtenir une clé gratuite Groq et une clé Gemini pour T1.
-- Remplir la fiche Offre avec une offre réelle (export JSON à ranger hors repo).
+- DNS `simac-prep.avapmo.com` (CNAME → kikenandez.github.io) puis me le dire pour poser `web/CNAME`.
+- Lien vers l'app depuis adp.avapmo.com.
+- Clé Gemini pour T4.
 
 ---
 
@@ -55,7 +57,7 @@
 
 ### T1: Valider le parcours avec Groq et Gemini sur une offre réelle
 - **Agent:** developer
-- **Status:** NEW
+- **Status:** DONE
 - **Plan:** docs/plans/2026-10-08-mvp.md
 - **Priority:** P1
 - **Created:** 2026-10-08
@@ -72,11 +74,11 @@ Avec une clé Groq puis une clé Gemini (Réglages), dérouler les 5 étapes sur
 - [ ] `npm test` toujours vert
 
 **Result:**
-(à remplir)
+2026-10-08 — Groq OK sur les 5 étapes (offre réelle une offre réelle (nom retiré), client type directeur de collège privé). Règles de méthode : prix en dernier ✅, avantages avec besoin ✅, faits/hypothèses séparés ✅, conclusion deux options datées ✅. Limites : 429 sur gros prompts (corrigé), inventions de preuves/caractéristiques (règles ajoutées), Gemini non testé (→ T4).
 
 ### T2: Publier sur GitHub Pages et vérifier le CORS depuis l'origine publiée
 - **Agent:** developer
-- **Status:** NEW
+- **Status:** DONE
 - **Plan:** docs/plans/2026-10-08-mvp.md
 - **Priority:** P1
 - **Created:** 2026-10-08
@@ -93,7 +95,7 @@ Lane designer ; le workflow Pages sauf si le déploiement échoue.
 - [ ] `npm test` vert
 
 **Result:**
-(à remplir)
+2026-10-08 — https://kikenandez.github.io/simac-prep/ actif (Source : GitHub Actions, activé à la main : le token du workflow ne peut pas créer le site). Groq OK en CORS. Autres fournisseurs → T4.
 
 ### T3: Revue design — mobile, impression, états vides et erreurs
 - **Agent:** designer
@@ -117,9 +119,33 @@ Sur 390 px : navigation des étapes, grille SONCAS, tableau des objections. Impr
 
 ---
 
+### T4: Vérifier Gemini, Mistral, OpenRouter et l'anti-invention
+- **Agent:** developer
+- **Status:** NEW
+- **Plan:** docs/plans/2026-10-08-mvp.md
+- **Priority:** P1
+- **Created:** 2026-10-08
+
+**Instruction:**
+Depuis l'origine publiée : Réglages → chaque fournisseur → « Lister les modèles » puis « Tester » (CORS, 401, noms). Dérouler Persona + SIMAC avec un fournisseur autre que Groq et relire : aucune preuve, chiffre, délai ou caractéristique absents de la fiche Offre (règle ajoutée dans `METHOD` de `web/lib/prompts.js`). Si un fournisseur bloque le CORS, l'annoter dans `PROVIDERS` et dans README.
+
+**What NOT to change:**
+Lane designer ; `COLUMNS`.
+
+**Acceptance criteria:**
+- [ ] Tableau fournisseur → OK / CORS / JSON dans README
+- [ ] Un SIMAC relu sans invention, ou règle de prompt renforcée
+- [ ] `npm test` vert
+
+**Result:**
+(à remplir)
+
+---
+
 ## Archive index (last 10 closed tasks — free lookup)
 
-- (none yet)
+- T1 — Validation Groq sur offre réelle (DONE 2026-10-08)
+- T2 — Publication GitHub Pages (DONE 2026-10-08)
 
 ---
 

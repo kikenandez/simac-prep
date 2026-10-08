@@ -1,10 +1,10 @@
 ; ADP dispatch — wire v1.1 (auto-synced from docs/tasks/current.md)
 v 1.1
-upd 2026-10-08T12:22Z by=wire-sync
+upd 2026-10-08T12:34Z by=wire-sync
 
 dev
- take T1 — Validation avec Groq et Gemini sur une fiche offre réelle
- next T2 (publication GitHub Pages)
+ take T4 — Vérifier Gemini, Mistral, OpenRouter (CORS + JSON + noms de modèles) et re-
+ next —
  no   T3 (designer) ; aucune refonte de web/app.js sans tâche
  cap  end session at ≤30% remaining
  rem  Gate 0 on every bug. Stage by exact path; git status --short before every commit
@@ -18,6 +18,6 @@ des
 rev
 
 usr
- - Créer le repo GitHub public simac-prep et pousser main (déclenche Pages) ; activer Pages →
- - Obtenir une clé gratuite Groq et une clé Gemini pour T1.
- - Remplir la fiche Offre avec une offre réelle (export JSON à ranger hors repo).
+ - DNS simac-prep.avapmo.com (CNAME → kikenandez.github.io) puis me le dire pour poser web/CN
+ - Lien vers l'app depuis adp.avapmo.com.
+ - Clé Gemini pour T4.
