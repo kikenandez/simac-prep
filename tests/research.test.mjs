@@ -91,3 +91,26 @@ test('queries cover each person; market evidence stays separate from offer extra
   assert.doesNotMatch(simacMessages({ lang: 'fr', product: {}, client: {}, objective: {} })[1].content, /au moins un que la concurrence n'a pas/);
   assert.equal(activeSources([src]).length, 1);
 });
+
+test('web search keeps the publication date and allows slow answers (Jina often takes 20-30 s)', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.method(globalThis, 'fetch', (url, opts) => new Promise((resolve, reject) => {
+    opts.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+    setTimeout(() => resolve(json({ data: [
+      { url: 'https://a.example', title: 'A', content: 'x', publishedTime: '2016-09-22T12:03:00+0200' },
+      { url: 'https://b.example', title: 'B', content: 'x', date: 'Sep 14, 2026' },
+      { url: 'https://c.example', title: 'C', content: 'x' }] })), 30000);
+  }));
+  const pending = searchWeb('BETC Pantin', { jinaKey: 'k' });
+  t.mock.timers.tick(30000);
+  const sources = await pending;
+  assert.deepEqual(sources.map(s => s.publishedAt), ['2016-09-22', '2026-09-14', '']);
+});
+
+test('web search still gives up after its own longer timeout', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  t.mock.method(globalThis, 'fetch', (url, opts) => new Promise((_, reject) => opts.signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')))));
+  const pending = searchWeb('BETC', { jinaKey: 'k' });
+  t.mock.timers.tick(60000);
+  await assert.rejects(pending, /délai dépassé \(45 s\)/);
+});
