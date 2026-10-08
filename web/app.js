@@ -103,9 +103,10 @@ function newOffer() {
   if (!confirm('Nouvelle offre ? L’offre en cours est d’abord enregistrée dans « Mes offres », puis la fiche, ses sources et la recherche marché sont vidées.')) return;
   saveOffer(true); clearOffer();
 }
+/** Tout le RDV en cours repart à zéro (offre, client, persona, SIMAC, suivi) ; Mes offres et l'historique ne bougent pas. */
 function resetOffer() {
-  if (!confirm('Remettre la page à blanc ? Fiche produit, description, sources, questions, maturité et recherche marché sont effacées — sans enregistrement. (Les offres déjà dans « Mes offres » ne bougent pas.)')) return;
-  clearOffer(); toast('Page Offre remise à blanc.');
+  if (!confirm('Tout remettre à blanc ? Offre, client, persona, SIMAC et suivi en cours sont effacés — sans enregistrement. (« Mes offres » et l’historique ne bougent pas.)')) return;
+  S = blank(); persist(); go('offer'); toast('Tout est remis à blanc.');
 }
 function renderOfferBar() {
   const el = $('#offer-bar'); if (!el) return;
@@ -116,7 +117,7 @@ function renderOfferBar() {
       <select id="offer-pick"><option value="">${all.length ? '— choisir une offre enregistrée —' : '— aucune offre enregistrée —'}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} · ${esc(o.savedAt.slice(0, 10))}</option>`).join('')}</select>
       <button class="btn ghost small" id="offer-save">Enregistrer l’offre</button>
       <button class="btn ghost small" id="offer-new">Nouvelle offre</button>
-      <button class="btn ghost small" id="offer-reset" title="Tout effacer sur cette page, sans enregistrer">Remettre à blanc</button>
+      <button class="btn ghost small" id="offer-reset" title="Tout effacer (offre, client, persona, SIMAC, suivi), sans enregistrer">Remettre à blanc</button>
       ${S.offerId && all.some((o) => o.id === S.offerId) ? '<button class="btn danger small" id="offer-del" title="Retirer de Mes offres">×</button>' : ''}
     </div>`;
   $('#offer-pick').onchange = (e) => { if (e.target.value) loadOffer(e.target.value); };
