@@ -135,6 +135,13 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
   .simac-block { break-inside: avoid; }
   a { color: #000; text-decoration: none; }
   .footer { display: block !important; border-top: 1px solid #999; margin-top: 16px; font-size: 10px; color: #555; }
+  /* n'imprimer que la fiche : pas de dialogue, pas de sources brutes, pas de panneaux de recherche, pas d'accueil */
+  .gate, .toast, .chat-log, .chat-input, #offer-chat-card, #client-chat, #market-research, #client-research, .source-text, details, .gaps, #sources, #offer-sources, .radar-legend { display: none !important; }
+  .layout { min-height: 0; }
+  .topbar, .radar-card, .steps { position: static !important; }
+  textarea { max-height: 90vh; }
+  * { overflow: visible !important; }
+  .card, .simac-block, .soncas .dim { break-inside: auto; }
 }
 
 .footer { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 14px 28px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; background: var(--panel); }

@@ -59,6 +59,56 @@ S.research = { ...researchDefaults(), ...S.research };
 S.client.preparationMode ||= 'meeting';
 S.client.location ||= '';
 const persist = () => saveDraft(S);
+
+// ----------------------------------------------------------------------------- mes offres (bibliothèque locale)
+// Une offre = fiche produit + description/sources/maturité + recherche marché. Conservée dans ce navigateur,
+// pour que chaque nouveau rendez-vous reparte de la même offre — sauf si on en crée une autre.
+const OFFERS_KEY = 'simac.offers';
+function listOffers() { try { return JSON.parse(localStorage.getItem(OFFERS_KEY) || '[]'); } catch { return []; } }
+function offerSlot() { return { product: S.product, offer: S.offer, market: S.market }; }
+/** Enregistre l'offre courante sous son nom (remplace si même nom). */
+function saveOffer(silent = false) {
+  const name = (S.product.name || S.product.oneLiner || '').trim();
+  if (!name) { if (!silent) toast('Donnez un nom au produit / service avant d’enregistrer l’offre.'); return false; }
+  const all = listOffers(); const rec = { id: S.offerId || newId(), name, savedAt: new Date().toISOString(), ...structuredClone(offerSlot()) };
+  const i = all.findIndex((o) => o.id === rec.id || o.name.toLowerCase() === name.toLowerCase());
+  if (i >= 0) { rec.id = all[i].id; all[i] = rec; } else all.unshift(rec);
+  S.offerId = rec.id;
+  try { localStorage.setItem(OFFERS_KEY, JSON.stringify(all)); } catch { if (!silent) toast('Stockage plein : retirez des sources ou des offres.'); return false; }
+  persist(); if (!silent) toast(`Offre « ${name} » enregistrée.`); return true;
+}
+function loadOffer(id) {
+  const o = listOffers().find((x) => x.id === id); if (!o) return;
+  Object.assign(S, { product: structuredClone(o.product), offer: structuredClone(o.offer), market: structuredClone(o.market || marketDefaults()), offerId: o.id });
+  invalidatePreparation(); persist(); renderers.offer(); toast(`Offre « ${o.name} » chargée.`);
+}
+function deleteOffer(id) {
+  localStorage.setItem(OFFERS_KEY, JSON.stringify(listOffers().filter((o) => o.id !== id)));
+  if (S.offerId === id) S.offerId = '';
+  persist(); renderers.offer();
+}
+function newOffer() {
+  if (!confirm('Nouvelle offre ? La fiche produit, ses sources et la recherche marché sont vidées (l’offre actuelle reste dans « Mes offres » si elle est enregistrée).')) return;
+  saveOffer(true);
+  const b = blank(); Object.assign(S, { product: b.product, offer: b.offer, market: b.market, offerId: '' });
+  invalidatePreparation(); persist(); renderers.offer();
+}
+function renderOfferBar() {
+  const el = $('#offer-bar'); if (!el) return;
+  const all = listOffers();
+  el.innerHTML = `
+    <label>Mes offres <small>— conservées dans ce navigateur ; un nouveau rendez-vous garde l’offre en cours</small></label>
+    <div class="actions" style="margin:4px 0 0">
+      <select id="offer-pick"><option value="">${all.length ? '— choisir une offre enregistrée —' : '— aucune offre enregistrée —'}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} · ${esc(o.savedAt.slice(0, 10))}</option>`).join('')}</select>
+      <button class="btn ghost small" id="offer-save">Enregistrer l’offre</button>
+      <button class="btn ghost small" id="offer-new">Nouvelle offre</button>
+      ${S.offerId && all.some((o) => o.id === S.offerId) ? '<button class="btn danger small" id="offer-del" title="Retirer de Mes offres">×</button>' : ''}
+    </div>`;
+  $('#offer-pick').onchange = (e) => { if (e.target.value) loadOffer(e.target.value); };
+  $('#offer-save').onclick = () => { saveOffer(); renderOfferBar(); };
+  $('#offer-new').onclick = newOffer;
+  $('#offer-del')?.addEventListener('click', () => { if (confirm('Retirer cette offre de Mes offres ? (la fiche en cours reste affichée)')) deleteOffer(S.offerId); });
+}
 function invalidatePreparation() {
   S.brief = null; S.simac = null; S.followup = null;
   S.persona.main_message = ''; S.persona.tensions = [];
@@ -153,8 +203,9 @@ function markDone() {
 }
 $('#steps').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.step); });
 $('#btn-new').addEventListener('click', () => {
-  if (!confirm('Nouveau rendez-vous ? L’offre est conservée, le reste est réinitialisé (pensez à enregistrer dans Suivi).')) return;
-  const product = S.product, offer = S.offer, market = S.market; S = blank(); Object.assign(S, { product, offer, market }); persist(); go('client');
+  if (!confirm('Nouveau rendez-vous ? L’offre est conservée (et enregistrée dans « Mes offres »), le reste est réinitialisé (pensez à enregistrer le RDV dans Suivi).')) return;
+  saveOffer(true);
+  const product = S.product, offer = S.offer, market = S.market, offerId = S.offerId; S = blank(); Object.assign(S, { product, offer, market, offerId }); persist(); go('client');
 });
 
 // ----------------------------------------------------------------------------- 1. OFFRE
@@ -176,6 +227,7 @@ renderers.offer = () => {
   $('#main').innerHTML = `
     <h1>1 · Votre offre</h1>
     <p class="lead">Décrivez votre produit ou service avec vos mots ; l’IA remplit la fiche, pose les questions qui manquent et mesure la maturité de l’offre. Ne rien inventer — ce qui manque est un trou à combler.</p>
+    <div class="card soft" id="offer-bar"></div>
 
     <div class="card">
       <h2>Décrire</h2>
@@ -233,6 +285,7 @@ renderers.offer = () => {
       <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
   bindInputs($('#main'), O, 'offer');
+  renderOfferBar();
   renderGaps({ el: $('#offer-gaps'), obj: S.product, keys: OFFER_KEY_ORDER, labels: FIELD_LABELS, chatCard: '#offer-chat', prefix: 'product' });
   renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: () => { O.maturity = null; S.market.comparison = null; invalidatePreparation(); } });
   renderMaturity();
@@ -847,7 +900,7 @@ renderers.history = () => {
   $$('[data-del]').forEach((b) => (b.onclick = () => { if (confirm('Supprimer ce rendez-vous ?')) { deleteMeeting(b.dataset.del); renderers.history(); } }));
   $$('[data-load]').forEach((b) => (b.onclick = () => {
     const m = all.find((x) => x.id === b.dataset.load); if (!m) return;
-    const product = S.product; S = blank(); S.product = product; S.id = m.id; S.date = m.date;
+    const product = S.product, offer = S.offer, market = S.market, offerId = S.offerId; S = blank(); Object.assign(S, { product, offer, market, offerId }); S.id = m.id; S.date = m.date;
     const cs = [{ name: m.contact_name || '', role: m.contact_role || '', weight: WEIGHTS[m.contact_weight] ? m.contact_weight : 'decide' }];
     if (m.contact2_name || m.contact2_role) cs.push({ name: m.contact2_name || '', role: m.contact2_role || '', weight: WEIGHTS[m.contact2_weight] ? m.contact2_weight : 'influence' });
     if (m.contact3_name || m.contact3_role) cs.push({ name: m.contact3_name || '', role: m.contact3_role || '', weight: WEIGHTS[m.contact3_weight] ? m.contact3_weight : 'influence' });
@@ -923,10 +976,12 @@ const STEP_TITLES = { offer: 'Offre', client: 'Client', persona: 'Persona SONCAS
 $('#btn-print').onclick = () => window.print();
 window.addEventListener('beforeprint', () => {
   const who = [S.client.company, contacts().map((c, i) => contactLabel(c, i)).join(', ')].filter(Boolean).join(' — ');
+  $('#print-head')?.remove();
   const head = document.createElement('div'); head.id = 'print-head'; head.className = 'print-head';
   head.innerHTML = `<b>SIMAC Prep · ${esc(STEP_TITLES[S.step] || '')}</b> · ${esc(S.product.name || '')}${who ? ' · ' + esc(who) : ''} · ${esc(S.date)}`;
   $('#main').prepend(head);
-  $$('textarea').forEach((t) => { t.dataset.h = t.style.height; t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; });
+  // hauteur = contenu, bornée : un scrollHeight aberrant (élément masqué, police non chargée) ne doit pas produire des pages vides
+  $$('textarea').forEach((t) => { t.dataset.h = t.style.height; t.style.height = 'auto'; const h = t.scrollHeight; t.style.height = (h > 0 && h < 1400 ? h + 2 : 72) + 'px'; });
 });
 window.addEventListener('afterprint', () => {
   $('#print-head')?.remove();
