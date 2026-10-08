@@ -750,6 +750,7 @@ renderers.settings = () => {
   $('#main').innerHTML = `
     <h1>Réglages — IA gratuite, au choix</h1>
     <p class="lead">Aucun serveur : votre clé reste dans ce navigateur et n’est envoyée qu’au fournisseur choisi. Tous ceux listés ont une offre gratuite, ou tournent sur votre machine.</p>
+    <div class="card warn"><b>Clé gratuite = pour tester.</b> Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez. Pour de vraies données clients, collez ici une clé d’une <b>offre payante</b> du même fournisseur dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> : rien ne sort de votre ordinateur.</div>
     <div class="card"><div class="grid">
       <div><label>Fournisseur</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
       <div><label>Clé API <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
@@ -768,6 +769,12 @@ renderers.settings = () => {
         <li><b>OpenRouter</b> — modèles suffixés <code>:free</code> : <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></li>
         <li><b>Ollama</b> — 100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.</li>
         <li><b>Mode démo</b> — aucun appel réseau ; montre le parcours avec des contenus d’exemple.</li>
+      </ul>
+      <h3>Données sensibles : trois niveaux</h3>
+      <ul class="plain">
+        <li><b>Tester</b> — clé gratuite, données fictives ou publiques.</li>
+        <li><b>Travailler</b> — clé d’une offre payante (Groq, Gemini, Mistral, OpenRouter : même champ, même usage) ; vérifiez dans les conditions du fournisseur que vos données ne servent pas à entraîner ses modèles.</li>
+        <li><b>Confidentiel</b> — Ollama en local : le modèle tourne sur votre machine, aucune donnée ne sort.</li>
       </ul>
       <p class="note">Les quotas gratuits évoluent ; en cas d’erreur 429, changez de fournisseur. Vos données de rendez-vous restent dans ce navigateur (voir Historique pour l’export CSV).</p>
     </div>`;
