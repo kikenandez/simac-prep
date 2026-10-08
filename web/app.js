@@ -846,13 +846,14 @@ renderers.settings = () => {
         <li><b>Google Gemini</b> — Gemini Flash, gratuit : <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
         <li><b>Mistral</b> — plan « Experiment » gratuit, modèles français : <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">console.mistral.ai</a></li>
         <li><b>OpenRouter</b> — modèles suffixés <code>:free</code> : <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></li>
+        <li><b>Claude (Anthropic)</b> — payant, à l’usage (quelques centimes par rendez-vous), données non utilisées pour l’entraînement : <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> — le choix « Travailler » ci-dessous.</li>
         <li><b>Ollama</b> — 100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.</li>
         <li><b>Mode démo</b> — génération IA sans réseau ; les boutons de recherche contactent les sources publiques.</li>
       </ul>
       <h3>Données sensibles : trois niveaux</h3>
       <ul class="plain">
         <li><b>Tester</b> — clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.</li>
-        <li><b>Travailler</b> — clé d’une offre payante <b>chez le fournisseur d’IA</b> (Groq, Gemini, Mistral, OpenRouter : même champ, même usage ; vous payez le fournisseur, jamais AVApmo) ; vérifiez dans ses conditions que vos données ne servent pas à entraîner ses modèles.</li>
+        <li><b>Travailler</b> — clé d’une offre payante <b>chez le fournisseur d’IA</b> (Claude, ou l’offre payante de Groq, Gemini, Mistral, OpenRouter : même champ, même usage ; vous payez le fournisseur, jamais AVApmo) ; vérifiez dans ses conditions que vos données ne servent pas à entraîner ses modèles.</li>
         <li><b>Confidentiel</b> — Ollama en local : le modèle tourne sur votre machine ; les recherches web et officielles restent des appels externes, uniquement à votre demande.</li>
       </ul>
       <p class="note">Les quotas gratuits évoluent ; en cas d’erreur 429, changez de fournisseur. Vos données de rendez-vous restent dans ce navigateur (voir Historique pour l’export CSV).</p>
@@ -867,7 +868,7 @@ renderers.settings = () => {
     $('#model-list').innerHTML = ids.map((id) => `<option value="${esc(id)}">`).join('');
     $('#models-note').textContent = ids.length ? `${ids.length} modèle(s) : ${ids.slice(0, 8).join(', ')}${ids.length > 8 ? '…' : ''} — cliquez dans le champ Modèle pour choisir.` : 'Aucun modèle renvoyé.';
     const cur = $('#model').value.trim() || PROVIDERS[$('#provider').value]?.model;
-    if (ids.length && !ids.includes(cur)) { $('#model').value = ids.find((i) => /gpt-oss-120b|llama.*70b|gemini.*flash|mistral-small|:free/i.test(i)) || ids[0]; toast(`Modèle « ${cur} » absent : « ${$('#model').value} » sélectionné. Enregistrez.`, 5000); }
+    if (ids.length && !ids.includes(cur)) { $('#model').value = ids.find((i) => /haiku|gpt-oss-120b|llama.*70b|gemini.*flash|mistral-small|:free/i.test(i)) || ids[0]; toast(`Modèle « ${cur} » absent : « ${$('#model').value} » sélectionné. Enregistrez.`, 5000); }
   });
   $('#test').onclick = (e) => busy(e.target, async () => {
     saveSettings(read()); markDone();
