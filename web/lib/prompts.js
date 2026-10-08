@@ -138,7 +138,7 @@ SIMAC PRÉPARÉ / PREPARED: ${JSON.stringify({ idea: simac.idea, conclusion: sim
 DÉBRIEF SAISI APRÈS LE RDV / POST-MEETING DEBRIEF:\n${JSON.stringify(debrief)}
 
 Rédige / Write:
-- un mail de suivi < 150 mots, centré sur l'APPEL À L'ACTION convenu (action, responsable, date, livrable), qui se termine par une proposition datée (jamais « n'hésitez pas ») / a follow-up email < 150 words, centred on the agreed CALL TO ACTION (action, owner, date, output), ending with a dated proposal (never "feel free").
+- un mail de suivi < 180 mots, centré sur les ACTIONS CONVENUES (debrief.actions : chacune avec responsable, date, livrable — la première est l'appel à l'action principal ; reprends-les toutes, dans l'ordre, avec leurs dates), qui se termine par une proposition datée (jamais « n'hésitez pas ») / a follow-up email < 180 words, centred on the agreed ACTIONS (each with owner, date, output; the first is the main call to action; list them all with dates), ending with a dated proposal (never "feel free").
 - 2-3 leçons pour le prochain rendez-vous / 2-3 lessons for the next meeting.
 JSON:
 {"email_subject":"...","email_body":"...","lessons":["..."],
@@ -284,10 +284,10 @@ DATE DU JOUR : ${today}
 
 Champs : outcome = résultat parmi exactement [Vente conclue | Essai / pilote accepté | Proposition à envoyer | RDV décideur à fixer | Réflexion / relance datée | Pas de suite] ;
 objectionsHeard = objections entendues (une ligne par objection, avec les mots du client) ; decisionMaker = nom ou fonction du décideur ;
-nextAction = L'action convenue (le CTA), une phrase ; nextOwner = "me" si c'est le vendeur qui agit, "client" sinon ; nextDue = date YYYY-MM-DD déduite du texte (« mardi prochain », « sous 8 jours »… par rapport à la date du jour), sinon "" ;
-nextOutput = livrable attendu ; notes = faits nouveaux appris (budget, calendrier, personnes, préférences).
-Rien d'inventé : information absente → "". Si aucune action ni date n'a été convenue, nextAction = "" et notes doit le dire (« aucune suite datée »).
-JSON : {"fields":{"outcome":"","objectionsHeard":"","decisionMaker":"","nextAction":"","nextOwner":"","nextDue":"","nextOutput":"","notes":""},"missing":["clés vides importantes : nextAction, nextDue, decisionMaker…"]}` },
+actions = TOUTES les actions convenues, AU PLUS 3, dans l'ordre d'importance commerciale (la première est l'appel à l'action principal) : chacune { action (une phrase), owner = "me" si c'est le vendeur qui agit, "client" sinon, due = date YYYY-MM-DD déduite du texte (« lundi », « jeudi prochain », « avant vendredi »… par rapport à la date du jour) sinon "", output = livrable attendu } ;
+notes = faits nouveaux appris (budget, calendrier, personnes, préférences).
+Rien d'inventé : information absente → "" ou []. Si aucune action ni date n'a été convenue, actions = [] et notes doit le dire (« aucune suite datée »).
+JSON : {"fields":{"outcome":"","objectionsHeard":"","decisionMaker":"","actions":[{"action":"","owner":"me","due":"","output":""}],"notes":""},"missing":["clés vides importantes : actions, dates, decisionMaker…"]}` },
   ];
 }
 
