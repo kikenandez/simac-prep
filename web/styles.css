@@ -155,3 +155,36 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .gauge { display: flex; gap: 4px; }
 .gauge span { width: 18px; height: 34px; border-radius: 4px; background: var(--line); }
 .gauge span.on { background: var(--accent); }
+
+.verdict { display: inline-block; font-size: 12px; font-weight: 700; padding: 2px 10px; border-radius: 999px; margin-left: 6px; background: var(--warn-soft); color: var(--warm); }
+.verdict.v4, .verdict.v5 { background: var(--accent-soft); color: var(--accent); }
+
+.persona-grid { display: grid; grid-template-columns: 280px 1fr; gap: 14px; align-items: start; }
+.radar-card { padding: 10px; position: sticky; top: 60px; }
+.radar { width: 100%; height: auto; font-size: 11px; font-weight: 600; }
+.radar text { fill: var(--ink); }
+.radar .ring { fill: none; stroke: var(--line); }
+.radar .axis { stroke: var(--line); }
+.radar .ai { fill: var(--warm); fill-opacity: .12; stroke: var(--warm); stroke-dasharray: 4 3; stroke-width: 1.5; }
+.radar .me { fill: var(--accent); fill-opacity: .22; stroke: var(--accent); stroke-width: 2; }
+.radar .dot { fill: var(--accent); }
+.radar-legend { text-align: center; }
+.sw { display: inline-block; width: 12px; height: 12px; border-radius: 3px; vertical-align: -2px; margin: 0 4px 0 8px; }
+.sw.me { background: var(--accent); } .sw.ai { background: var(--warm); opacity: .6; }
+@media (max-width: 760px) { .persona-grid { grid-template-columns: 1fr; } .radar-card { position: static; max-width: 320px; margin: 0 auto; } }
+@media print { .persona-grid { grid-template-columns: 240px 1fr; } .radar-card { position: static; } }
+
+/* Page d'accueil / conditions */
+.gate { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow: auto; padding: 24px 16px; }
+.gate-box { max-width: 720px; margin: 0 auto; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 28px 30px; }
+.gate-box h1 { margin-top: 14px; }
+.gate-steps { padding-left: 20px; margin: 10px 0; }
+.gate-steps li { margin: 5px 0; }
+.gate-terms { margin: 14px 0; border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+.gate-terms summary { cursor: pointer; }
+.gate-terms ul { margin: 8px 0 0; font-size: 14px; }
+.gate-form { display: grid; gap: 10px; margin: 14px 0; }
+.gate-form label.check { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+.gate-form label.check input { width: auto; }
+.gate-form .btn { justify-self: start; }
+@media print { .gate { display: none; } }

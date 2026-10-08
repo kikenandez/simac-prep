@@ -12,6 +12,39 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <div id="gate" class="gate" hidden>
+    <div class="gate-box">
+      <div class="brand"><span class="logo">S</span> SIMAC Prep <span class="tag">TPE / PME</span></div>
+      <h1>Préparez vos rendez-vous de vente en 20 minutes</h1>
+      <p class="lead">Un outil gratuit, sans compte, qui applique la méthode SIMAC et le profil SONCAS. Vos données restent dans votre navigateur.</p>
+      <ol class="gate-steps">
+        <li><b>Offre</b> — décrivez votre produit, joignez une plaquette : l’IA remplit la fiche et note la maturité (1-5).</li>
+        <li><b>Client</b> — qui vous allez voir, dans quel cadre : fiche avec faits sourcés, hypothèses et questions de découverte.</li>
+        <li><b>Persona</b> — motivations SONCAS notées 1-3, trois fortes au plus, message principal.</li>
+        <li><b>SIMAC</b> — le déroulé du rendez-vous, prix en dernier, objections préparées.</li>
+        <li><b>Suivi</b> — racontez le rendez-vous : mail de suivi centré sur l’action convenue, mémoire CSV.</li>
+      </ol>
+      <p class="note">Il vous faut une clé d’IA gratuite (Groq, Gemini, Mistral, OpenRouter) ou Ollama en local — à coller dans Réglages — ou le mode démo pour découvrir.</p>
+      <details class="gate-terms" open>
+        <summary><b>Conditions d’utilisation</b></summary>
+        <ul class="plain">
+          <li>Outil fourni « tel quel », <b>sans garantie</b>. Les contenus produits (y compris par l’IA) peuvent être incomplets ou erronés : vous les vérifiez et les utilisez <b>sous votre propre responsabilité</b>.</li>
+          <li><b>Aucun engagement ni responsabilité</b> de Guillermo Blanco, adp.avapmo.com ou AVApmo, quel que soit l’usage ou le résultat.</li>
+          <li>Vos fiches, clés d’API et historique restent <b>dans votre navigateur</b> ; rien n’est transmis sauf à l’IA que vous choisissez et aux sites que vous demandez de lire.</li>
+          <li>Votre adresse email sert à vous informer des évolutions de l’outil et des contenus d’adp.avapmo.com ; elle n’est ni vendue ni partagée ; désinscription à tout moment en écrivant à <a href="mailto:contact@avapmo.com">contact@avapmo.com</a>.</li>
+          <li>Usage personnel et professionnel libre ; pas de revente de l’outil. Code source sous licence MIT.</li>
+        </ul>
+      </details>
+      <form id="gate-form" class="gate-form">
+        <label>Votre adresse email <input type="email" id="gate-email" placeholder="vous@entreprise.fr" autocomplete="email" required></label>
+        <label class="check"><input type="checkbox" id="gate-accept" required> J’ai lu et j’accepte les conditions d’utilisation.</label>
+        <button class="btn" type="submit">Accéder à l’outil</button>
+        <span class="note" id="gate-error"></span>
+      </form>
+      <p class="note">Créé par Guillermo Blanco · <a href="https://adp.avapmo.com" target="_blank" rel="noopener">adp.avapmo.com</a> · utilisation gratuite</p>
+    </div>
+  </div>
+
   <header class="topbar">
     <div class="brand"><span class="logo">S</span> SIMAC Prep <span class="tag">TPE / PME</span></div>
     <div class="topbar-right">
@@ -37,7 +70,7 @@
     <footer class="footer">
       <span class="by">SIMAC Prep</span>
       <span>Créé par Guillermo Blanco · <a href="https://adp.avapmo.com" target="_blank" rel="noopener">adp.avapmo.com</a> · utilisation gratuite</span>
-      <span>Vos données restent dans votre navigateur. Code source : <a href="https://github.com/kikenandez/simac-prep" target="_blank" rel="noopener">GitHub</a></span>
+      <span>Vos données restent dans votre navigateur. Code source : <a href="https://github.com/kikenandez/simac-prep" target="_blank" rel="noopener">GitHub</a> · <a href="#" id="show-terms">Conditions</a></span>
       <span class="disclaimer">Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l'IA) : à utiliser sous votre propre responsabilité. Aucun engagement ni responsabilité de Guillermo Blanco, adp.avapmo.com ou AVApmo.</span>
     </footer>
   </div>

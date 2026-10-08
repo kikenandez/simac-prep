@@ -11,7 +11,7 @@ const METHOD = {
 - Les 7 erreurs à éviter : trop parler de soi, pas d'objectif, découverte trop courte, prix trop tôt, convaincre à tout prix, se justifier face aux objections, pas de suite / pas d'appel à l'action.
 - Objections : accueillir → creuser (question) → répondre → relancer. Jamais accuser le client de cacher la vraie raison.
 - On ne repart jamais sans une date et le nom du décideur.
-Règles d'écriture : vocabulaire du client, phrases courtes, aucun jargon interne, aucune promesse invérifiable. N'invente aucun fait sur le client : ce qui n'est pas dans les données fournies est une HYPOTHÈSE à vérifier. N'attribue JAMAIS à l'offre une caractéristique, un chiffre, un délai, un format ou un service absent de la fiche OFFRE (pas de « module de 45 min », « réponse sous 24 h », « testé dans X établissements » si ce n'est pas écrit) : si tu en as besoin pour répondre à une objection, écris « (à confirmer : …) ». Réponds en français.`,
+Règles d'écriture : vocabulaire du client, phrases courtes, aucun jargon interne, aucune promesse invérifiable. N'invente aucun fait sur le client : ce qui n'est pas dans les données fournies est une HYPOTHÈSE à vérifier. RÈGLE STRICTE : n'attribue JAMAIS à l'offre une caractéristique, un chiffre, un délai, un format, une preuve ou un service absent de la fiche OFFRE. Pas de « (à confirmer) », pas de placeholder : si la fiche ne permet pas de dire quelque chose, ne le dis pas, et signale le manque dans le champ prévu (missing / gaps). Réponds en français.`,
   en: `You are a sales coach for small and medium businesses. Apply this method strictly:
 - SIMAC: Situation (the client's own words) → Idea (1 sentence) → Mechanism (3-5 steps: who does what, when, where, how, for how much; the PRICE comes at the END of the mechanism) → Advantages (each one RESTATES a client need; benefits before features; what competitors lack) → Conclusion (a question that invites a decision, ideally a choice between two options, then the next step).
 - CABP: Characteristic → Advantage → Benefit → Proof. No superlative without proof.
@@ -19,7 +19,7 @@ Règles d'écriture : vocabulaire du client, phrases courtes, aucun jargon inter
 - The 7 mistakes to avoid: talking about yourself too much, no objective, discovery too short, price given too early, convincing at all costs, justifying yourself against objections, no follow-up / no call to action.
 - Objections: acknowledge → dig (ask) → answer → move on. Never accuse the client of hiding the real reason.
 - Never leave without a date and the decision-maker's name.
-Writing rules: the client's vocabulary, short sentences, no internal jargon, no unverifiable promise. Never invent facts about the client: anything not in the provided data is an ASSUMPTION to validate. NEVER attribute to the offer a feature, figure, delay, format or service absent from the OFFER sheet; if needed to answer an objection, write "(to confirm: …)". Answer in English.`,
+Writing rules: the client's vocabulary, short sentences, no internal jargon, no unverifiable promise. Never invent facts about the client: anything not in the provided data is an ASSUMPTION to validate. STRICT RULE: NEVER attribute to the offer a feature, figure, delay, format, proof or service absent from the OFFER sheet. No placeholders: if the sheet does not support a statement, leave it out and report the gap in the field provided (missing / gaps). Answer in English.`,
 };
 
 const sys = (task, lang, extra = '') =>
@@ -67,13 +67,14 @@ Codes: S=Sécurité/Security, O=Orgueil/Pride, N=Nouveauté/Novelty, C=Confort/C
 Pour CHAQUE dimension, 2 arguments CABP (caractéristique → bénéfice → preuve) tirés de l'OFFRE, formulés pour ce client.
 For EACH dimension, 2 CABP arguments (characteristic → benefit → proof) drawn from the OFFER, phrased for this client.
 "main_message" = 1-2 phrases bâties sur les 3 dimensions les plus fortes / built on the 3 strongest dimensions.
-PREUVES : uniquement celles présentes dans l'OFFRE (champ proofs) ou la FICHE CLIENT. Si aucune preuve n'existe pour un argument, écris « (preuve à fournir) » — n'invente JAMAIS de chiffre, de référence, de témoignage ni de délai de réponse.
+PREUVES : uniquement celles présentes dans l'OFFRE (champ proofs) ou la FICHE CLIENT. Un argument sans preuve se formule sans preuve (caractéristique → bénéfice), jamais avec une preuve inventée. Liste dans "gaps" les preuves ou caractéristiques qui manquent à la fiche pour mieux convaincre ce client.
 
 JSON:
 {"scores":{"S":2,"O":2,"N":2,"C":2,"A":2,"Y":2,"E":2},
  "rationale":{"S":"...","O":"...","N":"...","C":"...","A":"...","Y":"...","E":"..."},
  "arguments":{"S":["..",".."],"O":[],"N":[],"C":[],"A":[],"Y":[],"E":[]},
- "main_message":"..."}` },
+ "main_message":"...",
+ "gaps":["ce qui manque à la fiche offre pour ce client (preuve, chiffre, condition…)"]}` },
   ];
 }
 
@@ -95,9 +96,10 @@ Rédige le déroulé de l'entretien / Write the meeting script. JSON:
  "advantages":["3-5 ; chacun commence par le bénéfice puis '(besoin : ...)' ; au moins un que la concurrence n'a pas / 3-5; each starts with the benefit then '(need: ...)'; at least one competitors lack"],
  "conclusion":"question de décision avec un choix entre deux propositions + étape suivante datée / decision question offering two options + dated next step",
  "objections":[{"objection":"...","response":"accueillir → question → réponse → relance / acknowledge → question → answer → move on"}],
- "mistakes_watch":["2-3 erreurs auxquelles CE rdv est exposé / 2-3 mistakes THIS meeting is exposed to"]}
+ "mistakes_watch":["2-3 erreurs auxquelles CE rdv est exposé / 2-3 mistakes THIS meeting is exposed to"],
+ "gaps":["ce que la fiche offre ne permet pas de dire ou de répondre dans ce rendez-vous — à travailler avant / what the offer sheet cannot support in this meeting — to work on before"]}
 Prépare 5 à 7 objections probables pour ce client / Prepare 5-7 likely objections for this client.
-PREUVES et CHIFFRES : uniquement ceux de l'OFFRE ou de la FICHE CLIENT ; sinon « (preuve à fournir) ». Rien d'inventé.` },
+PREUVES et CHIFFRES : uniquement ceux de l'OFFRE ou de la FICHE CLIENT. Rien d'inventé. Si la fiche ne permet pas de répondre à une objection, la réponse se limite à accueillir et à poser la question qui creuse, et l'objection est reportée dans "gaps".` },
   ];
 }
 
@@ -186,7 +188,8 @@ Critères de la checklist : accroche sur le problème du client ; qui parle en 1
 FICHE :
 ${JSON.stringify(current)}
 
-JSON : {"score":3,"label":"libellé court du niveau","summary":"2 phrases, directes, sans flatterie",
+Donne aussi un avis de l'outil, "verdict", parmi exactement : "travailler l'offre" (score 1-2 : des trous empêchent d'argumenter sans inventer) | "prêt pour des réunions à blanc" (score 3 : on peut s'entraîner, pas encore vendre) | "prêt pour la vente" (score 4-5).
+JSON : {"score":3,"verdict":"prêt pour des réunions à blanc","label":"libellé court du niveau","summary":"2 phrases, directes, sans flatterie",
  "strengths":["2-4 points forts, citant la fiche"],
  "gaps":[{"field":"clé","why":"pourquoi ça bloque la vente","fix":"action concrète en 1 phrase"}],
  "next_step":"LA chose à faire avant le prochain rendez-vous"}` },

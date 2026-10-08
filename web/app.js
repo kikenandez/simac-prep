@@ -8,6 +8,8 @@ import { SONCAS, DEFAULT_SCORES, clampScores, top3, label } from './lib/soncas.j
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { extractText, ACCEPT } from './lib/files.js';
+import { hasAccepted, accept, isEmail } from './lib/consent.js';
+import { CONFIG } from './config.js';
 
 const LANG = 'fr';
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -101,6 +103,15 @@ $('#btn-new').addEventListener('click', () => {
 const renderers = {};
 const FIELD_LABELS = { name: 'Produit / service', oneLiner: 'En une phrase', targets: 'Cibles', problem: 'Problème de chaque cible', who: 'Qui parle', nextStep: 'Étape suivante voulue', mechanism: 'Mécanisme', advantages: 'Avantages', proofs: 'Preuves', price: 'Prix', floor: 'Plancher', delays: 'Délais et conditions', objections: 'Objections attendues', constraints: 'Contraintes' };
 const MATURITY = { 1: 'Encore une idée à travailler', 2: 'Ébauche', 3: 'Offre définie', 4: 'Prête à tester', 5: 'Prête à la présentation' };
+const VERDICT = { 1: 'travailler l’offre', 2: 'travailler l’offre', 3: 'prêt pour des réunions à blanc', 4: 'prêt pour la vente', 5: 'prêt pour la vente' };
+function verdictBanner() {
+  const M = S.offer?.maturity;
+  if (!M) return '<div class="card warn"><b>Maturité de l’offre non évaluée.</b> L’IA n’invente rien : ce que la fiche ne contient pas n’apparaîtra pas. Lancez « Analyser la maturité » à l’étape 1 pour connaître l’avis de l’outil.</div>';
+  const v = M.verdict || VERDICT[M.score];
+  if (/vente/.test(v)) return '';
+  const hint = /travailler/.test(v) ? 'Des trous dans la fiche empêchent d’argumenter sans inventer — complétez l’offre avant un vrai rendez-vous.' : 'Utilisez ce rendez-vous comme un entraînement ; complétez les manques signalés avant de vendre.';
+  return `<div class="card warn"><b>Avis de l’outil : ${esc(v)}</b> (${M.score}/5). ${hint}</div>`;
+}
 
 renderers.offer = () => {
   const O = S.offer;
@@ -270,7 +281,7 @@ function renderMaturity() {
   el.innerHTML = `
     <div class="maturity">
       <div class="gauge">${[1, 2, 3, 4, 5].map((i) => `<span class="${i <= M.score ? 'on' : ''}"></span>`).join('')}</div>
-      <div><b>${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</b><div class="note">${esc(M.summary)}</div></div>
+      <div><b>${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</b> <span class="verdict v${M.score}">${esc(M.verdict || VERDICT[M.score])}</span><div class="note">${esc(M.summary)}</div></div>
     </div>
     <div class="grid" style="margin-top:12px">
       <div><h3>Points forts</h3><ul class="plain">${(M.strengths || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
@@ -403,15 +414,20 @@ renderers.persona = () => {
   $('#main').innerHTML = `
     <h1>3 · Persona SONCAS et message principal</h1>
     <p class="lead">Les motivations d’achat à explorer, notées de 1 à 3. L’IA propose d’après la fiche client ; vous corrigez. Le message principal se construit sur les 3 motivations les plus fortes.</p>
+    ${verdictBanner()}
     <div class="actions">
       <button class="btn" id="ai">Proposer avec l’IA</button>
       ${P.aiScores ? '<span class="note">Proposition IA reçue — ajustez les scores si besoin.</span>' : '<span class="note">Sans IA : notez à la main, puis rédigez le message.</span>'}
     </div>
-    <div class="soncas" id="soncas"></div>
+    <div class="persona-grid">
+      <div class="card radar-card" id="radar"></div>
+      <div class="soncas" id="soncas"></div>
+    </div>
     <div class="card soft" style="margin-top:16px">
       <h3>Message principal <span class="muted">(top 3 : <span id="top3"></span>)</span></h3>
       <textarea data-bind="persona.main_message" class="main-message" placeholder="1 à 2 phrases, bâties sur les 3 motivations les plus fortes"></textarea>
     </div>
+    ${(P.gaps || []).length ? `<div class="card"><h3>Ce qui manque à la fiche offre pour ce client</h3><ul class="plain">${P.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">Complétez l’offre (étape 1) puis relancez : rien de ceci ne sera inventé.</p></div>` : ''}
     <div class="actions"><button class="btn" id="next">Continuer → SIMAC</button></div>`;
   bindInputs($('#main'), P, 'persona');
   renderSoncas();
@@ -420,11 +436,29 @@ renderers.persona = () => {
     const history = retrieve({ company: S.client.company, sector: S.client.sector, product: S.product.name, contactRole: S.client.contactRole });
     const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: S.client, brief: S.brief, history }));
     P.aiScores = capThrees(clampScores(r.scores)); P.scores = { ...P.aiScores };
-    P.rationale = r.rationale || {}; P.arguments = r.arguments || {}; P.main_message = r.main_message || '';
+    P.rationale = r.rationale || {}; P.arguments = r.arguments || {}; P.main_message = r.main_message || ''; P.gaps = r.gaps || [];
     persist(); markDone(); if (S.step === 'persona') renderers.persona();
   });
   $('#next').onclick = () => go('simac');
 };
+/** Toile SONCAS-E : 7 axes, scores 1-3 ; tracé utilisateur par-dessus la proposition IA. */
+function soncasRadar(scores, aiScores) {
+  const R = 88, cx = 150, cy = 118, n = SONCAS.length;
+  const pt = (i, v) => { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; const r = (R * v) / 3; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
+  const ring = (v) => SONCAS.map((_, i) => pt(i, v).join(',')).join(' ');
+  const poly = (sc) => SONCAS.map((d, i) => pt(i, sc[d.code] || 0).join(',')).join(' ');
+  const labels = SONCAS.map((d, i) => { const [x, y] = pt(i, 3.55); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`; }).join('');
+  return `<svg class="radar" viewBox="0 0 300 236" role="img" aria-label="Profil SONCAS">
+    ${[1, 2, 3].map((v) => `<polygon points="${ring(v)}" class="ring"/>`).join('')}
+    ${SONCAS.map((_, i) => { const [x, y] = pt(i, 3); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="axis"/>`; }).join('')}
+    ${aiScores ? `<polygon points="${poly(aiScores)}" class="ai"/>` : ''}
+    <polygon points="${poly(scores)}" class="me"/>
+    ${SONCAS.map((d, i) => { const [x, y] = pt(i, scores[d.code] || 0); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" class="dot"/>`; }).join('')}
+    ${labels}
+  </svg>
+  <div class="note radar-legend"><span class="sw me"></span> vous ${aiScores ? '<span class="sw ai"></span> proposition IA' : ''}</div>`;
+}
+
 /** Au plus trois dimensions à 3 : au-delà, les dernières dans l'ordre S-O-N-C-A-S-E repassent à 2. */
 function capThrees(scores) {
   const out = { ...scores }; let n = 0;
@@ -434,6 +468,7 @@ function capThrees(scores) {
 function renderSoncas() {
   const P = S.persona; const t3 = top3(P.scores);
   $('#top3').textContent = t3.map(label).join(' · ');
+  if ($('#radar')) $('#radar').innerHTML = soncasRadar(P.scores, P.aiScores);
   $('#soncas').innerHTML = SONCAS.map((d) => `
     <div class="dim ${t3.includes(d.code) ? 'top' : ''}">
       <div><b>${d.label}</b><div class="hint">${d.hint}</div></div>
@@ -457,6 +492,7 @@ renderers.simac = () => {
   $('#main').innerHTML = `
     <h1>4 · Déroulé SIMAC</h1>
     <p class="lead">Situation → Idée → Mécanisme (prix à la fin) → Avantages (chacun reformule un besoin) → Conclusion (une question, deux options, l’étape suivante). Tout est modifiable : c’est votre script.</p>
+    ${verdictBanner()}
     <div class="grid">
       ${field('objective.primary', 'Objectif du rendez-vous', { placeholder: 'Ex. : accord pour un essai sur 3 RDV' })}
       ${field('objective.fallback', 'Objectif de repli', { placeholder: 'Ex. : RDV avec le décideur daté' })}
@@ -494,6 +530,7 @@ function renderSimac() {
       <tbody>${(M.objections || []).map((o) => `<tr><td>${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('') || '<tr><td colspan="2" class="note">—</td></tr>'}</tbody></table>
       ${(M.mistakes_watch || []).length ? `<h3>Erreurs à surveiller dans ce RDV</h3><ul class="plain">${M.mistakes_watch.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
     </div>
+    ${(M.gaps || []).length ? `<div class="card"><h3>Ce que la fiche offre ne permet pas de dire</h3><ul class="plain">${M.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">Rien n’a été inventé pour combler ces points : complétez l’offre (étape 1) et relancez.</p></div>` : ''}
     <div class="card warn"><b>Avant d’entrer :</b> plancher connu · leviers sans remise listés · on ne repart jamais sans <b>une date</b> et <b>le nom du décideur</b>.</div>
     <div class="actions">
       <button class="btn ghost" id="print">Imprimer / PDF</button>
@@ -689,6 +726,26 @@ window.addEventListener('afterprint', () => {
   $('#print-head')?.remove();
   $$('textarea').forEach((t) => { t.style.height = t.dataset.h || ''; });
 });
+
+// ----------------------------------------------------------------------------- accueil + conditions
+function showGate(readOnly = false) {
+  const g = $('#gate'); g.hidden = false;
+  $('#gate-form').hidden = readOnly;
+  if (readOnly) { const close = document.createElement('button'); close.className = 'btn ghost'; close.textContent = 'Fermer'; close.onclick = () => (g.hidden = true); $('#gate-form').after(close); }
+  $('#gate-email').required = !!CONFIG.emailRequired;
+  $('#gate-email').closest('label').querySelector('input').placeholder = CONFIG.emailRequired ? 'vous@entreprise.fr' : 'vous@entreprise.fr (facultatif)';
+}
+$('#gate-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const email = $('#gate-email').value.trim();
+  if (!$('#gate-accept').checked) return ($('#gate-error').textContent = 'Cochez la case pour accepter les conditions.');
+  if ((CONFIG.emailRequired || email) && !isEmail(email)) return ($('#gate-error').textContent = 'Adresse email invalide.');
+  const btn = $('#gate-form .btn'); btn.disabled = true;
+  await accept({ email });
+  btn.disabled = false; $('#gate').hidden = true;
+});
+$('#show-terms').addEventListener('click', (e) => { e.preventDefault(); showGate(true); });
+if (!hasAccepted()) showGate(false);
 
 // ----------------------------------------------------------------------------- démarrage
 go(S.step || 'offer');
