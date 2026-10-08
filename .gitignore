@@ -3,3 +3,6 @@ node_modules/
 test-results/
 *.log
 .env
+
+# cas réels partagés en formation — jamais publiés
+testCases/

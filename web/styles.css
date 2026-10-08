@@ -200,3 +200,19 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .tabs button.on small { color: inherit; opacity: .85; }
 @media (max-width: 760px) { .contact-row { grid-template-columns: 22px 1fr 32px; } .contact-row select, .contact-row input:nth-child(3) { grid-column: 2; } }
 @media print { .tabs button { border-color: #999; color: #000; } .tabs button.on { background: #000; color: #fff; } }
+
+/* Recherche : les preuves restent lisibles sur mobile et à l'impression. */
+.evidence { overflow-wrap: anywhere; }
+.evidence .check { display: flex; gap: 8px; align-items: center; }
+.evidence input[type="checkbox"] { width: auto; flex: none; }
+.source-text { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; max-height: 300px; overflow: auto; }
+#market-research, #client-research { min-width: 0; }
+#market-comparison textarea { min-height: 60px; }
+#prep-email-body { min-height: 180px; }
+.panel, .grid > div { min-width: 0; }
+@media (max-width: 760px) {
+  .topbar { flex-wrap: wrap; gap: 8px; }
+  .topbar-right { flex-wrap: wrap; gap: 6px; }
+  .topbar-right .btn { padding: 6px 10px; }
+  #client-search-angle { max-width: 100%; }
+}

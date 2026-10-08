@@ -3,13 +3,14 @@
 
 import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } from './lib/llm.js';
 import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, clientExtractMessages, clientQuestionMessages, debriefExtractMessages } from './lib/prompts.js';
-import { readUrl, searchWeb, notesSource, mergeSources } from './lib/research.js';
+import { readUrl, notesSource, mergeSources, activeSources, groundBrief, sourceId, upsertSources, competitorQuery, sanitizeComparison } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail } from './lib/consent.js';
 import { CONFIG } from './config.js';
+import { marketDefaults, researchDefaults, mountMarket, mountClientResearch, renderEvidence, citations, clientFingerprint } from './lib/research-ui.js';
 
 const LANG = 'fr';
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -22,7 +23,8 @@ function blank() {
     id: newId(), date: new Date().toISOString().slice(0, 10), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
     offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null },
-    client: { company: '', sector: '', website: '', contacts: [blankContact('decide')], linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
+    market: marketDefaults(), research: researchDefaults(),
+    client: { preparationMode: 'meeting', location: '', company: '', sector: '', website: '', contacts: [blankContact('decide')], linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
     clientChat: { description: '', chat: [], pendingField: '' },
     sources: [], brief: null,
     persona: { people: [blankPerson()], current: 0, main_message: '', tensions: [], gaps: [] },
@@ -52,7 +54,33 @@ if (!S.offer) S.offer = blank().offer;
 if (!S.clientChat) S.clientChat = blank().clientChat;
 if (S.client.meetingFormat == null) S.client.meetingFormat = '';
 if (S.debrief.description == null) S.debrief.description = '';
+S.market = { ...marketDefaults(), ...S.market };
+S.research = { ...researchDefaults(), ...S.research };
+S.client.preparationMode ||= 'meeting';
+S.client.location ||= '';
 const persist = () => saveDraft(S);
+function invalidatePreparation() {
+  S.brief = null; S.simac = null; S.followup = null;
+  S.persona.main_message = ''; S.persona.tensions = [];
+  S.persona.people.forEach(p => { p.aiScores = null; p.rationale = {}; p.arguments = {}; });
+  markDone();
+  if ($('#brief-out')) renderBrief();
+}
+function invalidateClientResearch() {
+  S.research = researchDefaults();
+  S.sources.forEach(s => { s.included = false; s.stale = true; });
+  invalidatePreparation();
+}
+function invalidateContactResearch() {
+  S.sources.filter(s => s.subject && s.subject !== 'organisation').forEach(s => {
+    s.included = false;
+    s.stale = true;
+  });
+  invalidatePreparation();
+}
+function mountResearch() {
+  mountClientResearch($('#client-research'), () => S, { save: persist, invalidate: invalidatePreparation, busy, toast, sourcesChanged: renderSources });
+}
 
 // ----------------------------------------------------------------------------- UI utils
 let toastTimer;
@@ -80,7 +108,23 @@ function bindInputs(root, obj, prefix) {
   $$(`[data-bind^="${prefix}."]`, root).forEach((el) => {
     const key = el.dataset.bind.slice(prefix.length + 1);
     el.value = obj[key] ?? '';
-    el.addEventListener('input', () => { obj[key] = el.value; persist(); });
+    el.addEventListener('input', () => {
+      const changed = obj[key] !== el.value; obj[key] = el.value;
+      if (changed && prefix === 'client') {
+        if (['company', 'location'].includes(key)) invalidateClientResearch(); else invalidatePreparation();
+        mountResearch(); renderSources();
+      }
+      if (changed && prefix === 'product') {
+        S.market.comparison = null;
+        invalidatePreparation();
+        const out = $('#market-comparison');
+        if (out) out.innerHTML = '';
+        if (!S.market.query && $('#market-query')) {
+          $('#market-query').value = competitorQuery(S.product, S.market.geography);
+        }
+      }
+      persist();
+    });
   });
 }
 const field = (bind, lbl, { hint = '', type = 'input', full = false, placeholder = '' } = {}) =>
@@ -110,7 +154,7 @@ function markDone() {
 $('#steps').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.step); });
 $('#btn-new').addEventListener('click', () => {
   if (!confirm('Nouveau rendez-vous ? L’offre est conservée, le reste est réinitialisé (pensez à enregistrer dans Suivi).')) return;
-  const product = S.product; S = blank(); S.product = product; persist(); go('client');
+  const product = S.product, offer = S.offer, market = S.market; S = blank(); Object.assign(S, { product, offer, market }); persist(); go('client');
 });
 
 // ----------------------------------------------------------------------------- 1. OFFRE
@@ -169,6 +213,8 @@ renderers.offer = () => {
       ${field('product.constraints', 'Contraintes', { hint: 'réglementation, ton, décisions prises' })}
     </div>
 
+    <div id="market-research"></div>
+
     <div class="card" id="offer-chat-card">
       <h2>Compléter par questions</h2>
       <p class="note">L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.</p>
@@ -186,8 +232,9 @@ renderers.offer = () => {
       <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
   bindInputs($('#main'), O, 'offer');
-  renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: () => { O.maturity = null; } });
+  renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: () => { O.maturity = null; S.market.comparison = null; invalidatePreparation(); } });
   renderMaturity();
+  mountMarket($('#market-research'), () => S, { save: persist, invalidate: invalidatePreparation, busy, toast });
   renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
   $('#offer-files').onchange = (e) => addFiles(e.target.files, O.sources, () => { persist(); renderers.offer(); });
 
@@ -200,7 +247,7 @@ renderers.offer = () => {
       try { const src = await readUrl(u, { jinaKey }); O.sources = O.sources.filter((x) => x.source !== src.source); O.sources.push(src); n++; }
       catch (err) { toast(/linkedin|instagram/i.test(u) ? 'Ce site bloque la lecture automatique : collez le texte du profil dans « Texte collé ».' : friendlyError(err), 6000); }
     }
-    persist(); $('#offer-src').textContent = `${O.sources.length} source(s)`;
+    persist(); if ($('#offer-src')) $('#offer-src').textContent = `${O.sources.length} source(s)`; renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
     if (n) toast(`${n} page(s) lue(s).`);
   });
 
@@ -217,7 +264,7 @@ renderers.offer = () => {
       for (const k of Object.keys(FIELD_LABELS)) { const v = String(f[k] || '').trim(); if (v) S.product[k] = v; }
       filled += kept;
     }
-    O.maturity = null; persist(); markDone();
+    O.maturity = null; S.market.comparison = null; invalidatePreparation(); persist(); markDone();
     if (S.step !== 'offer') return;
     renderers.offer();
     const notes = [r.notes, (r.missing || []).length ? 'Manque : ' + r.missing.map((k) => FIELD_LABELS[k] || k).join(', ') + ' → utilisez « Compléter par questions ».' : ''].filter(Boolean).join(' ');
@@ -233,10 +280,12 @@ renderers.offer = () => {
   });
 
   $('#next').onclick = () => go('client');
-  $('#export-offer').onclick = () => download('fiche-offre.json', JSON.stringify(S.product, null, 2), 'application/json');
+  $('#export-offer').onclick = () => download('fiche-offre.json', JSON.stringify({ version: 2, product: S.product, market: S.market }, null, 2), 'application/json');
   $('#import-offer').onchange = async (e) => {
     const f = e.target.files[0]; if (!f) return;
-    try { S.product = { ...S.product, ...JSON.parse(await f.text()) }; persist(); renderers.offer(); toast('Fiche importée.'); }
+    try { const data = JSON.parse(await f.text()); const product = data.product || data;
+      S.product = Object.fromEntries(Object.keys(FIELD_LABELS).map(k => [k, String(product[k] || '')]));
+      S.market = restoreMarket(data.market); invalidatePreparation(); persist(); renderers.offer(); toast('Fiche importée.'); }
     catch { toast('Fichier illisible.'); }
   };
 };
@@ -274,7 +323,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
   const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
     const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer }));
-    if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(); }
+    if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(lastField); }
     if (r.done || !r.question) { state.pendingField = ''; state.chat.push({ role: 'ai', text: 'La fiche est complète sur l’essentiel.' }); }
     else { state.pendingField = r.next_field || ''; state.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
     persist(); markDone();
@@ -325,7 +374,9 @@ renderers.client = () => {
     <div class="grid">
       ${field('client.company', 'Entreprise / établissement')}
       ${field('client.sector', 'Secteur / activité')}
-      <div class="full"><label>Interlocuteurs présents <small>— jusqu’à ${MAX_CONTACTS} ; au-delà, un rendez-vous se prépare autrement (une personne relais, puis un second rendez-vous)</small></label>
+      ${field('client.location', 'Commune / pays', { placeholder: 'Paris, France' })}
+      <div><label>Je prépare</label><select data-bind="client.preparationMode"><option value="meeting">Un rendez-vous</option><option value="email">Un email (premier destinataire ci-dessous)</option></select></div>
+      <div class="full"><label>Interlocuteurs / destinataires <small>— jusqu’à ${MAX_CONTACTS} ; au-delà, un rendez-vous se prépare autrement (une personne relais, puis un second rendez-vous)</small></label>
         <div id="contacts"></div></div>
       ${field('client.meetingFormat', 'Format du rendez-vous', { hint: 'mail, visio, sur place, salon ; date, durée', full: true })}
       ${field('client.website', 'Site web', { placeholder: 'exemple.fr' })}
@@ -340,26 +391,29 @@ renderers.client = () => {
       <div id="client-chat"></div>
     </div>
 
+    <div id="client-research"></div>
     <h2>Sources et fiche client</h2>
+    <p class="note">Seules les sources cochées sont utilisées. Vérifiez leur pertinence pour ce client et chaque interlocuteur.</p>
     <div class="actions">
       <button class="btn ghost" id="fetch">Lire les pages</button>
-      <button class="btn ghost" id="search">Rechercher sur le web</button>
       <span class="note" id="src-count">${S.sources.length} source(s) collectée(s)</span>
     </div>
     <div id="sources"></div>
-    <div class="actions"><button class="btn" id="brief">Générer la fiche client avec l’IA</button></div>
+    <div class="actions"><button class="btn" id="brief">Préparer ce rendez-vous / cet email avec l’IA</button></div>
     <div id="brief-out"></div>`;
   bindInputs($('#main'), S.client, 'client');
   bindInputs($('#main'), C, 'clientChat');
   renderContacts();
-  renderGuidedChat({ el: $('#client-chat'), state: C, target: S.client, build: clientQuestionMessages, step: 'client' });
+  renderGuidedChat({ el: $('#client-chat'), state: C, target: S.client, build: clientQuestionMessages, step: 'client', onFilled: (key) => { if (key === 'company') invalidateClientResearch(); else invalidatePreparation(); } });
   renderSources();
   renderBrief();
-  $('#client-files').onchange = (e) => addFiles(e.target.files, S.sources, () => { persist(); renderSources(); });
+  mountResearch();
+  $('#client-files').onchange = (e) => addFiles(e.target.files, S.sources, () => { invalidatePreparation(); persist(); renderSources(); });
 
   $('#client-extract').onclick = (e) => busy(e.target, async () => {
     if (!C.description.trim()) return toast('Décrivez d’abord l’interlocuteur et le rendez-vous.');
-    const docs = S.sources.filter((x) => x.kind === 'document').map((x) => `--- ${x.source}\n${x.text}`).join('\n\n');
+    const docs = activeSources(S.sources).filter((x) => x.kind === 'document').map((x) => `--- ${x.source}\n${x.text}`).join('\n\n');
+    const previousCompany = S.client.company;
     const r = await chatJSON(clientExtractMessages({ lang: LANG, description: [C.description, docs].filter(Boolean).join('\n\nDOCUMENTS JOINTS :\n'), current: S.client }));
     const f = r.fields || {}; let filled = 0;
     for (const k of Object.keys(CLIENT_LABELS)) { if (k === 'contacts') continue; const v = String(f[k] || '').trim(); if (v && !String(S.client[k] || '').trim()) { S.client[k] = v; filled++; } }
@@ -374,6 +428,7 @@ renderers.client = () => {
       filled++;
     }
     syncPeople();
+    if (previousCompany !== S.client.company) invalidateClientResearch(); else invalidatePreparation();
     persist(); markDone(); if (S.step !== 'client') return;
     renderers.client();
     $('#client-notes').textContent = (r.missing || []).length ? 'Manque : ' + r.missing.map((k) => CLIENT_LABELS[k] || k).join(', ') + ' → « Compléter par questions ».' : '';
@@ -382,26 +437,29 @@ renderers.client = () => {
   $('#fetch').onclick = (e) => busy(e.target, async () => {
     const urls = [S.client.website, S.client.linkedinUrl].filter(Boolean);
     if (!urls.length) return toast('Indiquez au moins une URL.');
+    const state = S, fingerprint = clientFingerprint(S);
     const jinaKey = loadSettings().jinaKey || '';
     for (const u of urls) {
-      try { const src = await readUrl(u, { jinaKey }); S.sources = S.sources.filter((s) => s.source !== src.source); S.sources.push(src); }
-      catch (err) { toast(friendlyError(err), 5000); }
+      try {
+        const src = await readUrl(u, { jinaKey });
+        if (S !== state || clientFingerprint(S) !== fingerprint) return;
+        src.included = false; S.sources = upsertSources(S.sources, [src]);
+      } catch (err) { toast(friendlyError(err), 5000); }
     }
-    persist(); renderSources();
-  });
-  $('#search').onclick = (e) => busy(e.target, async () => {
-    const q = [S.client.company, primary().name, S.client.sector].filter(Boolean).join(' ');
-    if (!q) return toast('Indiquez l’entreprise ou le contact.');
-    const res = await searchWeb(q, { jinaKey: loadSettings().jinaKey || '' });
-    S.sources = S.sources.filter((s) => s.kind !== 'web').concat(res);
-    persist(); renderSources(); toast(`${res.length} résultat(s) ajouté(s).`);
+    if (S !== state || clientFingerprint(S) !== fingerprint) return;
+    invalidatePreparation(); persist(); renderSources();
   });
   $('#brief').onclick = (e) => busy(e.target, async () => {
     if (!S.client.company && !primary().name) return toast('Indiquez au moins l’entreprise.');
     const all = [...S.sources];
     if (S.client.notes) all.push(notesSource(S.client.notes));
-    const brief = await chatJSON(clientBriefMessages({ lang: LANG, product: S.product, client: clientView(), sources: mergeSources(all), history: historyFor() }));
-    S.brief = brief; persist(); markDone(); if (S.step !== 'client') return;
+    const state = S, history = historyFor();
+    const snapshot = () => JSON.stringify([S.client, S.product, S.sources, S.market]);
+    const fingerprint = snapshot();
+    const market = S.market.comparison ? { ...S.market.comparison, sources: activeSources(S.market.sources).map(s => ({ id: sourceId(s), url: s.source, date: s.publishedAt || '', retrievedAt: s.retrievedAt })) } : null;
+    const result = await chatJSON(clientBriefMessages({ lang: LANG, product: S.product, client: clientView(), sources: mergeSources(all), history, market }));
+    if (S !== state || snapshot() !== fingerprint) return;
+    S.brief = groundBrief(result, all, !!history); persist(); markDone(); if (S.step !== 'client') return;
     renderBrief();
   });
 };
@@ -431,37 +489,56 @@ function renderContacts() {
     (list.length < MAX_CONTACTS ? `<button class="btn ghost small" id="add-contact">+ Ajouter une personne (${list.length}/${MAX_CONTACTS})</button>` : `<span class="note">${MAX_CONTACTS} personnes : c’est le maximum pour un rendez-vous préparé finement.</span>`);
   $$('.contact-row', el).forEach((row) => {
     const c = list[+row.dataset.i];
-    $$('[data-ck]', row).forEach((inp) => inp.addEventListener('input', () => { c[inp.dataset.ck] = inp.value; persist(); }));
+    $$('[data-ck]', row).forEach((inp) => inp.addEventListener('input', () => {
+      c[inp.dataset.ck] = inp.value;
+      invalidateContactResearch();
+      mountResearch(); renderSources(); persist();
+    }));
   });
-  $$('[data-rm-contact]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rmContact, 1); S.persona.people.splice(+b.dataset.rmContact, 1); syncPeople(); persist(); renderContacts(); }));
-  const add = $('#add-contact'); if (add) add.onclick = () => { list.push(blankContact()); syncPeople(); persist(); renderContacts(); $$('.contact-row', el).pop()?.querySelector('input')?.focus(); };
+  $$('[data-rm-contact]', el).forEach((b) => (b.onclick = () => {
+    list.splice(+b.dataset.rmContact, 1);
+    S.persona.people.splice(+b.dataset.rmContact, 1);
+    syncPeople(); invalidateContactResearch(); persist();
+    renderContacts(); mountResearch(); renderSources();
+  }));
+  const add = $('#add-contact');
+  if (add) add.onclick = () => {
+    list.push(blankContact());
+    syncPeople(); invalidateContactResearch(); persist();
+    renderContacts(); mountResearch(); renderSources();
+    $$('.contact-row', el).pop()?.querySelector('input')?.focus();
+  };
 }
 function renderSources() {
   const el = $('#sources'); if (!el) return;
-  $('#src-count').textContent = `${S.sources.length} source(s) collectée(s)`;
-  el.innerHTML = S.sources.map((s, i) => `
-    <div class="card"><b>${esc(s.kind)}</b> — <a href="${esc(s.source)}" target="_blank" rel="noopener">${esc(s.title || s.source)}</a>
-      <button class="btn ghost small" style="float:right" data-rm="${i}">retirer</button>
-      <div class="note" style="margin-top:6px">${esc(s.text.slice(0, 280))}…</div></div>`).join('');
-  $$('[data-rm]', el).forEach((b) => (b.onclick = () => { S.sources.splice(+b.dataset.rm, 1); persist(); renderSources(); }));
+  $('#src-count').textContent = `${activeSources(S.sources).length} / ${S.sources.length} source(s) incluse(s)`;
+  renderEvidence(el, S.sources, () => { invalidatePreparation(); persist(); renderSources(); });
 }
 function renderBrief() {
   const el = $('#brief-out'); if (!el) return;
   const b = S.brief; if (!b) { el.innerHTML = ''; return; }
-  const li = (arr) => (arr || []).map((x) => `<li>${esc(typeof x === 'string' ? x : `${x.fact} (${x.source})`)}</li>`).join('');
+  const evidence = [...S.sources, notesSource(S.client.notes || ''), { id: 'client', source: 'Saisie utilisateur', kind: 'notes', text: 'Client' }, { id: 'history', source: 'Historique local (à reconfirmer)', kind: 'history', text: 'Historique' }];
+  const li = (arr) => (Array.isArray(arr) ? arr : []).map(x => `<li>${typeof x === 'string' ? esc(x) : `${esc(x.fact)} ${x.date ? esc(x.date) : ''} — ${citations(x.source_ids, evidence)}`}</li>`).join('');
   el.innerHTML = `
     <div class="card">
       <h2>Fiche client</h2>
       <p><b>Entreprise.</b> ${esc(b.company_summary)}</p>
       <p><b>${contacts().length > 1 ? 'Interlocuteurs' : 'Interlocuteur·rice'}.</b> ${esc(b.contact_summary)}</p>
       <p><b>Enjeu.</b> ${esc(b.stakes)}</p>
-      <h3>Problèmes probables (ses mots)</h3><ul class="plain">${li(b.likely_problems)}</ul>
+      <h3>Problèmes possibles à vérifier</h3><ul class="plain">${li(b.likely_problems)}</ul>
       <div class="grid"><div><h3>Faits (sourcés)</h3><ul class="plain">${li(b.facts)}</ul></div>
       <div><h3>Hypothèses à vérifier</h3><ul class="plain">${li(b.assumptions)}</ul></div></div>
+      ${(b.participants || []).map(p => `<div class="card soft"><h3>${esc(p.name)}</h3><p>${esc(p.documented_role)} — ${esc(p.identity_check)}</p><p>À explorer : ${esc(p.hypothesis)}</p><p><b>Question :</b> ${esc(p.question)}</p><p class="note">${citations(p.source_ids, evidence)}</p></div>`).join('')}
+      ${(b.signals || []).map(s => `<p><b>${esc(s.fact)}</b><br>${esc(s.relevance)}<br>Question : ${esc(s.question)}<br>${citations(s.source_ids, evidence)}</p>`).join('')}
+      ${(b.competitive_context || []).length ? `<h3>Comparaisons à préparer</h3><ul>${li(b.competitive_context)}</ul>` : ''}
+      ${b.preparation ? `<h3>${S.client.preparationMode === 'email' ? 'Email de prise de contact' : 'Ouverture du rendez-vous'}</h3><p>${esc(b.preparation.opening)}</p>${S.client.preparationMode === 'email' ? `<label>Objet<input id="prep-email-subject" value="${esc(b.preparation.email_subject)}"></label><label>Email à relire<textarea id="prep-email-body">${esc(b.preparation.email_body)}</textarea></label><button class="btn ghost small" id="copy-prep-email">Copier l’email</button>` : ''}` : ''}
       <h3>Questions de découverte</h3><ol class="steps-list">${li(b.questions_to_ask)}</ol>
     </div>
     <div class="actions"><button class="btn" id="to-persona">Continuer → Persona</button></div>`;
   $('#to-persona').onclick = () => go('persona');
+  $('#prep-email-subject')?.addEventListener('input', e => { b.preparation.email_subject = e.target.value; persist(); });
+  $('#prep-email-body')?.addEventListener('input', e => { b.preparation.email_body = e.target.value; persist(); });
+  $('#copy-prep-email')?.addEventListener('click', e => busy(e.currentTarget, async () => { await navigator.clipboard.writeText(`${b.preparation.email_subject}\n\n${b.preparation.email_body}`); toast('Email copié.'); }));
 }
 
 // ----------------------------------------------------------------------------- 3. PERSONA SONCAS
@@ -571,7 +648,7 @@ renderers.simac = () => {
     const people = S.client.contacts.map((c, i) => { const P = S.persona.people[i]; const t3 = top3(P.scores);
       return { name: contactLabel(c, i), role: c.role, weight: c.weight, scores: P.scores, top3: t3.map(label), arguments: Object.fromEntries(t3.map((k) => [label(k), (P.arguments?.[k] || []).slice(0, 2)])) }; });
     const persona = { people, main_message: S.persona.main_message, tensions: S.persona.tensions || [] };
-    const simac = await chatJSON(simacMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, persona, objective: S.objective }));
+    const simac = await chatJSON(simacMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, persona, objective: S.objective, market: S.market.comparison ? { comparison: S.market.comparison, sources: mergeSources(S.market.sources) } : null }));
     S.simac = simac; persist(); markDone(); if (S.step === 'simac') renderSimac();
   });
 };
@@ -692,6 +769,7 @@ function toRecord() {
     contact_name: cs[0].name, contact_role: cs[0].role, contact_weight: cs[0].weight,
     contact2_name: c2.name || '', contact2_role: c2.role || '', contact2_weight: c2.name || c2.role ? c2.weight : '', soncas_2: cs[1] ? packScores(pp[1].scores) : '', top3_2: cs[1] ? top3(pp[1].scores).map(label).join('|') : '',
     contact3_name: c3.name || '', contact3_role: c3.role || '', contact3_weight: c3.name || c3.role ? c3.weight : '', soncas_3: cs[2] ? packScores(pp[2].scores) : '', top3_3: cs[2] ? top3(pp[2].scores).map(label).join('|') : '',
+    research_json: JSON.stringify({ version: 1, product: S.product, market: S.market, research: S.research, client: S.client, sources: S.sources }),
     product: S.product.name,
     objective: S.objective.primary, fallback: S.objective.fallback,
     soncas_S: sc.S, soncas_O: sc.O, soncas_N: sc.N, soncas_C: sc.C, soncas_A: sc.A, soncas_Y: sc.Y, soncas_E: sc.E,
@@ -740,6 +818,7 @@ renderers.history = () => {
     if (cs[2]) S.persona.people[2].scores = capThrees(unpackScores(m.soncas_3));
     S.persona.main_message = m.main_message; S.persona.tensions = m.tensions ? m.tensions.split(' | ') : [];
     Object.assign(S.debrief, { outcome: m.outcome, objectionsHeard: m.objections_heard, decisionMaker: m.decision_maker, nextAction: m.next_action, nextOwner: m.next_owner || 'me', nextDue: m.next_due, nextOutput: m.next_output, notes: m.notes });
+    restoreResearch(m.research_json);
     persist(); go('client'); toast('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).');
   }));
 };
@@ -750,14 +829,14 @@ renderers.settings = () => {
   $('#main').innerHTML = `
     <h1>Réglages — IA gratuite, au choix</h1>
     <p class="lead">Aucun serveur : votre clé reste dans ce navigateur et n’est envoyée qu’au fournisseur choisi. Tous ceux listés ont une offre gratuite, ou tournent sur votre machine.</p>
-    <div class="card warn"><b>Clé gratuite = pour tester et pour les données publiques</b> (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> : rien ne sort de votre ordinateur.</div>
+    <div class="card warn"><b>Clé gratuite = pour tester et pour les données publiques</b> (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> pour traiter l’IA localement. Les recherches web et officielles contactent toujours leurs fournisseurs.</div>
     <div class="card"><div class="grid">
       <div><label>Fournisseur</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
       <div><label>Clé API <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
       <div><label>Modèle <small>— vide = défaut</small></label><input id="model" list="model-list" value="${esc(s.model)}" placeholder="${esc(PROVIDERS[s.provider]?.model || '')}"><datalist id="model-list"></datalist>
         <button class="btn ghost small" id="models" style="margin-top:6px">Lister les modèles</button> <small class="muted" id="models-note">les noms changent souvent : vérifiez ici en cas d'erreur « modèle introuvable »</small></div>
       <div><label>URL de base <small>— vide = défaut</small></label><input id="baseUrl" value="${esc(s.baseUrl)}" placeholder="${esc(PROVIDERS[s.provider]?.baseUrl || '')}"></div>
-      <div class="full"><label>Clé Jina (optionnelle) <small>— lecture/recherche web ; gratuite sur <a href="https://jina.ai/reader" target="_blank" rel="noopener">jina.ai</a>, utile si la limite sans clé est atteinte</small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
+      <div class="full"><label>Clé Jina (requise pour la recherche web) <small>— lecture de pages sans clé à faible volume ; recherche avec clé et crédits sur <a href="https://jina.ai/reader" target="_blank" rel="noopener">jina.ai</a></small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
     </div>
     <div class="actions"><button class="btn" id="save">Enregistrer</button><button class="btn ghost" id="test">Tester</button></div></div>
     <div class="card">
@@ -768,13 +847,13 @@ renderers.settings = () => {
         <li><b>Mistral</b> — plan « Experiment » gratuit, modèles français : <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">console.mistral.ai</a></li>
         <li><b>OpenRouter</b> — modèles suffixés <code>:free</code> : <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></li>
         <li><b>Ollama</b> — 100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.</li>
-        <li><b>Mode démo</b> — aucun appel réseau ; montre le parcours avec des contenus d’exemple.</li>
+        <li><b>Mode démo</b> — génération IA sans réseau ; les boutons de recherche contactent les sources publiques.</li>
       </ul>
       <h3>Données sensibles : trois niveaux</h3>
       <ul class="plain">
         <li><b>Tester</b> — clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.</li>
         <li><b>Travailler</b> — clé d’une offre payante <b>chez le fournisseur d’IA</b> (Groq, Gemini, Mistral, OpenRouter : même champ, même usage ; vous payez le fournisseur, jamais AVApmo) ; vérifiez dans ses conditions que vos données ne servent pas à entraîner ses modèles.</li>
-        <li><b>Confidentiel</b> — Ollama en local : le modèle tourne sur votre machine, aucune donnée ne sort.</li>
+        <li><b>Confidentiel</b> — Ollama en local : le modèle tourne sur votre machine ; les recherches web et officielles restent des appels externes, uniquement à votre demande.</li>
       </ul>
       <p class="note">Les quotas gratuits évoluent ; en cas d’erreur 429, changez de fournisseur. Vos données de rendez-vous restent dans ce navigateur (voir Historique pour l’export CSV).</p>
     </div>`;
@@ -834,3 +913,26 @@ if (!hasAccepted()) showGate(false);
 
 // ----------------------------------------------------------------------------- démarrage
 go(S.step || 'offer');
+
+function restoreMarket(value) {
+  const m = marketDefaults();
+  if (!value || typeof value !== 'object') return m;
+  for (const k of ['geography', 'query', 'url']) if (typeof value[k] === 'string') m[k] = value[k];
+  m.sources = restoreSources(value.sources);
+  if (value.comparison && Array.isArray(value.comparison.candidates)) m.comparison = sanitizeComparison(value.comparison, m.sources);
+  return m;
+}
+function restoreSources(value) {
+  return (Array.isArray(value) ? value : []).filter(s => s && typeof s.source === 'string' && typeof s.kind === 'string' && typeof s.text === 'string').slice(0, 40).map(s => ({ ...s, text: s.text.slice(0, 6000) }));
+}
+function restoreResearch(json) {
+  if (!json) return;
+  try {
+    const data = JSON.parse(json); if (data.version !== 1) return;
+    if (data.product) S.product = Object.fromEntries(Object.keys(FIELD_LABELS).map(k => [k, String(data.product[k] || '')]));
+    S.market = restoreMarket(data.market); S.sources = restoreSources(data.sources);
+    if (data.research?.entity && /^\d{9}$/.test(data.research.entity.siren) && /^\d{14}$/.test(data.research.entity.siret)) S.research.entity = data.research.entity;
+    for (const k of ['notes', 'meetingFormat', 'decisionProcess', 'location', 'linkedinUrl']) if (typeof data.client?.[k] === 'string') S.client[k] = data.client[k];
+    S.client.preparationMode = data.client?.preparationMode === 'email' ? 'email' : 'meeting';
+  } catch { /* anciens exports ou recherche illisible : conserver la fiche du CSV */ }
+}

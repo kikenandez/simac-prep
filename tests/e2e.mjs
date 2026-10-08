@@ -8,6 +8,8 @@ const p = await b.newPage({ viewport: { width: 1200, height: 900 } });
 const errors = [];
 p.on('pageerror', e => errors.push('PAGEERROR ' + e.message));
 p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('CONSOLE ' + m.text()); });
+// Aucun email d’inscription envoyé pendant les tests.
+await p.route('https://buttondown.com/**', route => route.fulfill({ status: 200, body: '' }));
 await p.goto('http://localhost:8765/');
 await p.waitForSelector('#gate:not([hidden])'); await p.fill('#gate-email', 'test@exemple.fr'); await p.check('#gate-accept'); await p.click('#gate-form .btn'); await p.waitForSelector('#gate[hidden]', { state: 'attached' });
 const gateAgain = await p.evaluate(() => JSON.parse(localStorage.getItem('simac.consent')).accepted);
