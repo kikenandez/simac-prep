@@ -385,23 +385,24 @@ function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
   $$(`[data-bind^="${prefix}."]`, $('#main')).forEach((inp) => inp.addEventListener('input', draw));
   if (prefix === 'client') $('#contacts')?.addEventListener('input', draw);
 }
-const CHAT_MAX = { offer: 7, client: 4 }; // questions par série : au-delà, on s'arrête — le reste se remplit à la main
+const CHAT_HINT = { offer: 7, client: 4 }; // pas de limite : au-delà, on signale seulement que l'offre n'est pas mûre
 function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   if (!el) return;
   state.skipped ||= [];
-  const max = CHAT_MAX[step] || 6;
+  const hintAt = CHAT_HINT[step] || 6;
   const asked = state.chat.filter((m) => m.role === 'ai' && m.field).length;
+  const essentialGaps = step === 'offer' ? OFFER_KEY_ORDER.slice(0, OFFER_ESSENTIAL).filter((k) => !String(target[k] || '').trim()).length : 0;
   const log = state.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
   const last = state.chat[state.chat.length - 1];
   const waiting = last && last.role === 'ai' && state.pendingField;
-  const over = asked >= max && !waiting;
   el.innerHTML = `
     <div class="chat-log">${log || '<div class="note">Aucune question pour l’instant.</div>'}</div>
     ${waiting ? `<div class="chat-input"><textarea class="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
       <button class="btn chat-send">Répondre</button><button class="btn ghost small chat-skip" title="Je ne sais pas / plus tard">Passer</button></div>` : ''}
+    ${asked >= hintAt && essentialGaps ? `<div class="card warn" style="margin:8px 0"><b>${asked} questions et il manque encore ${essentialGaps} élément(s) essentiel(s).</b> C’est le signe d’une offre pas encore mûre : continuez si les réponses viennent, sinon travaillez-la hors de l’outil (prix, preuves, objections) et revenez — la maturité ne s’atteint pas en répondant vite.</div>` : ''}
     <div class="actions" style="margin-bottom:0">
-      ${over ? '<span class="note">Série terminée : le reste se complète à la main dans la fiche, ou relancez une série.</span>' : `<button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>`}
-      <span class="note">${asked} / ${max} question${max > 1 ? 's' : ''}</span>
+      <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
+      <span class="note">${asked} question${asked > 1 ? 's' : ''} posée${asked > 1 ? 's' : ''}</span>
       ${state.chat.length ? '<button class="btn ghost small chat-reset">Nouvelle série</button>' : ''}
     </div>`;
   const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
@@ -409,9 +410,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
     const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer, skipped: state.skipped }));
     if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(lastField); }
-    const n = state.chat.filter((m) => m.role === 'ai' && m.field).length;
     if (r.done || !r.question) finish('La fiche est complète sur l’essentiel.');
-    else if (n >= max) finish(`${max} questions : on s’arrête là. Complétez le reste directement dans la fiche.`);
     else { state.pendingField = r.next_field || ''; state.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
     persist(); markDone();
     if (S.step === step) { renderers[step](); el.closest('.card')?.scrollIntoView({ block: 'center' }); }
