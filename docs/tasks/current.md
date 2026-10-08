@@ -4,12 +4,12 @@
 
 ---
 
-## Dispatch — architect-maintained (updated 2026-10-08)
+## Dispatch — architect-maintained (updated 2026-10-08 12:30)
 
 ### Status snapshot
-- Scaffold complet livré dans le commit initial : 5 étapes (Offre, Client, Persona SONCAS, SIMAC, Suivi) + Historique CSV + Réglages BYOK, mode démo, `npm test` vert (Playwright).
-- ADP installé (hooks bash + jq), `adp.answers` rempli, plan `2026-10-08-mvp.md` IN PROGRESS.
-- Rien n'est encore validé avec un vrai fournisseur d'IA ni publié. Pas de bloqueur P0.
+- Publié : https://kikenandez.github.io/simac-prep/ (Pages via Actions). Charte adp.avapmo.com + crédit + clause de non-responsabilité.
+- Étape 1 enrichie (texte libre → fiche, questions guidées, maturité 1-5) ; `npm test` vert.
+- T1 partiellement fait en session live avec Groq (`openai/gpt-oss-120b`) sur une offre réelle (nom retiré) : étape 1 OK (13/14 champs sourcés, maturité 2/5), 429 par minute sur gros prompts. Bug corrigé : modèle Groq par défaut retiré → bouton « Lister les modèles ». Étapes 2-5 et Gemini restent à valider.
 - Architect inbox : vide.
 
 ### Developer session (next)
@@ -46,6 +46,7 @@
 ---
 
 ## Process misses log
+- MISS 2026-10-08 : nom de modèle codé en dur (`llama-3.3-70b-versatile`) retiré par Groq → 404 au premier test réel → règle : jamais de nom de modèle sans moyen de lister les modèles du fournisseur (bouton Réglages).
 - MISS 2026-10-08 : réponse IA arrivée après un changement d'étape → re-rendu de l'étape précédente, test e2e bloqué ~10 min → règle « garde `S.step` avant tout rendu asynchrone » (ratifiée ci-dessus) ; le test e2e attend désormais un signal de fin de génération, pas un sélecteur déjà présent.
 
 ---
