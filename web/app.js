@@ -2,11 +2,12 @@
 // Statique, sans serveur. L'IA est optionnelle et au choix (fournisseurs gratuits, ou mode démo).
 
 import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } from './lib/llm.js';
-import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages } from './lib/prompts.js';
+import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, clientExtractMessages, clientQuestionMessages } from './lib/prompts.js';
 import { readUrl, searchWeb, notesSource, mergeSources } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
+import { extractText, ACCEPT } from './lib/files.js';
 
 const LANG = 'fr';
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -19,7 +20,8 @@ function blank() {
     id: newId(), date: new Date().toISOString().slice(0, 10), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
     offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null },
-    client: { company: '', sector: '', website: '', contactName: '', contactRole: '', linkedinUrl: '', notes: '', decisionProcess: '' },
+    client: { company: '', sector: '', website: '', contactName: '', contactRole: '', linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
+    clientChat: { description: '', chat: [], pendingField: '' },
     sources: [], brief: null,
     persona: { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {}, main_message: '' },
     objective: { primary: '', fallback: '' },
@@ -31,6 +33,8 @@ function blank() {
 let S = loadDraft() || blank();
 if (!S.id) S = blank();
 if (!S.offer) S.offer = blank().offer;
+if (!S.clientChat) S.clientChat = blank().clientChat;
+if (S.client.meetingFormat == null) S.client.meetingFormat = '';
 const persist = () => saveDraft(S);
 
 // ----------------------------------------------------------------------------- UI utils
@@ -113,9 +117,11 @@ renderers.offer = () => {
       </div>
       <div class="actions">
         <button class="btn ghost" id="offer-fetch">Lire les pages</button>
+        <label class="btn ghost" style="margin:0">Joindre plaquette / mail / texte <input type="file" id="offer-files" accept="${ACCEPT}" multiple hidden></label>
         <span class="note" id="offer-src">${O.sources.length} source(s)</span>
-        <button class="btn" id="offer-extract">Analyser avec l’IA → remplir la fiche</button>
       </div>
+      <div id="offer-sources"></div>
+      <div class="actions"><button class="btn" id="offer-extract">Analyser avec l’IA → remplir la fiche</button></div>
       <div id="offer-notes" class="note"></div>
     </div>
 
@@ -154,8 +160,10 @@ renderers.offer = () => {
       <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
   bindInputs($('#main'), O, 'offer');
-  renderOfferChat();
+  renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: () => { O.maturity = null; } });
   renderMaturity();
+  renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
+  $('#offer-files').onchange = (e) => addFiles(e.target.files, O.sources, () => { persist(); renderers.offer(); });
 
   $('#offer-fetch').onclick = (e) => busy(e.target, async () => {
     const urls = [O.website, O.linkedin].filter(Boolean);
@@ -207,34 +215,50 @@ renderers.offer = () => {
   };
 };
 
-function renderOfferChat() {
-  const el = $('#offer-chat'); if (!el) return;
-  const O = S.offer;
-  const log = O.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
-  const last = O.chat[O.chat.length - 1];
-  const waiting = last && last.role === 'ai' && O.pendingField;
+async function addFiles(files, list, done) {
+  let n = 0;
+  for (const f of files) {
+    try { const src = await extractText(f); const i = list.findIndex((x) => x.source === src.source); if (i >= 0) list[i] = src; else list.push(src); n++; }
+    catch (err) { toast(friendlyError(err), 6000); }
+  }
+  if (n) toast(`${n} document(s) lu(s).`);
+  done();
+}
+function renderSourceList(el, list, onChange) {
+  if (!el) return;
+  el.innerHTML = list.map((s, i) => `<div class="card" style="margin:8px 0;padding:10px 14px"><b>${esc(s.kind)}</b> — ${esc(s.title || s.source)}${s.truncated ? ' <small class="muted">(tronqué)</small>' : ''}
+    <button class="btn ghost small" style="float:right" data-rm="${i}">retirer</button><div class="note" style="margin-top:4px">${esc(s.text.slice(0, 200))}…</div></div>`).join('');
+  $$('[data-rm]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rm, 1); onChange(); }));
+}
+
+/** Dialogue guidé générique : l'IA pose une question par champ vide ; la réponse remplit le champ. */
+function renderGuidedChat({ el, state, target, build, step, onFilled }) {
+  if (!el) return;
+  const log = state.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
+  const last = state.chat[state.chat.length - 1];
+  const waiting = last && last.role === 'ai' && state.pendingField;
   el.innerHTML = `
     <div class="chat-log">${log || '<div class="note">Aucune question pour l’instant.</div>'}</div>
-    ${waiting ? `<div class="chat-input"><textarea id="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
-      <button class="btn" id="chat-send">Répondre</button></div>` : ''}
+    ${waiting ? `<div class="chat-input"><textarea class="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
+      <button class="btn chat-send">Répondre</button></div>` : ''}
     <div class="actions" style="margin-bottom:0">
-      <button class="btn ghost" id="chat-start">${O.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
-      ${O.chat.length ? '<button class="btn ghost small" id="chat-reset">Effacer le dialogue</button>' : ''}
+      <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
+      ${state.chat.length ? '<button class="btn ghost small chat-reset">Effacer le dialogue</button>' : ''}
     </div>`;
-  const transcript = () => O.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
+  const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
   const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
-    const r = await chatJSON(offerQuestionMessages({ lang: LANG, current: S.product, transcript: transcript(), lastField, lastAnswer }));
-    if (lastField && r.field_value) { S.product[lastField] = r.field_value; O.maturity = null; }
-    if (r.done || !r.question) { O.pendingField = ''; O.chat.push({ role: 'ai', text: 'La fiche est complète sur l’essentiel. Lancez « Analyser la maturité ».' }); }
-    else { O.pendingField = r.next_field || ''; O.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
+    const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer }));
+    if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(); }
+    if (r.done || !r.question) { state.pendingField = ''; state.chat.push({ role: 'ai', text: 'La fiche est complète sur l’essentiel.' }); }
+    else { state.pendingField = r.next_field || ''; state.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
     persist(); markDone();
-    if (S.step === 'offer') { renderers.offer(); $('#offer-chat-card')?.scrollIntoView({ block: 'center' }); }
+    if (S.step === step) { renderers[step](); el.closest('.card')?.scrollIntoView({ block: 'center' }); }
   });
-  $('#chat-start').onclick = (e) => ask(e.target, '', '');
-  $('#chat-reset')?.addEventListener('click', () => { O.chat = []; O.pendingField = ''; persist(); renderOfferChat(); });
-  $('#chat-send')?.addEventListener('click', (e) => {
-    const a = $('#chat-answer').value.trim(); if (!a) return;
-    const f = O.pendingField; O.chat.push({ role: 'user', text: a }); O.pendingField = '';
+  $('.chat-start', el).onclick = (e) => ask(e.target, '', '');
+  $('.chat-reset', el)?.addEventListener('click', () => { state.chat = []; state.pendingField = ''; persist(); renderers[step](); });
+  $('.chat-send', el)?.addEventListener('click', (e) => {
+    const a = $('.chat-answer', el).value.trim(); if (!a) return;
+    const f = state.pendingField; state.chat.push({ role: 'user', text: a }); state.pendingField = '';
     ask(e.target, f, a);
   });
 }
@@ -255,20 +279,42 @@ function renderMaturity() {
 }
 
 // ----------------------------------------------------------------------------- 2. CLIENT
+const CLIENT_LABELS = { company: 'Entreprise / établissement', sector: 'Secteur', website: 'Site web', contactName: 'Interlocuteur·rice', contactRole: 'Fonction / rôle', meetingFormat: 'Format du rendez-vous', decisionProcess: 'Processus de décision', notes: 'Notes' };
+
 renderers.client = () => {
+  const C = S.clientChat;
   $('#main').innerHTML = `
     <h1>2 · Se renseigner sur le client</h1>
-    <p class="lead">Qui je vais voir, quel est son problème, pourquoi sa décision compte. Les sources sont lues gratuitement ; l’IA en fait une fiche avec faits, hypothèses et questions à poser.</p>
+    <p class="lead">Qui je vais voir, dans quel cadre, quel est son problème, pourquoi sa décision compte. Décrivez librement ; l’IA remplit la fiche, pose les questions qui manquent, lit les sources et prépare la fiche client.</p>
+
+    <div class="card">
+      <h2>Décrire</h2>
+      ${field('clientChat.description', 'Texte libre', { hint: 'l’interlocuteur, l’établissement, le rendez-vous (mail, visio, sur place, salon…), ce que vous savez déjà', type: 'textarea', full: true, placeholder: 'Ex. : Rendez-vous jeudi sur place avec la directrice d’un collège privé du 15e, 30 min. Elle veut un projet innovant pour la 3e mais le budget est serré…' })}
+      <div class="actions">
+        <label class="btn ghost" style="margin:0">Joindre un mail / document <input type="file" id="client-files" accept="${ACCEPT}" multiple hidden></label>
+        <button class="btn" id="client-extract">Analyser avec l’IA → remplir la fiche</button><span class="note" id="client-notes"></span></div>
+    </div>
+
+    <h2>Fiche client</h2>
     <div class="grid">
-      ${field('client.company', 'Entreprise')}
+      ${field('client.company', 'Entreprise / établissement')}
       ${field('client.sector', 'Secteur / activité')}
+      ${field('client.contactName', 'Interlocuteur·rice', { hint: 'nom, ou fonction si inconnu' })}
+      ${field('client.contactRole', 'Fonction / rôle dans la décision')}
+      ${field('client.meetingFormat', 'Format du rendez-vous', { hint: 'mail, visio, sur place, salon ; date, durée', full: true })}
       ${field('client.website', 'Site web', { placeholder: 'exemple.fr' })}
       ${field('client.linkedinUrl', 'Autre URL utile', { hint: 'page équipe, article, annonce…' })}
-      ${field('client.contactName', 'Interlocuteur·rice')}
-      ${field('client.contactRole', 'Fonction / rôle dans la décision')}
       ${field('client.notes', 'Notes collées', { hint: 'profil LinkedIn, mail reçu, ce que vous savez déjà', type: 'textarea', full: true })}
       ${field('client.decisionProcess', 'Processus de décision connu', { hint: 'qui d’autre, quand, budget', full: true })}
     </div>
+
+    <div class="card">
+      <h2>Compléter par questions</h2>
+      <p class="note">L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.</p>
+      <div id="client-chat"></div>
+    </div>
+
+    <h2>Sources et fiche client</h2>
     <div class="actions">
       <button class="btn ghost" id="fetch">Lire les pages</button>
       <button class="btn ghost" id="search">Rechercher sur le web</button>
@@ -278,9 +324,23 @@ renderers.client = () => {
     <div class="actions"><button class="btn" id="brief">Générer la fiche client avec l’IA</button></div>
     <div id="brief-out"></div>`;
   bindInputs($('#main'), S.client, 'client');
+  bindInputs($('#main'), C, 'clientChat');
+  renderGuidedChat({ el: $('#client-chat'), state: C, target: S.client, build: clientQuestionMessages, step: 'client' });
   renderSources();
   renderBrief();
+  $('#client-files').onchange = (e) => addFiles(e.target.files, S.sources, () => { persist(); renderSources(); });
 
+  $('#client-extract').onclick = (e) => busy(e.target, async () => {
+    if (!C.description.trim()) return toast('Décrivez d’abord l’interlocuteur et le rendez-vous.');
+    const docs = S.sources.filter((x) => x.kind === 'document').map((x) => `--- ${x.source}\n${x.text}`).join('\n\n');
+    const r = await chatJSON(clientExtractMessages({ lang: LANG, description: [C.description, docs].filter(Boolean).join('\n\nDOCUMENTS JOINTS :\n'), current: S.client }));
+    const f = r.fields || {}; let filled = 0;
+    for (const k of Object.keys(CLIENT_LABELS)) { const v = String(f[k] || '').trim(); if (v && !String(S.client[k] || '').trim()) { S.client[k] = v; filled++; } }
+    persist(); markDone(); if (S.step !== 'client') return;
+    renderers.client();
+    $('#client-notes').textContent = (r.missing || []).length ? 'Manque : ' + r.missing.map((k) => CLIENT_LABELS[k] || k).join(', ') + ' → « Compléter par questions ».' : '';
+    toast(`${filled} champ(s) rempli(s).`);
+  });
   $('#fetch').onclick = (e) => busy(e.target, async () => {
     const urls = [S.client.website, S.client.linkedinUrl].filter(Boolean);
     if (!urls.length) return toast('Indiquez au moins une URL.');
@@ -305,7 +365,7 @@ renderers.client = () => {
     const history = retrieve({ company: S.client.company, sector: S.client.sector, product: S.product.name, contactRole: S.client.contactRole, contactName: S.client.contactName });
     const brief = await chatJSON(clientBriefMessages({ lang: LANG, product: S.product, client: S.client, sources: mergeSources(all), history }));
     S.brief = brief; persist(); markDone(); if (S.step !== 'client') return;
-    renderBrief(); toast('Fiche client générée.');
+    renderBrief();
   });
 };
 function renderSources() {
@@ -358,12 +418,18 @@ renderers.persona = () => {
     if (!S.brief) return toast('Générez d’abord la fiche client (étape 2).');
     const history = retrieve({ company: S.client.company, sector: S.client.sector, product: S.product.name, contactRole: S.client.contactRole });
     const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: S.client, brief: S.brief, history }));
-    P.aiScores = clampScores(r.scores); P.scores = { ...P.aiScores };
+    P.aiScores = capThrees(clampScores(r.scores)); P.scores = { ...P.aiScores };
     P.rationale = r.rationale || {}; P.arguments = r.arguments || {}; P.main_message = r.main_message || '';
     persist(); markDone(); if (S.step === 'persona') renderers.persona();
   });
   $('#next').onclick = () => go('simac');
 };
+/** Au plus trois dimensions à 3 : au-delà, les dernières dans l'ordre S-O-N-C-A-S-E repassent à 2. */
+function capThrees(scores) {
+  const out = { ...scores }; let n = 0;
+  for (const d of SONCAS) if (out[d.code] === 3) { n++; if (n > 3) out[d.code] = 2; }
+  return out;
+}
 function renderSoncas() {
   const P = S.persona; const t3 = top3(P.scores);
   $('#top3').textContent = t3.map(label).join(' · ');
@@ -376,7 +442,12 @@ function renderSoncas() {
         ${(P.arguments?.[d.code] || []).length ? `<ul class="args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
     </div>`).join('');
   $$('.score button').forEach((b) => (b.onclick = () => {
-    P.scores[b.closest('.score').dataset.code] = +b.dataset.v; persist(); renderSoncas();
+    const code = b.closest('.score').dataset.code; const v = +b.dataset.v;
+    if (v === 3) {
+      const threes = SONCAS.map((d) => d.code).filter((c) => c !== code && P.scores[c] === 3);
+      if (threes.length >= 3) { const demoted = threes[threes.length - 1]; P.scores[demoted] = 2; toast(`Trois motivations fortes maximum : « ${label(demoted)} » repasse à 2.`); }
+    }
+    P.scores[code] = v; persist(); renderSoncas();
   }));
 }
 
@@ -395,7 +466,8 @@ renderers.simac = () => {
   renderSimac();
   $('#ai').onclick = (e) => busy(e.target, async () => {
     if (!S.brief) return toast('Générez d’abord la fiche client (étape 2).');
-    const persona = { scores: S.persona.scores, top3: top3(S.persona.scores).map(label), main_message: S.persona.main_message, arguments: S.persona.arguments };
+    const t3 = top3(S.persona.scores);
+    const persona = { scores: S.persona.scores, top3: t3.map(label), main_message: S.persona.main_message, arguments: Object.fromEntries(t3.map((c) => [label(c), (S.persona.arguments?.[c] || []).slice(0, 2)])) };
     const simac = await chatJSON(simacMessages({ lang: LANG, product: S.product, client: S.client, brief: S.brief, persona, objective: S.objective }));
     S.simac = simac; persist(); markDone(); if (S.step === 'simac') renderSimac();
   });
@@ -532,7 +604,7 @@ renderers.history = () => {
     const product = S.product; S = blank(); S.product = product; S.id = m.id; S.date = m.date;
     Object.assign(S.client, { company: m.company, sector: m.sector, website: m.website, contactName: m.contact_name, contactRole: m.contact_role, notes: m.notes });
     Object.assign(S.objective, { primary: m.objective, fallback: m.fallback });
-    S.persona.scores = clampScores({ S: m.soncas_S, O: m.soncas_O, N: m.soncas_N, C: m.soncas_C, A: m.soncas_A, Y: m.soncas_Y, E: m.soncas_E });
+    S.persona.scores = capThrees(clampScores({ S: m.soncas_S, O: m.soncas_O, N: m.soncas_N, C: m.soncas_C, A: m.soncas_A, Y: m.soncas_Y, E: m.soncas_E }));
     S.persona.main_message = m.main_message;
     Object.assign(S.debrief, { outcome: m.outcome, objectionsHeard: m.objections_heard, decisionMaker: m.decision_maker, nextAction: m.next_action, nextOwner: m.next_owner || 'me', nextDue: m.next_due, nextOutput: m.next_output, notes: m.notes });
     persist(); go('client'); toast('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).');
