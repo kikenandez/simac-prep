@@ -113,7 +113,11 @@ const reloaded = await p.evaluate(() => { const d = JSON.parse(localStorage.getI
 await p.screenshot({ path: shots + '/6-history.png' });
 await p.setViewportSize({ width: 390, height: 800 }); await p.click('[data-step=persona]'); await p.screenshot({ path: shots + '/7-mobile.png' });
 const radar = await p.$$eval('#radar svg polygon.me', s => s.length);
-const ok = rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
+// « Remettre à blanc » vide toutes les étapes du RDV en cours ; Mes offres et l'historique ne bougent pas
+await p.setViewportSize({ width: 1200, height: 900 }); await p.click('[data-step=offer]');
+p.once('dialog', d => d.accept()); await p.click('#offer-reset');
+const blanked = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return !d.product.oneLiner && !d.client.company && d.client.contacts.length === 1 && !d.client.contacts[0].name && !d.persona.people[0].name && d.simac === null && !d.debrief.description && !d.clientChat.description && d.sources.length === 0 && d.step === 'offer' && JSON.parse(localStorage.getItem('simac.meetings')).length === 1 && !document.querySelector('#steps button.done'); });
+const ok = blanked && rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
   && actionRows === 2 && /\/doing\/Envoyer le devis pour 4 classes/.test(reimport) && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3';
-console.log(JSON.stringify({ actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
+console.log(JSON.stringify({ blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);
