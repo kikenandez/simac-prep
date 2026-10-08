@@ -97,7 +97,11 @@ await p.fill('.action-row[data-i="0"] [data-ak="action"]', 'Envoyer la propositi
 await p.click('#ai'); await p.waitForSelector('#copy-mail');
 await p.click('#save');
 await p.screenshot({ path: shots + '/5-followup.png', fullPage: true });
-await p.click('[data-step=simac]'); await p.emulateMedia({ media: 'print' }); await p.pdf({ path: shots + '/simac.pdf', format: 'A4', printBackground: true }); await p.emulateMedia({ media: 'screen' });
+// impression : chaque document imprimé ou enregistré en PDF porte la mention de l'outil
+await p.click('[data-step=simac]');
+const printCredit = await p.evaluate(() => { dispatchEvent(new Event('beforeprint')); const t = document.querySelector('#print-view .print-credit')?.textContent || ''; dispatchEvent(new Event('afterprint')); return /préparé avec SIMAC Prep/.test(t) && /simac\.avapmo\.com/.test(t) && /avapmo\.com\)/.test(t) && !document.querySelector('#print-view'); });
+if (!printCredit) { console.error('mention SIMAC Prep absente du document imprimé'); process.exit(1); }
+await p.emulateMedia({ media: 'print' }); await p.pdf({ path: shots + '/simac.pdf', format: 'A4', printBackground: true }); await p.emulateMedia({ media: 'screen' });
 // history + csv round trip
 await p.click('[data-step=history]');
 const rows = await p.$$eval('tbody tr', r => r.length);
