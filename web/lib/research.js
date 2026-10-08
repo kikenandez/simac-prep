@@ -30,14 +30,16 @@ export function upsertSources(list, incoming) {
   for (const s of incoming) map.set(sourceId(s), s);
   return [...map.values()].slice(-40);
 }
-async function request(url, { signal, headers = {}, refresh = false, cached = false, json = true } = {}) {
+const TIMEOUT_MS = 20000;
+const SEARCH_TIMEOUT_MS = 45000; // s.jina.ai lit chaque résultat : 12 à 30 s mesurés
+async function request(url, { signal, headers = {}, refresh = false, cached = false, json = true, timeout = TIMEOUT_MS } = {}) {
   const previous = cache.get(url);
   if (cached && !refresh && previous && Date.now() - previous.at < TTL) return structuredClone(previous.data);
   const controller = new AbortController();
   const abort = () => controller.abort();
   if (signal?.aborted) controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
-  const timer = setTimeout(abort, 20000);
+  const timer = setTimeout(abort, timeout);
   try {
     const res = await fetch(url, { headers, signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (!res.ok) {
@@ -49,7 +51,7 @@ async function request(url, { signal, headers = {}, refresh = false, cached = fa
     if (cached) { if (cache.size >= 50) cache.delete(cache.keys().next().value); cache.set(url, { at: Date.now(), data }); }
     return data;
   } catch (e) {
-    if (controller.signal.aborted) throw new Error('Recherche interrompue ou délai dépassé (20 s). Réessayez.');
+    if (controller.signal.aborted) throw new Error(`Recherche interrompue ou délai dépassé (${timeout / 1000} s). Réessayez.`);
     throw e;
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
@@ -62,13 +64,21 @@ export async function readUrl(url, { jinaKey = '', signal } = {}) {
   const text = await request(`https://r.jina.ai/${u}`, { headers, signal, json: false });
   return makeSource(u, 'site', text);
 }
+/** Date de publication annoncée par la source (formats variés) → AAAA-MM-JJ, ou '' si absente / illisible. */
+function isoDate(raw) {
+  const d = raw ? new Date(raw) : null;
+  if (!d || Number.isNaN(d.getTime())) return '';
+  if (/\d:\d/.test(raw)) return d.toISOString().slice(0, 10);
+  // sans heure (« Sep 14, 2026 ») : lu à minuit local, on garde le jour du calendrier
+  return [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, '0')).join('-');
+}
 export async function searchWeb(query, { jinaKey = '', signal } = {}) {
   if (!jinaKey.trim()) throw new Error('La recherche web nécessite une clé Jina dans Réglages (crédits selon votre offre). Les données officielles restent accessibles sans clé.');
   const headers = { Accept: 'application/json', Authorization: `Bearer ${jinaKey}` };
   const q = `${query} -site:pappers.fr`;
-  const data = await request(`https://s.jina.ai/${encodeURIComponent(q)}`, { headers, signal });
+  const data = await request(`https://s.jina.ai/${encodeURIComponent(q)}`, { headers, signal, timeout: SEARCH_TIMEOUT_MS });
   return (Array.isArray(data?.data) ? data.data : []).filter(it => safeUrl(it.url) && !restrictedSource(it.url)).slice(0, 5).map(it =>
-    makeSource(it.url, 'web', `${it.title || ''}\n${it.description || ''}\n${(it.content || '').slice(0, 2500)}`, { title: it.title || '', query, included: false }));
+    makeSource(it.url, 'web', `${it.title || ''}\n${it.description || ''}\n${(it.content || '').slice(0, 2500)}`, { title: it.title || '', query, included: false, publishedAt: isoDate(it.publishedTime || it.date) }));
 }
 export function notesSource(text, kind = 'notes') { return makeSource(kind, kind, text); }
 export function mergeSources(list) {
