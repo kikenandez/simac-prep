@@ -387,7 +387,8 @@ function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
       ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}</span>`).join(' ')}
          <button class="btn small gaps-go">Compléter par questions ↓</button>`
       : `<b>${n} / ${keys.length} champs remplis.</b> L’essentiel y est${missing.length ? ` — reste facultatif : ${missing.map((k) => labels[k] || k).join(', ')}` : ''}.`;
-    $$('[data-bind]', $('#main')).forEach((inp) => { const k = inp.dataset.bind.split('.')[1]; if (inp.dataset.bind.startsWith(prefix + '.') && keys.includes(k)) inp.classList.toggle('empty', !isFilled(k)); });
+    const essentialKeys = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL) : keys;
+    $$('[data-bind]', $('#main')).forEach((inp) => { const k = inp.dataset.bind.split('.')[1]; if (inp.dataset.bind.startsWith(prefix + '.') && keys.includes(k)) inp.classList.toggle('missing', essentialKeys.includes(k) && !isFilled(k)); });
     $('.gaps-go', el)?.addEventListener('click', () => { const card = $(chatCard); card?.scrollIntoView({ block: 'center', behavior: 'smooth' }); $('.chat-start', card)?.click(); });
   };
   draw();
