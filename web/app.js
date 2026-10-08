@@ -750,7 +750,7 @@ renderers.settings = () => {
   $('#main').innerHTML = `
     <h1>Réglages — IA gratuite, au choix</h1>
     <p class="lead">Aucun serveur : votre clé reste dans ce navigateur et n’est envoyée qu’au fournisseur choisi. Tous ceux listés ont une offre gratuite, ou tournent sur votre machine.</p>
-    <div class="card warn"><b>Clé gratuite = pour tester.</b> Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez. Pour de vraies données clients, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> : rien ne sort de votre ordinateur.</div>
+    <div class="card warn"><b>Clé gratuite = pour tester et pour les données publiques</b> (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> : rien ne sort de votre ordinateur.</div>
     <div class="card"><div class="grid">
       <div><label>Fournisseur</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
       <div><label>Clé API <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
@@ -772,7 +772,7 @@ renderers.settings = () => {
       </ul>
       <h3>Données sensibles : trois niveaux</h3>
       <ul class="plain">
-        <li><b>Tester</b> — clé gratuite, données fictives ou publiques.</li>
+        <li><b>Tester</b> — clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.</li>
         <li><b>Travailler</b> — clé d’une offre payante <b>chez le fournisseur d’IA</b> (Groq, Gemini, Mistral, OpenRouter : même champ, même usage ; vous payez le fournisseur, jamais AVApmo) ; vérifiez dans ses conditions que vos données ne servent pas à entraîner ses modèles.</li>
         <li><b>Confidentiel</b> — Ollama en local : le modèle tourne sur votre machine, aucune donnée ne sort.</li>
       </ul>
