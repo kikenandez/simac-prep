@@ -107,7 +107,8 @@ function anthropicHeaders(cfg) {
 async function anthropicChat(cfg, messages, opts) {
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const rest = messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }));
-  const body = { model: cfg.model, max_tokens: 4096, temperature: opts.temperature ?? 0.4, messages: rest };
+  // Pas de `temperature` : les modèles Claude récents refusent le paramètre (400 « deprecated »).
+  const body = { model: cfg.model, max_tokens: 4096, messages: rest };
   if (system) body.system = system;
   const res = await fetch(`${cfg.baseUrl}/messages`, { method: 'POST', headers: anthropicHeaders(cfg), body: JSON.stringify(body), signal: opts.signal });
   if (!res.ok) {
