@@ -116,11 +116,25 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
   .soncas .dim { grid-template-columns: 1fr; }
 }
 
+.print-head { display: none; }
 @media print {
-  .topbar, .steps, .actions, .toast, button { display: none !important; }
+  @page { margin: 14mm; }
+  html, body { background: #fff; color: #000; font-size: 12px; }
+  .topbar, .steps, .actions, .toast, button, .chat-input, .note:empty, label.btn, datalist { display: none !important; }
   .layout { display: block; }
   .panel { max-width: none; padding: 0; }
-  textarea { border: 0; padding: 0; resize: none; }
+  .print-head { display: block; font-size: 11px; color: #555; border-bottom: 1px solid #999; padding-bottom: 6px; margin-bottom: 12px; }
+  h1 { font-size: 18px; } h2 { font-size: 14px; } p.lead { display: none; }
+  .card { break-inside: avoid; border: 1px solid #bbb; background: #fff; padding: 10px 12px; }
+  .grid { gap: 6px 14px; }
+  input, textarea, select { border: 0; border-bottom: 1px solid #ccc; border-radius: 0; padding: 2px 0; background: transparent; color: #000; resize: none; overflow: hidden; }
+  input::placeholder, textarea::placeholder { color: transparent; }
+  .soncas .dim { break-inside: avoid; border-color: #bbb; }
+  .score button { display: inline-block !important; border-color: #999; color: #000; }
+  .score button.on { background: #000; color: #fff; }
+  .simac-block { break-inside: avoid; }
+  a { color: #000; text-decoration: none; }
+  .footer { display: block !important; border-top: 1px solid #999; margin-top: 16px; font-size: 10px; color: #555; }
 }
 
 .footer { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 14px 28px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; background: var(--panel); }

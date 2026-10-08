@@ -2,7 +2,7 @@
 // Statique, sans serveur. L'IA est optionnelle et au choix (fournisseurs gratuits, ou mode démo).
 
 import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } from './lib/llm.js';
-import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, clientExtractMessages, clientQuestionMessages } from './lib/prompts.js';
+import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, clientExtractMessages, clientQuestionMessages, debriefExtractMessages } from './lib/prompts.js';
 import { readUrl, searchWeb, notesSource, mergeSources } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
@@ -26,7 +26,7 @@ function blank() {
     persona: { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {}, main_message: '' },
     objective: { primary: '', fallback: '' },
     simac: null,
-    debrief: { outcome: '', objectionsHeard: '', decisionMaker: '', nextAction: '', nextOwner: 'me', nextDue: '', nextOutput: '', notes: '' },
+    debrief: { outcome: '', objectionsHeard: '', decisionMaker: '', nextAction: '', nextOwner: 'me', nextDue: '', nextOutput: '', notes: '', description: '' },
     followup: null,
   };
 }
@@ -35,6 +35,7 @@ if (!S.id) S = blank();
 if (!S.offer) S.offer = blank().offer;
 if (!S.clientChat) S.clientChat = blank().clientChat;
 if (S.client.meetingFormat == null) S.client.meetingFormat = '';
+if (S.debrief.description == null) S.debrief.description = '';
 const persist = () => saveDraft(S);
 
 // ----------------------------------------------------------------------------- UI utils
@@ -519,7 +520,12 @@ renderers.followup = () => {
   const D = S.debrief;
   $('#main').innerHTML = `
     <h1>5 · Suivi rapide — centré sur l’appel à l’action</h1>
-    <p class="lead">Juste après le rendez-vous : ce qui s’est passé, et surtout l’action convenue (quoi, qui, quand, livrable). L’IA rédige le mail de suivi ; vous enregistrez le RDV dans la mémoire.</p>
+    <p class="lead">Juste après le rendez-vous : ce qui s’est passé, et surtout l’action convenue (quoi, qui, quand, livrable). Racontez-le librement, l’IA remplit ; puis elle rédige le mail de suivi et vous enregistrez le RDV dans la mémoire.</p>
+    <div class="card">
+      <h2>Raconter</h2>
+      ${field('debrief.description', 'Texte libre', { hint: 'comment ça s’est passé, ce qu’il a dit, ce qui a été convenu et pour quand', type: 'textarea', full: true, placeholder: 'Ex. : Bon accueil, il veut l’avis de sa prof d’histoire avant de décider. Budget déjà engagé cette année. On s’est mis d’accord : je présente 30 min à la prof et à la documentaliste mardi prochain, j’envoie le dossier avant.' })}
+      <div class="actions"><button class="btn" id="debrief-extract">Analyser avec l’IA → remplir le débrief</button><span class="note" id="debrief-notes"></span></div>
+    </div>
     <div class="grid">
       <div><label>Résultat</label><select data-bind="debrief.outcome">
         <option value="">—</option><option>Vente conclue</option><option>Essai / pilote accepté</option><option>Proposition à envoyer</option>
@@ -548,6 +554,18 @@ renderers.followup = () => {
     persist(); markDone(); if (S.step === 'followup') renderFollowup();
   });
   $('#save').onclick = () => { saveMeeting(toRecord()); toast('Rendez-vous enregistré. Exportez le CSV depuis Historique.'); markDone(); };
+  $('#debrief-extract').onclick = (e) => busy(e.target, async () => {
+    if (!D.description.trim()) return toast('Racontez d’abord le rendez-vous.');
+    const r = await chatJSON(debriefExtractMessages({ lang: LANG, description: D.description, current: D, today: new Date().toISOString().slice(0, 10) }));
+    const f = r.fields || {}; let filled = 0;
+    for (const k of ['outcome', 'objectionsHeard', 'decisionMaker', 'nextAction', 'nextOwner', 'nextDue', 'nextOutput', 'notes']) {
+      const v = String(f[k] || '').trim(); if (v && !String(D[k] || '').trim() || (k === 'nextOwner' && v && D.nextOwner === 'me' && v === 'client')) { D[k] = v; filled++; }
+    }
+    persist(); markDone(); if (S.step !== 'followup') return;
+    renderers.followup();
+    $('#debrief-notes').textContent = (r.missing || []).length ? 'Manque : ' + r.missing.join(', ') + ' — complétez à la main avant le mail.' : '';
+    toast(`${filled} champ(s) rempli(s).`);
+  });
 };
 function renderFollowup() {
   const el = $('#fu-out'); const F = S.followup; if (!F) { el.innerHTML = ''; return; }
@@ -656,6 +674,21 @@ renderers.settings = () => {
     toast(r && (r.ok || r.text) ? 'Connexion OK ✔' : 'Réponse inattendue : ' + JSON.stringify(r).slice(0, 80));
   });
 };
+
+// ----------------------------------------------------------------------------- impression / PDF
+const STEP_TITLES = { offer: 'Offre', client: 'Client', persona: 'Persona SONCAS', simac: 'Déroulé SIMAC', followup: 'Suivi', history: 'Historique', settings: 'Réglages' };
+$('#btn-print').onclick = () => window.print();
+window.addEventListener('beforeprint', () => {
+  const who = [S.client.company, S.client.contactName].filter(Boolean).join(' — ');
+  const head = document.createElement('div'); head.id = 'print-head'; head.className = 'print-head';
+  head.innerHTML = `<b>SIMAC Prep · ${esc(STEP_TITLES[S.step] || '')}</b> · ${esc(S.product.name || '')}${who ? ' · ' + esc(who) : ''} · ${esc(S.date)}`;
+  $('#main').prepend(head);
+  $$('textarea').forEach((t) => { t.dataset.h = t.style.height; t.style.height = 'auto'; t.style.height = t.scrollHeight + 2 + 'px'; });
+});
+window.addEventListener('afterprint', () => {
+  $('#print-head')?.remove();
+  $$('textarea').forEach((t) => { t.style.height = t.dataset.h || ''; });
+});
 
 // ----------------------------------------------------------------------------- démarrage
 go(S.step || 'offer');

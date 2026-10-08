@@ -238,3 +238,25 @@ Règles : si une dernière réponse existe, reformule-la en valeur propre pour c
 JSON : {"field_value":"","next_field":"","question":"","done":false}` },
   ];
 }
+
+// ---------------------------------------------------------------------------
+// Étape 5 — débrief en texte libre → champs structurés (centrés sur l'appel à l'action).
+export function debriefExtractMessages({ lang, description, current, today }) {
+  return [
+    { role: 'system', content: sys('debrief_extract', lang) },
+    { role: 'user', content:
+`DÉBRIEF LIBRE APRÈS LE RENDEZ-VOUS (par la personne qui vend) :
+${description || '(vide)'}
+
+CHAMPS ACTUELS (ne pas contredire ce qui est rempli) :
+${JSON.stringify(current)}
+DATE DU JOUR : ${today}
+
+Champs : outcome = résultat parmi exactement [Vente conclue | Essai / pilote accepté | Proposition à envoyer | RDV décideur à fixer | Réflexion / relance datée | Pas de suite] ;
+objectionsHeard = objections entendues (une ligne par objection, avec les mots du client) ; decisionMaker = nom ou fonction du décideur ;
+nextAction = L'action convenue (le CTA), une phrase ; nextOwner = "me" si c'est le vendeur qui agit, "client" sinon ; nextDue = date YYYY-MM-DD déduite du texte (« mardi prochain », « sous 8 jours »… par rapport à la date du jour), sinon "" ;
+nextOutput = livrable attendu ; notes = faits nouveaux appris (budget, calendrier, personnes, préférences).
+Rien d'inventé : information absente → "". Si aucune action ni date n'a été convenue, nextAction = "" et notes doit le dire (« aucune suite datée »).
+JSON : {"fields":{"outcome":"","objectionsHeard":"","decisionMaker":"","nextAction":"","nextOwner":"","nextDue":"","nextOutput":"","notes":""},"missing":["clés vides importantes : nextAction, nextDue, decisionMaker…"]}` },
+  ];
+}
