@@ -4,7 +4,7 @@ Une application web **gratuite, sans serveur**, qui guide un indépendant ou une
 dans la préparation d'un rendez-vous de vente avec la méthode **SIMAC** et le profil **SONCAS-E**,
 puis dans le suivi centré sur l'appel à l'action.
 
-**Application en ligne : https://kikenandez.github.io/simac-prep/**
+**Application en ligne : https://simac.avapmo.com**
 
 ## Ce que fait l'application
 
