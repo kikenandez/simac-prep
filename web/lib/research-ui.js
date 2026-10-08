@@ -1,4 +1,4 @@
-import { activeSources, clientQueries, competitorQuery, companySource, fetchNotices, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
+import { activeSources, clientQueries, competitorQuery, companySource, fetchNotices, readUrl, safeUrl, rankSources, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
 import { competitionMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -14,11 +14,15 @@ export function citations(ids, sources) {
     return s ? `${link(s.source, s.title || s.source)} <small>(réf. ${esc(s.publishedAt || 'inconnue')}, consulté ${esc(s.retrievedAt?.slice(0, 10) || 'inconnu')})</small>` : '<small>Source à vérifier</small>';
   }).join(' · ');
 }
-export function renderEvidence(el, sources, changed) {
+const matchLine = (r) => `<p class="match"><b>Correspondance ${r.score} / ${r.total}</b> ${[...r.hits.map((h) => `<span class="ok">✓ ${esc(h)}</span>`), ...r.misses.map((m) => `<span class="ko">✗ ${esc(m)}</span>`)].join(' ')}</p>`;
+/** Sources à cocher ; avec `rank` (critères de recherche), classées du plus au moins correspondant, critères affichés. */
+export function renderEvidence(el, sources, changed, rank = null) {
   if (!el) return;
-  el.innerHTML = sources.map((s, i) => `<div class="card evidence">
+  const rows = rank ? rankSources(sources, rank) : sources.map((source, index) => ({ source, index }));
+  el.innerHTML = (rank && sources.length > 1 ? '<p class="note">Classées par correspondance avec la recherche : mots utiles, marché, prix publié, page de prestataire.</p>' : '') + rows.map(({ source: s, index: i, ...r }) => `<div class="card evidence">
     <label class="check"><input type="checkbox" data-include="${i}" ${s.included !== false ? 'checked' : ''}> Inclure dans la préparation</label>
     <b>${esc(s.kind)}</b> — ${link(s.source, s.title || s.source)}
+    ${rank ? matchLine(r) : ''}
     <p class="note">${s.subject ? `Recherche : ${esc(s.subject)} · ` : ''}Publication / référence : ${esc(s.publishedAt || 'inconnue')} · Consulté le ${esc(s.retrievedAt?.slice(0, 10) || 'inconnu')}${s.stale ? ' · Client modifié : vérifiez la pertinence avant de réinclure.' : ''}</p>
     <details><summary>Vérifier le texte collecté${s.truncated ? ' (tronqué)' : ''}</summary><pre class="source-text">${esc(s.text)}</pre></details>
     <button class="btn ghost small" data-remove="${i}">Retirer</button>
@@ -44,8 +48,9 @@ export function mountMarket(el, getState, { save, invalidate, busy, toast }) {
     <div id="market-comparison"></div></div>`;
   const redraw = () => { if (el.isConnected && current()) mountMarket(el, getState, { save, invalidate, busy, toast }); };
   const changed = () => { m.comparison = null; invalidate(); save(); redraw(); };
-  renderEvidence(el.querySelector('#market-sources'), m.sources, changed);
-  el.querySelector('#market-geography').oninput = e => { m.geography = e.target.value; m.comparison = null; m.sources.forEach(s => { s.included = false; }); invalidate(); save(); el.querySelector('#market-comparison').innerHTML = ''; renderEvidence(el.querySelector('#market-sources'), m.sources, changed); };
+  const rankCriteria = () => ({ query: m.query || el.querySelector('#market-query').value, geography: m.geography });
+  renderEvidence(el.querySelector('#market-sources'), m.sources, changed, rankCriteria());
+  el.querySelector('#market-geography').oninput = e => { m.geography = e.target.value; m.comparison = null; m.sources.forEach(s => { s.included = false; }); invalidate(); save(); el.querySelector('#market-comparison').innerHTML = ''; renderEvidence(el.querySelector('#market-sources'), m.sources, changed, rankCriteria()); };
   el.querySelector('#market-query').oninput = e => { m.query = e.target.value; save(); };
   el.querySelector('#market-url').oninput = e => { m.url = e.target.value; save(); };
   el.querySelector('#market-reset-query').onclick = () => { m.query = competitorQuery(state.product, m.geography); save(); redraw(); };

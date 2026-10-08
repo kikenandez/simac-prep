@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeSources, companySource, fetchNotices, groundBrief, makeSource, mergeSources, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources, clientQueries } from '../web/lib/research.js';
+import { activeSources, companySource, fetchNotices, groundBrief, makeSource, mergeSources, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources, clientQueries, rankSource, rankSources, competitorQuery } from '../web/lib/research.js';
 import { clientBriefMessages, competitionMessages, simacMessages } from '../web/lib/prompts.js';
 const json = data => new Response(JSON.stringify(data), { status: 200 });
 
@@ -113,4 +113,39 @@ test('web search still gives up after its own longer timeout', async t => {
   const pending = searchWeb('BETC', { jinaKey: 'k' });
   t.mock.timers.tick(60000);
   await assert.rejects(pending, /délai dépassé \(45 s\)/);
+});
+
+const src = (source, text) => ({ source, kind: 'web', text, included: false });
+const criteria = { query: 'yoga en entreprise Paris prestataires tarifs', geography: 'France' };
+
+test('ranking criteria: query words (accents, plurals), market, published price, provider page', () => {
+  const r = rankSource(src('https://teamupp.fr/yoga', 'Cours de Yoga en Entreprises à Paris — séance à 120 € HT'), criteria);
+  assert.deepEqual(r.hits, ['yoga', 'entreprise', 'paris', 'France', 'prix publié', 'page de prestataire']);
+  assert.deepEqual(r.misses, []);
+  assert.equal(r.total, 6);
+  const v = rankSource(src('https://www.youtube.com/watch?v=1', 'Yoga flow 45 min'), criteria);
+  assert.deepEqual(v.misses, ['entreprise', 'paris', 'France', 'prix publié', 'page de prestataire']);
+});
+
+test('market already named in the query is not counted twice; generic search words are not criteria', () => {
+  const r = rankSource(src('https://a.fr', 'yoga'), { query: 'yoga Lyon prestataires concurrents alternatives tarifs', geography: 'Lyon' });
+  assert.deepEqual([...r.hits, ...r.misses].sort(), ['lyon', 'page de prestataire', 'prix publié', 'yoga']);
+  assert.equal(r.total, 4);
+});
+
+test('sources are sorted best match first, ties keep search order, original index kept for the checkboxes', () => {
+  const list = [src('https://www.youtube.com/watch?v=1', 'Yoga 45 min'), src('https://b.fr', 'yoga entreprise'), src('https://c.fr', 'yoga entreprise Paris 590 € HT/mois'), src('https://d.fr', 'yoga entreprise')];
+  const ranked = rankSources(list, criteria);
+  assert.deepEqual(ranked.map(r => r.index), [2, 1, 3, 0]);
+  assert.equal(ranked[0].source, list[2]);
+});
+
+test('suggested competitor query is short: category (not our brand), no figures, market, then provider words', () => {
+  const vela = { name: 'Vela Yoga — Yoga en entreprise (Paris et petite couronne)', oneLiner: 'Un cours de yoga de 45 minutes par semaine, sur le lieu de travail', targets: 'Responsables RH / office managers\nSalariés' };
+  assert.equal(competitorQuery(vela, 'France'), 'Yoga en entreprise Paris et petite couronne France prestataires tarifs');
+  const capoeira = { name: '', oneLiner: 'Ateliers de capoeira ludiques pour enfants, adaptés à leur âge', targets: 'Écoles' };
+  assert.equal(competitorQuery(capoeira, 'Lyon'), 'Ateliers de capoeira ludiques pour enfants Lyon prestataires tarifs');
+  const short = { name: 'Cours de yoga 45 min', oneLiner: '', targets: '' };
+  assert.equal(competitorQuery(short, 'France'), 'Cours de yoga France prestataires tarifs');
+  assert.ok(competitorQuery({ name: '', oneLiner: 'x '.repeat(200), targets: '' }).length <= 120);
 });

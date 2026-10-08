@@ -131,8 +131,50 @@ export function clientQueries(client) {
     ...(client.contacts || []).filter(c => c.name).slice(0, 3).map(c => ({ label: `${c.name} : rôle et publications professionnelles`, query: `${base} "${c.name.replace(/"/g, '')}" ${c.role || ''} rôle interview publication`, subject: c.name })),
   ];
 }
+// Recherche concurrents : courte (le moteur noie une longue phrase), la catégorie plutôt que notre marque, sans chiffres
+// (« 45 minutes » ramène des vidéos), puis le marché et les mots qui ciblent des prestataires.
+const QUERY_MAX = 120;
+const FIGURES = /\b\d+(?:[.,]\d+)?\s*(?:minutes?|min|heures?|h|€|euros?|%|séances?|cours|personnes?|pers\.?)?(?=\s|$|[,.;:)])/gi;
 export function competitorQuery(product, geography = 'France') {
-  return [product.oneLiner || product.name, product.targets, geography, 'prestataires concurrents alternatives tarifs'].filter(Boolean).join(' ').slice(0, 700);
+  const name = String(product.name || '');
+  const category = name.includes(' — ') ? name.split(' — ').slice(1).join(' ') : '';
+  const core = (category || String(product.oneLiner || '').split(/[,;:.\n]/)[0] || name)
+    .replace(FIGURES, ' ').replace(/[()«»"]/g, ' ').replace(/\s+/g, ' ').trim();
+  const geo = String(geography || '').trim();
+  const words = [core, geo && !normalize(core).includes(normalize(geo)) ? geo : '', 'prestataires tarifs'].filter(Boolean).join(' ');
+  return words.length <= QUERY_MAX ? words : `${core.slice(0, QUERY_MAX - geo.length - 22).trim()} ${geo} prestataires tarifs`.replace(/\s+/g, ' ');
+}
+
+// Classement des candidats : critères explicites et vérifiables, sans IA — chaque mot utile de la recherche,
+// le marché, un prix publié, une page de prestataire (pas une vidéo ni un réseau social).
+const normalize = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+const STOPWORDS = new Set('a au aux avec ce ces dans de des du en et la le les leur leurs l d un une pour par sur ou'.split(' '));
+const SEARCH_WORDS = new Set('prestataire prestataires concurrent concurrents alternative alternatives tarif tarifs prix cout couts offre offres service services'.split(' '));
+const NOT_PROVIDER = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|tiktok\.com|instagram\.com|facebook\.com|linkedin\.com|pinterest\.[a-z]+|x\.com|twitter\.com)$/;
+const PRICE = /\d[\d\s.,]*\s?(€|eur\b|euros?\b)|(€|eur)\s?\d/i;
+const terms = (text) => [...new Set(normalize(text).split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOPWORDS.has(w) && !SEARCH_WORDS.has(w)))];
+const hasTerm = (text, term) => new RegExp(`\\b${term.length > 4 ? term.replace(/s$/, '') : term}`).test(text);
+const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } };
+
+/** Critères remplis / manqués pour un candidat ; score = nombre de critères remplis. */
+export function rankSource(source, { query = '', geography = '' } = {}) {
+  const text = normalize(`${source.title || ''} ${source.text || ''}`);
+  const words = terms(query);
+  const geo = String(geography || '').trim();
+  const checks = [
+    ...words.map((w) => [w, hasTerm(text, w)]),
+    // marché « France » : un domaine .fr suffit (une page française écrit rarement « France »)
+    ...(geo && !words.includes(normalize(geo)) ? [[geo, hasTerm(text, normalize(geo)) || (normalize(geo) === 'france' && hostOf(source.source).endsWith('.fr'))]] : []),
+    ['prix publié', PRICE.test(source.text || '')],
+    ['page de prestataire', !NOT_PROVIDER.test(hostOf(source.source))],
+  ];
+  const hits = checks.filter(([, ok]) => ok).map(([label]) => label);
+  return { hits, misses: checks.filter(([, ok]) => !ok).map(([label]) => label), score: hits.length, total: checks.length };
+}
+/** Candidats du plus au moins correspondant ; à égalité, l'ordre de la recherche ; index d'origine conservé. */
+export function rankSources(sources, criteria) {
+  return sources.map((source, index) => ({ source, index, ...rankSource(source, criteria) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index);
 }
 export function sanitizeComparison(result, sources) {
   const ids = new Set(activeSources(sources).map(sourceId));
