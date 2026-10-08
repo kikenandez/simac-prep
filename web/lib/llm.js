@@ -170,7 +170,7 @@ function mockChat(messages, opts) {
   }
   if (task === 'maturity') {
     return delay(JSON.stringify({
-      score: 3, label: 'Offre définie', summary: '[DEMO] La cible, le problème et le mécanisme sont clairs. Sans preuve ni prix ramené à l’unité du client, l’argumentaire reste fragile face à « c’est trop cher ».',
+      score: 3, verdict: 'prêt pour des réunions à blanc', label: 'Offre définie', summary: '[DEMO] La cible, le problème et le mécanisme sont clairs. Sans preuve ni prix ramené à l’unité du client, l’argumentaire reste fragile face à « c’est trop cher ».',
       strengths: ['Problème formulé avec les mots du client', 'Mécanisme en 3 étapes lisible', 'Petit oui identifié (essai sur 3 RDV)'],
       gaps: [{ field: 'proofs', why: 'Sans preuve, chaque avantage est une promesse.', fix: 'Collecter 2 témoignages et 1 chiffre de résultat.' }, { field: 'price', why: 'Le prix arrive sans unité qui parle au client.', fix: 'Exprimer le prix par rendez-vous gagné ou par mois.' }, { field: 'objections', why: 'Aucune réponse préparée.', fix: 'Lister 5 objections et une réponse en 4 temps pour chacune.' }],
       next_step: 'Obtenir deux témoignages écrits avant le prochain rendez-vous.',
@@ -224,6 +224,7 @@ function mockChat(messages, opts) {
         Y: [fr ? 'Un interlocuteur unique, joignable.' : 'One named contact, reachable.'],
         E: [fr ? 'Outils sobres, pas de déplacement.' : 'Lightweight tools, no travel.'],
       },
+      gaps: [fr ? 'Aucun témoignage client dans la fiche' : 'No client testimonial in the sheet'],
       main_message: fr ? '[DEMO] Sécurisez vos ventes des 6 prochains mois avec une méthode simple, rentable dès le premier client signé.' : '[DEMO] Secure your next 6 months of sales with a simple method that pays for itself at the first signed client.',
     }));
   }
@@ -238,6 +239,7 @@ function mockChat(messages, opts) {
         { objection: fr ? 'Je dois réfléchir' : 'I need to think', response: fr ? 'Bien sûr. Quel point précis mérite réflexion : le prix, le timing ou le résultat attendu ?' : 'Of course. Which point needs thought: price, timing, or expected result?' },
         { objection: fr ? 'C’est trop cher' : 'Too expensive', response: fr ? 'Par rapport à quoi ? Ramené au rendez-vous gagné, qu’est-ce qui serait acceptable ?' : 'Compared with what? Per won meeting, what would be acceptable?' },
       ],
+      gaps: [fr ? 'La fiche ne précise pas les conditions de résiliation' : 'The sheet does not state cancellation terms'],
       opening: fr ? 'Bonjour, je suis [Nom], j’aide les PME à conclure plus de ventes. Nous avions convenu de parler de votre prospection. Avant de commencer : quel est le point le plus important pour vous aujourd’hui ?' : 'Hello, I’m [Name], I help SMBs close more sales. We agreed to talk about your prospecting. Before we start: what matters most to you today?',
     }));
   }

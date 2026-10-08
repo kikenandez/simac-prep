@@ -9,6 +9,8 @@ const errors = [];
 p.on('pageerror', e => errors.push('PAGEERROR ' + e.message));
 p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('CONSOLE ' + m.text()); });
 await p.goto('http://localhost:8765/');
+await p.waitForSelector('#gate:not([hidden])'); await p.fill('#gate-email', 'test@exemple.fr'); await p.check('#gate-accept'); await p.click('#gate-form .btn'); await p.waitForSelector('#gate[hidden]', { state: 'attached' });
+const gateAgain = await p.evaluate(() => JSON.parse(localStorage.getItem('simac.consent')).accepted);
 // settings -> mock
 await p.click('[data-step=settings]');
 await p.selectOption('#provider', 'mock'); await p.click('#save');
@@ -65,6 +67,7 @@ const csv = await p.evaluate(async () => { const m = await import('./lib/store.j
 const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); return m.importCSV(csv) + '/' + m.listMeetings().length + '/' + m.listMeetings()[0].top3; }, csv);
 await p.screenshot({ path: shots + '/6-history.png' });
 await p.setViewportSize({ width: 390, height: 800 }); await p.click('[data-step=persona]'); await p.screenshot({ path: shots + '/7-mobile.png' });
-const ok = rows === 1 && reimport.startsWith('1/1/') && errors.length === 0 && extracted >= 3 && maturity === 3;
-console.log(JSON.stringify({ extracted, maturity, rows, reimport, errors, ok }, null, 1));
+const radar = await p.$$eval('#radar svg polygon.me', s => s.length);
+const ok = rows === 1 && reimport.startsWith('1/1/') && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && radar === 1;
+console.log(JSON.stringify({ gateAgain, radar, extracted, maturity, rows, reimport, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);

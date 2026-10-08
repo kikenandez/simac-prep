@@ -66,6 +66,16 @@ tests/e2e.mjs       # parcours complet en mode démo (Playwright)
 Issue des formations BGE « Conclure ses ventes » et « Construire son argumentaire commercial »
 et du *Sales Meeting Preparation Guide*. Résumé dans [`docs/METHODE.md`](docs/METHODE.md).
 
+## Page d'accueil, conditions et email
+
+Au premier accès, une page d'instructions présente les 5 étapes et les conditions d'utilisation ; l'accès exige
+leur acceptation et une adresse email (réglable). L'acceptation est mémorisée dans le navigateur
+(`termsVersion` dans `web/config.js` : l'incrémenter force une nouvelle acceptation).
+
+L'email est envoyé **sans serveur** vers un formulaire que vous possédez : Google Forms (gratuit, réponses dans un
+Google Sheet) ou Web3Forms / Formspree. Renseignez `emailEndpoint` et `emailFields` dans `web/config.js` ;
+tant qu'ils sont vides, l'adresse n'est conservée que localement. Mettez `emailRequired: false` pour la rendre facultative.
+
 ## Crédit et responsabilité
 
 Créé par Guillermo Blanco — [adp.avapmo.com](https://adp.avapmo.com) — utilisation gratuite.
