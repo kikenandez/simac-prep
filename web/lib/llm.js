@@ -108,9 +108,17 @@ async function anthropicChat(cfg, messages, opts) {
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const rest = messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }));
   // Pas de `temperature` : les modèles Claude récents refusent le paramètre (400 « deprecated »).
-  const body = { model: cfg.model, max_tokens: 8192, messages: rest };
+  // `thinking: disabled` : sinon la réflexion interne du modèle consomme le plafond de sortie (vu : 6 900 tokens
+  // de réflexion sur 8 192, texte coupé). Nos prompts sont des extractions structurées : pas besoin de réflexion longue.
+  const body = { model: cfg.model, max_tokens: 16384, thinking: { type: 'disabled' }, messages: rest };
   if (system) body.system = system;
-  const res = await fetch(`${cfg.baseUrl}/messages`, { method: 'POST', headers: anthropicHeaders(cfg), body: JSON.stringify(body), signal: opts.signal });
+  let res = await fetch(`${cfg.baseUrl}/messages`, { method: 'POST', headers: anthropicHeaders(cfg), body: JSON.stringify(body), signal: opts.signal });
+  if (res.status === 400) {
+    // modèle qui ne connaît pas `thinking` ou plafonne max_tokens plus bas : on réessaie sans
+    const txt = await res.text().catch(() => '');
+    if (/thinking|max_tokens/i.test(txt)) { delete body.thinking; body.max_tokens = 8192; res = await fetch(`${cfg.baseUrl}/messages`, { method: 'POST', headers: anthropicHeaders(cfg), body: JSON.stringify(body), signal: opts.signal }); }
+    else throw new Error(`LLM_HTTP_400: ${txt.slice(0, 300)}`);
+  }
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
     throw new Error(`LLM_HTTP_${res.status}: ${txt.slice(0, 300)}`);
