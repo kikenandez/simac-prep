@@ -29,9 +29,9 @@ export function clientBriefMessages({ lang, product, client, sources, history })
   return [
     { role: 'system', content: sys('client_brief', lang) },
     { role: 'user', content:
-`OFFRE / OFFER:\n${JSON.stringify(product, null, 1)}
+`OFFRE / OFFER:\n${JSON.stringify(product)}
 
-CLIENT (saisi par l'utilisateur / typed by user):\n${JSON.stringify(client, null, 1)}
+CLIENT (saisi par l'utilisateur / typed by user):\n${JSON.stringify(client)}
 
 SOURCES COLLECTÉES / COLLECTED SOURCES (texte brut, peut être bruité / raw text, may be noisy):
 ${sources || '(aucune / none)'}
@@ -56,17 +56,18 @@ export function soncasMessages({ lang, product, client, brief, history }) {
   return [
     { role: 'system', content: sys('soncas', lang) },
     { role: 'user', content:
-`OFFRE / OFFER:\n${JSON.stringify(product, null, 1)}
-CLIENT:\n${JSON.stringify(client, null, 1)}
-FICHE CLIENT / CLIENT BRIEF:\n${JSON.stringify(brief, null, 1)}
+`OFFRE / OFFER:\n${JSON.stringify(product)}
+CLIENT:\n${JSON.stringify(client)}
+FICHE CLIENT / CLIENT BRIEF:\n${JSON.stringify(brief)}
 HISTORIQUE / HISTORY:\n${history || '(none)'}
 
-Évalue chaque motivation SONCAS-E de 1 (faible) à 3 (forte) d'après les indices disponibles — par défaut 2 si aucun indice.
+Évalue chaque motivation SONCAS-E de 1 (faible) à 3 (forte) d'après les indices disponibles — par défaut 2 si aucun indice. AU PLUS TROIS dimensions peuvent être à 3 : ce sont les motivations dominantes.
 Rate each SONCAS-E motivation 1 (weak) to 3 (strong) from available cues — default 2 when no cue.
 Codes: S=Sécurité/Security, O=Orgueil/Pride, N=Nouveauté/Novelty, C=Confort/Comfort, A=Argent/Money, Y=Sympathie/Affinity, E=Environnement/Environment.
 Pour CHAQUE dimension, 2 arguments CABP (caractéristique → bénéfice → preuve) tirés de l'OFFRE, formulés pour ce client.
 For EACH dimension, 2 CABP arguments (characteristic → benefit → proof) drawn from the OFFER, phrased for this client.
 "main_message" = 1-2 phrases bâties sur les 3 dimensions les plus fortes / built on the 3 strongest dimensions.
+PREUVES : uniquement celles présentes dans l'OFFRE (champ proofs) ou la FICHE CLIENT. Si aucune preuve n'existe pour un argument, écris « (preuve à fournir) » — n'invente JAMAIS de chiffre, de référence, de témoignage ni de délai de réponse.
 
 JSON:
 {"scores":{"S":2,"O":2,"N":2,"C":2,"A":2,"Y":2,"E":2},
@@ -80,10 +81,10 @@ export function simacMessages({ lang, product, client, brief, persona, objective
   return [
     { role: 'system', content: sys('simac', lang) },
     { role: 'user', content:
-`OFFRE / OFFER:\n${JSON.stringify(product, null, 1)}
-CLIENT:\n${JSON.stringify(client, null, 1)}
-FICHE CLIENT / BRIEF:\n${JSON.stringify(brief, null, 1)}
-PERSONA SONCAS (scores validés par l'utilisateur / user-validated) + MESSAGE PRINCIPAL:\n${JSON.stringify(persona, null, 1)}
+`OFFRE / OFFER:\n${JSON.stringify(product)}
+CLIENT:\n${JSON.stringify(client)}
+FICHE CLIENT / BRIEF:\n${JSON.stringify(brief)}
+PERSONA SONCAS (scores validés par l'utilisateur / user-validated) + MESSAGE PRINCIPAL:\n${JSON.stringify(persona)}
 OBJECTIF DU RDV / MEETING OBJECTIVE: ${objective.primary || '?'} — REPLI / FALLBACK: ${objective.fallback || '?'}
 
 Rédige le déroulé de l'entretien / Write the meeting script. JSON:
@@ -95,7 +96,8 @@ Rédige le déroulé de l'entretien / Write the meeting script. JSON:
  "conclusion":"question de décision avec un choix entre deux propositions + étape suivante datée / decision question offering two options + dated next step",
  "objections":[{"objection":"...","response":"accueillir → question → réponse → relance / acknowledge → question → answer → move on"}],
  "mistakes_watch":["2-3 erreurs auxquelles CE rdv est exposé / 2-3 mistakes THIS meeting is exposed to"]}
-Prépare 5 à 7 objections probables pour ce client / Prepare 5-7 likely objections for this client.` },
+Prépare 5 à 7 objections probables pour ce client / Prepare 5-7 likely objections for this client.
+PREUVES et CHIFFRES : uniquement ceux de l'OFFRE ou de la FICHE CLIENT ; sinon « (preuve à fournir) ». Rien d'inventé.` },
   ];
 }
 
@@ -106,7 +108,7 @@ export function followupMessages({ lang, product, client, simac, debrief }) {
 `OFFRE / OFFER: ${product.name || ''} — ${product.oneLiner || ''}
 CLIENT: ${client.company || ''} / ${client.contactName || ''} (${client.contactRole || ''})
 SIMAC PRÉPARÉ / PREPARED: ${JSON.stringify({ idea: simac.idea, conclusion: simac.conclusion }, null, 1)}
-DÉBRIEF SAISI APRÈS LE RDV / POST-MEETING DEBRIEF:\n${JSON.stringify(debrief, null, 1)}
+DÉBRIEF SAISI APRÈS LE RDV / POST-MEETING DEBRIEF:\n${JSON.stringify(debrief)}
 
 Rédige / Write:
 - un mail de suivi < 150 mots, centré sur l'APPEL À L'ACTION convenu (action, responsable, date, livrable), qui se termine par une proposition datée (jamais « n'hésitez pas ») / a follow-up email < 150 words, centred on the agreed CALL TO ACTION (action, owner, date, output), ending with a dated proposal (never "feel free").
@@ -137,7 +139,7 @@ SOURCES (site web, profils collés — texte brut, peut être bruité) :
 ${sources || '(aucune)'}
 
 FICHE ACTUELLE (ne pas contredire ce qui est déjà rempli ; proposer seulement pour les champs vides ou à améliorer) :
-${JSON.stringify(current, null, 1)}
+${JSON.stringify(current)}
 
 ${PRODUCT_FIELDS}
 
@@ -157,14 +159,14 @@ export function offerQuestionMessages({ lang, current, transcript, lastField, la
 ${PRODUCT_FIELDS}
 
 FICHE ACTUELLE :
-${JSON.stringify(current, null, 1)}
+${JSON.stringify(current)}
 
 DIALOGUE JUSQU'ICI :
 ${transcript || '(début)'}
 
 ${lastField ? `DERNIÈRE RÉPONSE (pour le champ "${lastField}") : ${lastAnswer}` : 'Aucune réponse encore : pose la première question.'}
 
-Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout ; listes = une ligne par élément). Puis choisis le champ vide ou faible le plus important pour VENDRE (ordre conseillé : oneLiner, targets, problem, nextStep, mechanism, advantages, proofs, price, objections, who, floor, delays, constraints) et pose UNE question concrète, avec un exemple court si utile. Quand tous les champs importants sont remplis, done = true et pose aucune question.
+Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout ; listes = une ligne par élément). Ne redemande JAMAIS un champ déjà abordé dans le dialogue, même si la réponse est courte : une réponse courte est une réponse. Puis choisis le champ encore VIDE le plus important pour VENDRE (ordre conseillé : oneLiner, targets, problem, nextStep, mechanism, advantages, proofs, price, objections, who, floor, delays, constraints) et pose UNE question concrète, avec un exemple court si utile. Quand tous les champs importants sont remplis, done = true et pose aucune question.
 JSON : {"field_value":"valeur propre pour le dernier champ, ou \\"\\"","next_field":"clé ou \\"\\"","question":"la question, ou \\"\\"","done":false}` },
   ];
 }
@@ -182,11 +184,57 @@ export function offerMaturityMessages({ lang, current }) {
 Critères de la checklist : accroche sur le problème du client ; qui parle en 1 phrase ; cibles distinguées (achète/utilise/décide) ; bénéfices avant caractéristiques ; ≥ 1 preuve ; prix après la valeur et ramené à l'unité du client ; plancher connu ; 5-10 objections ; un seul petit oui.
 
 FICHE :
-${JSON.stringify(current, null, 1)}
+${JSON.stringify(current)}
 
 JSON : {"score":3,"label":"libellé court du niveau","summary":"2 phrases, directes, sans flatterie",
  "strengths":["2-4 points forts, citant la fiche"],
  "gaps":[{"field":"clé","why":"pourquoi ça bloque la vente","fix":"action concrète en 1 phrase"}],
  "next_step":"LA chose à faire avant le prochain rendez-vous"}` },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// Étape 2 — décrire le client / le rendez-vous en texte libre, puis compléter par questions.
+
+const CLIENT_FIELDS = `Champs de la fiche client (clé → sens) :
+company = entreprise / établissement ; sector = secteur ou activité ; website = site web ; contactName = interlocuteur·rice (nom ou fonction si le nom est inconnu) ;
+contactRole = fonction et rôle dans la décision ; meetingFormat = format et contexte du rendez-vous (mail, visio, sur place, salon, téléphone ; date ; durée ; qui a pris l'initiative) ;
+decisionProcess = processus de décision connu (qui d'autre, quand, budget) ; notes = tout ce qu'on sait d'autre (historique, contexte, ce qui a été dit).`;
+
+export function clientExtractMessages({ lang, description, current }) {
+  return [
+    { role: 'system', content: sys('client_extract', lang) },
+    { role: 'user', content:
+`DESCRIPTION LIBRE DU CLIENT ET DU RENDEZ-VOUS :
+${description || '(vide)'}
+
+FICHE CLIENT ACTUELLE (ne pas contredire ce qui est rempli) :
+${JSON.stringify(current)}
+
+${CLIENT_FIELDS}
+
+Remplis chaque champ UNIQUEMENT à partir de la description. Information absente → "" (rien d'inventé, aucun nom supposé).
+JSON : {"fields":{"company":"","sector":"","website":"","contactName":"","contactRole":"","meetingFormat":"","decisionProcess":"","notes":""},
+ "missing":["clés vides, par ordre d'importance pour préparer le rendez-vous"]}` },
+  ];
+}
+
+export function clientQuestionMessages({ lang, current, transcript, lastField, lastAnswer }) {
+  return [
+    { role: 'system', content: sys('client_question', lang) },
+    { role: 'user', content:
+`Tu aides la personne à compléter sa fiche client par un dialogue, UNE question à la fois, avec des mots simples.
+${CLIENT_FIELDS}
+
+FICHE ACTUELLE :
+${JSON.stringify(current)}
+
+DIALOGUE JUSQU'ICI :
+${transcript || '(début)'}
+
+${lastField ? `DERNIÈRE RÉPONSE (pour le champ "${lastField}") : ${lastAnswer}` : 'Aucune réponse encore : pose la première question.'}
+
+Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout). Ne redemande JAMAIS un champ déjà abordé : une réponse courte est une réponse. Puis choisis le champ encore VIDE le plus utile pour préparer le rendez-vous (ordre conseillé : contactRole, meetingFormat, company, decisionProcess, sector, website, notes) et pose UNE question concrète. Quand les champs utiles sont remplis, done = true.
+JSON : {"field_value":"","next_field":"","question":"","done":false}` },
   ];
 }

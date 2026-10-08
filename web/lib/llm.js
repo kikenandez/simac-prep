@@ -176,6 +176,19 @@ function mockChat(messages, opts) {
       next_step: 'Obtenir deux témoignages écrits avant le prochain rendez-vous.',
     }));
   }
+  if (task === 'client_extract') {
+    return delay(JSON.stringify({ fields: { company: 'Collège privé, Paris', sector: 'Enseignement secondaire', website: '', contactName: 'Le directeur', contactRole: 'Directeur — décide des achats pédagogiques', meetingFormat: 'Rendez-vous sur place, 30 minutes', decisionProcess: '', notes: '[DEMO] Les professeurs se plaignent que les élèves ne lisent plus.' }, missing: ['decisionProcess', 'website'] }));
+  }
+  if (task === 'client_question') {
+    const m = /DERNIÈRE RÉPONSE \(pour le champ "(\w+)"\) : ([\s\S]*?)\n\nRègles/.exec(last);
+    const cur = /FICHE ACTUELLE :\n([\s\S]*?)\n\nDIALOGUE/.exec(last);
+    let fiche = {}; try { fiche = JSON.parse(cur?.[1] || '{}'); } catch {}
+    if (m) fiche[m[1]] = m[2].trim();
+    const order = ['contactRole', 'meetingFormat', 'company', 'decisionProcess'];
+    const qs = { contactRole: 'Quelle est la fonction de votre interlocuteur, et quel est son rôle dans la décision ?', meetingFormat: 'Sous quelle forme a lieu le rendez-vous : mail, visio, sur place, salon ? Quand, et combien de temps ?', company: 'Quel est l’établissement ou l’entreprise ?', decisionProcess: 'Qui d’autre participe à la décision, et à quelle échéance ?' };
+    const next = order.find((k) => !String(fiche[k] || '').trim());
+    return delay(JSON.stringify({ field_value: m ? m[2].trim() : '', next_field: next || '', question: next ? qs[next] : '', done: !next }));
+  }
   if (task === 'client_brief') {
     return delay(JSON.stringify({
       company_summary: fr ? '[DEMO] PME de services, 40 salariés, en croissance, cherche à structurer sa prospection.' : '[DEMO] Service SMB, 40 staff, growing, wants to structure its prospecting.',
