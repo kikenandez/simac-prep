@@ -179,13 +179,23 @@ export function parseJSON(raw) {
   const end = s.lastIndexOf('}');
   if (start >= 0 && end > start) s = s.slice(start, end + 1);
   try { return JSON.parse(s); } catch (e) {
-    // retours à la ligne bruts dans les chaînes (fréquent sur de longs textes) → échappés
+    // 1) retours à la ligne bruts dans les chaînes (fréquent sur de longs textes) → échappés
     const fixed = s.replace(/"(?:[^"\\]|\\.)*"/g, (m) => m.replace(/\n/g, '\\n').replace(/\t/g, '\\t'));
-    try { return JSON.parse(fixed); } catch {
-      console.error('Réponse IA non JSON :', String(raw).slice(0, 2000));
-      const err = new SyntaxError('JSON illisible'); err.raw = String(raw).slice(0, 300); throw err;
-    }
+    try { return JSON.parse(fixed); } catch {}
+    // 2) accolades / crochets non refermés (le modèle a oublié la fermeture finale) → on complète
+    try { return JSON.parse(closeBrackets(fixed)); } catch {}
+    console.error('Réponse IA non JSON :', String(raw).slice(0, 2000));
+    const err = new SyntaxError('JSON illisible'); err.raw = String(raw).slice(0, 300); throw err;
   }
+}
+/** Ajoute les } et ] manquants en fin de texte (hors chaînes). */
+function closeBrackets(s) {
+  const stack = []; let inStr = false, esc = false;
+  for (const c of s) {
+    if (inStr) { if (esc) esc = false; else if (c === '\\') esc = true; else if (c === '"') inStr = false; continue; }
+    if (c === '"') inStr = true; else if (c === '{') stack.push('}'); else if (c === '[') stack.push(']'); else if (c === '}' || c === ']') stack.pop();
+  }
+  return s.replace(/,\s*$/, '') + stack.reverse().join('');
 }
 
 // ---------------------------------------------------------------------------
