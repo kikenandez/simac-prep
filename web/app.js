@@ -665,7 +665,7 @@ renderers.persona = () => {
       <button class="btn" id="ai">Proposer avec l’IA</button>
       ${person().aiScores ? '<span class="note">Proposition IA reçue — ajustez les scores si besoin.</span>' : '<span class="note">Sans IA : notez à la main, puis rédigez le message.</span>'}
     </div>
-    ${multi ? `<div class="tabs" id="people-tabs">${cs.map((c, i) => `<button class="${i === P.current ? 'on' : ''}" data-p="${i}">${esc(contactLabel(c, i))} <small>· ${WEIGHTS[c.weight] || ''}</small></button>`).join('')}</div>` : ''}
+    ${multi ? `<div class="tabs" id="people-tabs">${cs.map((c, i) => `<button class="${i === P.current ? 'on' : ''}" data-p="${i}"><span>${esc(contactLabel(c, i))} <small>· ${WEIGHTS[c.weight] || ''}</small></span>${c.role ? `<em>${esc(c.role)}</em>` : ''}</button>`).join('')}</div>` : ''}
     <div class="persona-grid">
       <div class="card radar-card" id="radar"></div>
       <div class="soncas" id="soncas"></div>
