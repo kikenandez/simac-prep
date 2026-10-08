@@ -89,6 +89,18 @@ L'email est envoyé **sans serveur** à la même liste Buttondown que adp.avapmo
 inscrite qu'après confirmation par mail), étiquetée `source = simac-prep`. Réglages dans `web/config.js`
 (`emailEndpoint`, `emailSource`) ; endpoint vide = adresse conservée seulement en local ; `emailRequired: false` la rend facultative.
 
+**Accès après confirmation** (`confirmToUnlock: true`, par défaut) : l'outil est offert en échange d'une adresse confirmée.
+Après l'envoi du formulaire, la page d'accueil reste fermée et affiche « Vérifiez votre boîte mail » (renvoi du mail
+limité à un toutes les 60 s, changement d'adresse). L'outil s'ouvre quand l'utilisateur clique sur le lien du mail de
+confirmation : dans Buttondown, la **redirection après confirmation doit pointer vers `https://simac.avapmo.com/?ok=1`**
+(`?confirmed=1` est aussi accepté). Au retour, l'app marque l'adresse confirmée dans le navigateur, retire le paramètre
+de l'URL et ouvre l'accès ; si le lien est ouvert dans un autre navigateur, l'accès y est ouvert aussi (le clic dans le
+mail fait foi). Les acceptations enregistrées avant cette version restent valables. `confirmToUnlock: false` rétablit
+l'accès immédiat ; sans adresse (email facultatif) ou sans endpoint, l'accès est également immédiat.
+
+Limite assumée : sans serveur, c'est une barrière **douce** — quiconque tape `?ok=1` dans l'URL entre sans confirmer.
+Une version gérée (avec serveur) ferait une vraie vérification.
+
 ## Crédit et responsabilité
 
 Créé par Guillermo Blanco — [adp.avapmo.com](https://adp.avapmo.com) — utilisation gratuite.

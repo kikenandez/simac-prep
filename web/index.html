@@ -37,7 +37,7 @@
           <li><b>Aucun engagement ni responsabilité</b> de Guillermo Blanco, adp.avapmo.com ou AVApmo, quel que soit l’usage ou le résultat.</li>
           <li>Vos fiches, clés d’API et historique restent <b>dans votre navigateur</b> ; les actions demandées transmettent le contexte à votre fournisseur d’IA, les recherches et URLs à Jina, et les critères d’entreprise aux API publiques interrogées.</li>
           <li><b>Clés gratuites pour tester et pour les données publiques (sites, plaquettes, informations d’entreprise publiques) ; offre payante chez votre fournisseur d’IA, ou modèle local, pour les données non publiques</b> (mails, devis, notes internes, coordonnées personnelles), que nous déconseillons d’envoyer via une offre gratuite. L’outil est gratuit et le reste : toute offre payante est contractée directement avec le fournisseur d’IA, sans lien avec Guillermo Blanco ou AVApmo. Ce que vous envoyez à l’IA est soumis aux conditions de ce fournisseur, qui diffèrent et évoluent ; vous en êtes responsable.</li>
-          <li>Votre adresse email sert à vous informer des évolutions de l’outil et des contenus d’adp.avapmo.com ; elle n’est ni vendue ni partagée ; vous recevez un mail de confirmation (double opt-in) ; désinscription à tout moment via le lien de chaque envoi ou en écrivant à <a href="mailto:contact@avapmo.com">contact@avapmo.com</a>.</li>
+          <li>L’accès à l’outil est donné <b>en échange d’une adresse email confirmée</b> : vous recevez un mail de confirmation (double opt-in) et l’outil s’ouvre quand vous cliquez sur son lien. Votre adresse sert à vous informer des évolutions de l’outil et des contenus d’adp.avapmo.com ; elle n’est ni vendue ni partagée ; désinscription à tout moment via le lien de chaque envoi ou en écrivant à <a href="mailto:contact@avapmo.com">contact@avapmo.com</a>.</li>
           <li>Usage personnel et professionnel libre ; pas de revente de l’outil. Code source sous licence MIT.</li>
         </ul>
       </details>
@@ -47,6 +47,18 @@
         <button class="btn" type="submit">Accéder à l’outil</button>
         <span class="note" id="gate-error"></span>
       </form>
+      <div id="gate-wait" class="card" hidden>
+        <h2>Vérifiez votre boîte mail</h2>
+        <p>Un mail de confirmation vient d’être envoyé à <b id="gate-wait-email"></b> par AVApmo (via Buttondown). Cliquez sur le lien qu’il contient pour ouvrir l’outil.</p>
+        <p class="note">Rien reçu après quelques minutes ? Regardez dans le dossier « Indésirables » (spam) ou les onglets Promotions / Notifications.</p>
+        <p class="note" id="gate-wait-status"></p>
+        <div class="gate-form">
+          <button class="btn" type="button" id="gate-resend">Renvoyer le mail</button>
+          <button class="btn ghost" type="button" id="gate-change">Changer d’adresse</button>
+        </div>
+        <p class="note"><a href="#" id="gate-already">J’ai déjà confirmé</a></p>
+        <p class="note" id="gate-already-help" hidden>L’accès s’ouvre quand le lien du mail est ouvert <b>dans ce navigateur</b>. Si vous avez cliqué depuis votre téléphone ou un autre navigateur, ouvrez le mail ici et cliquez sur le lien, ou copiez-le dans la barre d’adresse de ce navigateur.</p>
+      </div>
       <p class="note">Créé par Guillermo Blanco · <a href="https://adp.avapmo.com" target="_blank" rel="noopener">adp.avapmo.com</a> · utilisation gratuite</p>
     </div>
   </div>

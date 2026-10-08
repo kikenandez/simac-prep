@@ -11,8 +11,31 @@ p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.te
 // Aucun email d’inscription envoyé pendant les tests.
 await p.route('https://buttondown.com/**', route => route.fulfill({ status: 200, body: '' }));
 await p.goto('http://localhost:8765/');
-await p.waitForSelector('#gate:not([hidden])'); await p.fill('#gate-email', 'test@exemple.fr'); await p.check('#gate-accept'); await p.click('#gate-form .btn'); await p.waitForSelector('#gate[hidden]', { state: 'attached' });
+await p.waitForSelector('#gate:not([hidden])'); await p.fill('#gate-email', 'test@exemple.fr'); await p.check('#gate-accept'); await p.click('#gate-form .btn');
+// accès après confirmation : panneau d'attente, page d'accueil toujours fermée, renvoi bloqué 60 s
+await p.waitForSelector('#gate-wait:not([hidden])');
+const waiting = await p.evaluate(() => !document.querySelector('#gate').hidden && document.querySelector('#gate-form').hidden
+  && document.querySelector('#gate-wait-email').textContent === 'test@exemple.fr' && document.querySelector('#gate-resend').disabled
+  && JSON.parse(localStorage.getItem('simac.consent')).confirmed === false);
+// rechargement avant confirmation : toujours en attente
+await p.reload(); await p.waitForSelector('#gate-wait:not([hidden])');
+// retour du lien de confirmation Buttondown
+await p.goto('http://localhost:8765/?ok=1'); await p.waitForSelector('#gate[hidden]', { state: 'attached' });
+const confirmed = await p.evaluate(() => { const c = JSON.parse(localStorage.getItem('simac.consent')); return c.confirmed === true && c.email === 'test@exemple.fr' && location.search === '' && /bienvenue/.test(document.querySelector('#toast').textContent); });
 const gateAgain = await p.evaluate(() => JSON.parse(localStorage.getItem('simac.consent')).accepted);
+// consentement antérieur (sans champ confirmed) : accès conservé ; lien ouvert sur un autre navigateur : accès ouvert
+const legacy = await (async () => {
+  const q = await b.newPage();
+  await q.route('https://buttondown.com/**', route => route.fulfill({ status: 200, body: '' }));
+  await q.goto('http://localhost:8765/');
+  const version = await q.evaluate(async () => (await import('./config.js')).CONFIG.termsVersion);
+  await q.evaluate((version) => localStorage.setItem('simac.consent', JSON.stringify({ accepted: true, version, email: 'old@exemple.fr', at: '2026-10-01T00:00:00Z', sent: true })), version);
+  await q.reload(); await q.waitForSelector('#gate[hidden]', { state: 'attached' });
+  const legacyOk = await q.evaluate(() => document.querySelector('#gate').hidden);
+  await q.evaluate(() => localStorage.clear()); await q.goto('http://localhost:8765/?confirmed=1'); await q.waitForSelector('#gate[hidden]', { state: 'attached' });
+  const otherOk = await q.evaluate(() => { const c = JSON.parse(localStorage.getItem('simac.consent')); return c.confirmed === true && c.email === '' && location.search === '' && /ce navigateur/.test(document.querySelector('#toast').textContent); });
+  await q.close(); return legacyOk && otherOk;
+})();
 // settings -> mock
 await p.click('[data-step=settings]');
 await p.selectOption('#provider', 'mock'); await p.click('#save');
@@ -84,7 +107,7 @@ const reloaded = await p.evaluate(() => { const d = JSON.parse(localStorage.getI
 await p.screenshot({ path: shots + '/6-history.png' });
 await p.setViewportSize({ width: 390, height: 800 }); await p.click('[data-step=persona]'); await p.screenshot({ path: shots + '/7-mobile.png' });
 const radar = await p.$$eval('#radar svg polygon.me', s => s.length);
-const ok = rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && radar === 1
+const ok = rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
   && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3';
-console.log(JSON.stringify({ gateAgain, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
+console.log(JSON.stringify({ gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);
