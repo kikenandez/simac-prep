@@ -221,7 +221,7 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .gaps { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 10px 12px; border-radius: 8px; margin: 0 0 12px; font-size: 14px; border: 1px solid var(--line); }
 .gaps.warn { background: var(--warn-soft); border-color: var(--warn); }
 .gaps.ok { background: var(--accent-soft); border-color: var(--accent); }
-.gaps .gap { display: inline-block; padding: 2px 8px; border-radius: 999px; background: #fff; border: 1px solid var(--warn); font-size: 13px; }
+.gaps .gap { display: inline-block; padding: 2px 8px; border-radius: 999px; background: var(--panel); color: var(--ink); border: 1px solid var(--warn); font-size: 13px; }
 .gaps .gaps-go { margin-left: auto; }
 [data-bind].empty { border-color: var(--warn); background: var(--warn-soft); }
 @media print { .gaps { display: none; } [data-bind].empty { background: #fff; border-color: #bbb; } }

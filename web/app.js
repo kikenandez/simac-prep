@@ -159,7 +159,8 @@ function friendlyError(e) {
   if (m.startsWith('LLM_HTTP_429')) return 'Quota gratuit atteint : patientez une minute ou changez de fournisseur.';
   if (m.startsWith('LLM_HTTP_404') && /model/i.test(m)) return 'Modèle introuvable chez ce fournisseur : dans Réglages, cliquez « Lister les modèles » et choisissez-en un.';
   if (m.includes('Failed to fetch')) return 'Réseau ou CORS bloqué. Pour Ollama : lancez-le avec OLLAMA_ORIGINS="*".';
-  if (e instanceof SyntaxError) return 'Réponse IA illisible (JSON). Relancez, ou changez de modèle.';
+  if (m.startsWith('LLM_TRUNCATED')) return 'Réponse IA coupée : trop longue. Retirez une source ou relancez.';
+  if (e instanceof SyntaxError) return `Réponse IA illisible (JSON). Relancez, ou changez de modèle.${e.raw ? ' Début : « ' + e.raw.slice(0, 120) + ' »' : ''}`;
   return m.slice(0, 200);
 }
 function bindInputs(root, obj, prefix) {
