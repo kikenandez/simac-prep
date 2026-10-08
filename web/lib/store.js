@@ -15,7 +15,7 @@ export const COLUMNS = [
   'soncas_S', 'soncas_O', 'soncas_N', 'soncas_C', 'soncas_A', 'soncas_Y', 'soncas_E', 'top3',
   'main_message', 'tensions', 'idea', 'conclusion', 'objections_prepared',
   'outcome', 'objections_heard', 'decision_maker',
-  'next_action', 'next_owner', 'next_due', 'next_output', 'lessons', 'notes',
+  'next_action', 'next_owner', 'next_due', 'next_output', 'lessons', 'notes', 'research_json',
 ];
 
 export function listMeetings() {

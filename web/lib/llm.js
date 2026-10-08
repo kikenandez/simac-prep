@@ -192,13 +192,21 @@ function mockChat(messages, opts) {
   if (task === 'debrief_extract') {
     return delay(JSON.stringify({ fields: { outcome: 'RDV décideur à fixer', objectionsHeard: 'Budget déjà engagé cette année\nVeut l’avis du professeur d’histoire', decisionMaker: 'Le directeur', nextAction: 'Présentation de 30 min au professeur d’histoire', nextOwner: 'me', nextDue: '2026-10-15', nextOutput: 'Date confirmée + dossier enseignant envoyé', notes: '[DEMO] 4 classes de 3e ; décision avant la Toussaint.' }, missing: [] }));
   }
+  if (task === 'competition') {
+    return delay(JSON.stringify({ summary: '[DEMO] Exemple fictif de comparaison : aucune recherche ni vérification par le modèle.', candidates: [{ name: '[DEMO] Réaliser en interne', type: 'alternative', target: 'Même besoin à confirmer', offer: 'Mobiliser une personne en interne', price: 'Non publié', difference: 'À vérifier : temps disponible et compétences', question: 'Comment traitez-vous ce besoin aujourd’hui ?', source_ids: [] }] }));
+  }
   if (task === 'client_brief') {
+    let client = {}; try { client = JSON.parse(/typed by user\):\n([^\n]+)/.exec(last)?.[1] || '{}'); } catch {}
+
     return delay(JSON.stringify({
       company_summary: fr ? '[DEMO] PME de services, 40 salariés, en croissance, cherche à structurer sa prospection.' : '[DEMO] Service SMB, 40 staff, growing, wants to structure its prospecting.',
       contact_summary: fr ? '[DEMO] Dirigeant·e fondateur·rice, décide seul·e, sensible au temps et au retour sur investissement.' : '[DEMO] Founder-CEO, sole decision maker, time- and ROI-sensitive.',
       likely_problems: fr ? ['Pas de process commercial formalisé', 'Peu de temps pour prospecter', 'Difficulté à conclure'] : ['No formal sales process', 'Little time to prospect', 'Hard to close'],
       stakes: fr ? 'Atteindre l’objectif de CA sur 6 mois sans recruter.' : 'Hit the 6-month revenue target without hiring.',
-      facts: [{ fact: fr ? 'Site web mentionne 3 offres' : 'Website lists 3 offers', source: 'site' }],
+      facts: [],
+      participants: (client.contacts || []).map(p => ({ name: p.name || p.role, documented_role: p.role || 'À confirmer', identity_check: '[DEMO] Saisie utilisateur, identité publique à confirmer', hypothesis: '[DEMO] Besoin à explorer', question: '[DEMO] Quel résultat attendez-vous de cet échange ?', source_ids: ['client'] })),
+      signals: [], competitive_context: ['[DEMO] Comparer avec une réalisation en interne, sans supposer que le client l’envisage.'],
+      preparation: { opening: '[DEMO] Quel résultat souhaitez-vous obtenir de cet échange ?', email_subject: client.preparationMode === 'email' ? '[DEMO] Un échange sur vos priorités' : '', email_body: client.preparationMode === 'email' ? `[DEMO] Bonjour ${client.contacts?.[0]?.name || ''},\nJe vous propose un échange pour comprendre vos priorités et voir si mon offre peut vous être utile. Quel créneau vous conviendrait ?` : '' },
       assumptions: fr ? ['Budget limité', 'Décision rapide possible'] : ['Limited budget', 'Can decide quickly'],
       questions_to_ask: fr ? ['Comment gérez-vous la prospection aujourd’hui ?', 'Quel résultat voulez-vous dans 6 mois ?', 'Qui d’autre participe à la décision ?'] : ['How do you prospect today?', 'What result do you want in 6 months?', 'Who else is part of the decision?'],
     }));
