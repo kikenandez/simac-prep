@@ -2,6 +2,7 @@
   "name": "simac-prep",
   "version": "0.1.0",
   "private": true,
+  "license": "SEE LICENSE IN LICENSE",
   "description": "Préparation de rendez-vous commerciaux (SIMAC / SONCAS) pour TPE-PME — statique, gratuit, IA au choix",
   "type": "module",
   "scripts": {
