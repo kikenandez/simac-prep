@@ -963,8 +963,7 @@ renderers.settings = () => {
         <li><b>Mode démo</b> — génération IA sans réseau ; les boutons de recherche contactent les sources publiques.</li>
       </ul>
       <h3>Limites de la version gratuite</h3>
-      <p class="note">${CONFIG.limits.sourcesPerStep} sources par étape, ${CONFIG.limits.charsPerSource.toLocaleString('fr-FR')} caractères conservés par source, ${CONFIG.limits.totalChars.toLocaleString('fr-FR')} caractères envoyés à l’IA par analyse. Dimensionné pour que les réponses soient toujours complètes.</p>
-      <div class="card soft" id="managed-interest"></div>
+      <p class="note">${CONFIG.limits.sourcesPerStep} sources par étape, ${CONFIG.limits.charsPerSource.toLocaleString('fr-FR')} caractères conservés par source, ${CONFIG.limits.totalChars.toLocaleString('fr-FR')} caractères envoyés à l’IA par analyse. Dimensionné pour que les réponses soient toujours complètes. Une version gérée (clés et appels pris en charge) pourra étendre ces plafonds.</p>
       <h3>Données sensibles : trois niveaux</h3>
       <ul class="plain">
         <li><b>Tester</b> — clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.</li>
@@ -975,7 +974,6 @@ renderers.settings = () => {
     </div>`;
   const keyhelp = () => { const p = PROVIDERS[$('#provider').value]; $('#keyhelp').innerHTML = p.needsKey ? `— <a href="${p.keyUrl}" target="_blank" rel="noopener">obtenir</a>` : '— non requise'; $('#model').placeholder = p.model; $('#baseUrl').placeholder = p.baseUrl; };
   keyhelp(); $('#provider').onchange = keyhelp;
-  renderManagedInterest();
   const read = () => ({ provider: $('#provider').value, apiKey: $('#apiKey').value.trim(), model: $('#model').value.trim(), baseUrl: $('#baseUrl').value.trim(), jinaKey: $('#jinaKey').value.trim() });
   $('#save').onclick = () => { saveSettings(read()); markDone(); toast('Réglages enregistrés.'); };
   $('#models').onclick = (e) => busy(e.target, async () => {
@@ -992,23 +990,6 @@ renderers.settings = () => {
     toast(r && (r.ok || r.text) ? 'Connexion OK ✔' : 'Réponse inattendue : ' + JSON.stringify(r).slice(0, 80));
   });
 };
-
-// ----------------------------------------------------------------------------- intention : version gérée
-// Pas de version payante tant que la demande n'est pas là : on la mesure. Zéro serveur → un mail pré-rempli,
-// compté dans la boîte contact@ ; le clic est mémorisé localement pour ne pas redemander.
-const INTEREST_KEY = 'simac.interest.managed';
-function renderManagedInterest() {
-  const el = $('#managed-interest'); if (!el) return;
-  let done = null; try { done = JSON.parse(localStorage.getItem(INTEREST_KEY) || 'null'); } catch {}
-  const email = getConsent()?.email || '';
-  const subject = encodeURIComponent('SIMAC Prep — version gérée : ça m’intéresse');
-  const body = encodeURIComponent(`Bonjour,\n\nUne version de SIMAC Prep où les clés et les appels IA sont pris en charge (sans plafonds, sans clé à gérer) m’intéresserait.\n\nMon usage : [quelques mots : combien de rendez-vous par mois, quel type de clients]\n\n${email ? `Adresse : ${email}\n` : ''}`);
-  el.innerHTML = done
-    ? `<b>Version gérée — merci, c’est noté${done.at ? ` (${done.at.slice(0, 10)})` : ''}.</b> <span class="note">Clés et appels IA pris en charge, plafonds étendus : elle existera si la demande est là. Nous vous écrirons.</span>`
-    : `<b>Une version gérée vous intéresserait ?</b> <span class="note">Clés et appels IA pris en charge, plafonds étendus, rien à configurer. Elle n’existe pas encore : nous la construirons si la demande est là.</span>
-       <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="mailto:${CONFIG.contact}?subject=${subject}&body=${body}">Ça m’intéresse — envoyer un mot</a></div>`;
-  $('#interest-yes')?.addEventListener('click', () => { try { localStorage.setItem(INTEREST_KEY, JSON.stringify({ at: new Date().toISOString() })); } catch {} setTimeout(renderManagedInterest, 500); });
-}
 
 // ----------------------------------------------------------------------------- impression / PDF
 const STEP_TITLES = { offer: 'Offre', client: 'Client', persona: 'Persona SONCAS', simac: 'Déroulé SIMAC', followup: 'Suivi', history: 'Historique', settings: 'Réglages' };
