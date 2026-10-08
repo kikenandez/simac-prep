@@ -307,34 +307,48 @@ function renderSourceList(el, list, onChange) {
 }
 
 /** Dialogue guidé générique : l'IA pose une question par champ vide ; la réponse remplit le champ. */
+const CHAT_MAX = { offer: 7, client: 4 }; // questions par série : au-delà, on s'arrête — le reste se remplit à la main
 function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   if (!el) return;
+  state.skipped ||= [];
+  const max = CHAT_MAX[step] || 6;
+  const asked = state.chat.filter((m) => m.role === 'ai' && m.field).length;
   const log = state.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
   const last = state.chat[state.chat.length - 1];
   const waiting = last && last.role === 'ai' && state.pendingField;
+  const over = asked >= max && !waiting;
   el.innerHTML = `
     <div class="chat-log">${log || '<div class="note">Aucune question pour l’instant.</div>'}</div>
     ${waiting ? `<div class="chat-input"><textarea class="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
-      <button class="btn chat-send">Répondre</button></div>` : ''}
+      <button class="btn chat-send">Répondre</button><button class="btn ghost small chat-skip" title="Je ne sais pas / plus tard">Passer</button></div>` : ''}
     <div class="actions" style="margin-bottom:0">
-      <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
-      ${state.chat.length ? '<button class="btn ghost small chat-reset">Effacer le dialogue</button>' : ''}
+      ${over ? '<span class="note">Série terminée : le reste se complète à la main dans la fiche, ou relancez une série.</span>' : `<button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>`}
+      <span class="note">${asked} / ${max} question${max > 1 ? 's' : ''}</span>
+      ${state.chat.length ? '<button class="btn ghost small chat-reset">Nouvelle série</button>' : ''}
     </div>`;
   const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
+  const finish = (text) => { state.pendingField = ''; state.chat.push({ role: 'ai', text }); };
   const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
-    const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer }));
+    const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer, skipped: state.skipped }));
     if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(lastField); }
-    if (r.done || !r.question) { state.pendingField = ''; state.chat.push({ role: 'ai', text: 'La fiche est complète sur l’essentiel.' }); }
+    const n = state.chat.filter((m) => m.role === 'ai' && m.field).length;
+    if (r.done || !r.question) finish('La fiche est complète sur l’essentiel.');
+    else if (n >= max) finish(`${max} questions : on s’arrête là. Complétez le reste directement dans la fiche.`);
     else { state.pendingField = r.next_field || ''; state.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
     persist(); markDone();
     if (S.step === step) { renderers[step](); el.closest('.card')?.scrollIntoView({ block: 'center' }); }
   });
-  $('.chat-start', el).onclick = (e) => ask(e.target, '', '');
-  $('.chat-reset', el)?.addEventListener('click', () => { state.chat = []; state.pendingField = ''; persist(); renderers[step](); });
+  $('.chat-start', el)?.addEventListener('click', (e) => ask(e.target, '', ''));
+  $('.chat-reset', el)?.addEventListener('click', () => { state.chat = []; state.pendingField = ''; state.skipped = []; persist(); renderers[step](); });
   $('.chat-send', el)?.addEventListener('click', (e) => {
     const a = $('.chat-answer', el).value.trim(); if (!a) return;
     const f = state.pendingField; state.chat.push({ role: 'user', text: a }); state.pendingField = '';
     ask(e.target, f, a);
+  });
+  $('.chat-skip', el)?.addEventListener('click', (e) => {
+    const f = state.pendingField; if (f && !state.skipped.includes(f)) state.skipped.push(f);
+    state.chat.push({ role: 'user', text: '(passé)' }); state.pendingField = '';
+    ask(e.target, '', '');
   });
 }
 
