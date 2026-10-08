@@ -1110,7 +1110,8 @@ window.addEventListener('beforeprint', () => {
   const v = document.createElement('div'); v.id = 'print-view';
   v.innerHTML = `<div class="print-head"><b>SIMAC Prep · ${esc(STEP_TITLES[step])}</b> · ${esc(S.product.name || '')}${who ? ' · ' + esc(who) : ''} · ${esc(S.date)}</div>
     ${printViews[step]()}
-    <div class="print-foot">Créé par Guillermo Blanco · adp.avapmo.com · utilisation gratuite — outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.</div>`;
+    <div class="print-foot"><p class="print-credit">Ce document a été préparé avec <b>SIMAC Prep</b> — simac.avapmo.com · un outil AVApmo (avapmo.com), créé par Guillermo Blanco.</p>
+      <p>Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.</p></div>`;
   document.body.appendChild(v);
 });
 window.addEventListener('afterprint', () => { $('#print-view')?.remove(); document.title = savedTitle; printing = false; });

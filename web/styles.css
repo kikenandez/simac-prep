@@ -127,6 +127,7 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
   #print-view h2 small { font-weight: 400; color: #555; }
   #print-view .print-head { font-size: 10.5px; color: #555; border-bottom: 1px solid #999; padding-bottom: 6px; margin-bottom: 12px; }
   #print-view .print-foot { font-size: 9.5px; color: #555; border-top: 1px solid #999; padding-top: 6px; margin-top: 16px; }
+  #print-view .print-foot p { margin: 0 0 3px; } #print-view .print-credit { font-size: 10.5px; color: #222; }
   #print-view .pgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 18px; }
   #print-view .pf { break-inside: avoid; margin: 0 0 6px; } #print-view .pf b { display: block; font-size: 10.5px; color: #444; text-transform: uppercase; letter-spacing: .02em; }
   #print-view .pbox { border: 1px solid #999; padding: 8px 10px; margin: 8px 0; }
