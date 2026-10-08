@@ -4,7 +4,9 @@ Une application web **gratuite, sans serveur**, qui guide un indépendant ou une
 dans la préparation d'un rendez-vous de vente avec la méthode **SIMAC** et le profil **SONCAS-E**,
 puis dans le suivi centré sur l'appel à l'action.
 
-Premier cas d'usage construit avec l'**Agentic Development Protocol** — [adp.avapmop.com](https://adp.avapmop.com).
+**Application en ligne : https://kikenandez.github.io/simac-prep/**
+
+Premier cas d'usage construit avec l'**Agentic Development Protocol** — [adp.avapmo.com](https://adp.avapmo.com).
 
 ## Ce que fait l'application
 
@@ -63,6 +65,14 @@ tests/e2e.mjs       # parcours complet en mode démo (Playwright)
 
 Issue des formations BGE « Conclure ses ventes » et « Construire son argumentaire commercial »
 et du *Sales Meeting Preparation Guide*. Résumé dans [`docs/METHODE.md`](docs/METHODE.md).
+
+## Crédit et responsabilité
+
+Créé par Guillermo Blanco — [adp.avapmo.com](https://adp.avapmo.com) — utilisation gratuite.
+
+Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l'IA) :
+chaque utilisateur l'emploie sous sa propre responsabilité. Aucun engagement ni responsabilité de Guillermo Blanco,
+adp.avapmo.com ou AVApmo. Les clés d'API et les données de rendez-vous restent dans le navigateur de l'utilisateur.
 
 ## Licence
 

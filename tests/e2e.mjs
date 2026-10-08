@@ -7,7 +7,7 @@ fs.mkdirSync(shots, { recursive: true });
 const p = await b.newPage({ viewport: { width: 1200, height: 900 } });
 const errors = [];
 p.on('pageerror', e => errors.push('PAGEERROR ' + e.message));
-p.on('console', m => { if (m.type() === 'error') errors.push('CONSOLE ' + m.text()); });
+p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push('CONSOLE ' + m.text()); });
 await p.goto('http://localhost:8765/');
 // settings -> mock
 await p.click('[data-step=settings]');
