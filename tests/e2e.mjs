@@ -14,8 +14,14 @@ await p.click('[data-step=settings]');
 await p.selectOption('#provider', 'mock'); await p.click('#save');
 // offer
 await p.click('[data-step=offer]');
-await p.fill('[data-bind="product.name"]', 'Coaching prospection 3 mois');
-await p.fill('[data-bind="product.oneLiner"]', 'Un accompagnement de 3 mois pour structurer la prospection');
+await p.fill('[data-bind="offer.description"]', 'J’accompagne des artisans pendant 3 mois pour qu’ils signent plus de devis.');
+await p.click('#offer-extract'); await p.waitForFunction(() => document.querySelector('[data-bind="product.name"]').value.length > 0);
+const extracted = await p.$eval('[data-bind="product.targets"]', el => el.value.split('\n').length);
+await p.click('#chat-start'); await p.waitForSelector('#chat-answer');
+await p.fill('#chat-answer', '900 € HT par mois'); await p.click('#chat-send');
+await p.waitForFunction(() => document.querySelector('[data-bind="product.price"]').value.includes('900'));
+await p.click('#offer-maturity'); await p.waitForSelector('.gauge');
+const maturity = await p.$$eval('.gauge span.on', s => s.length);
 await p.fill('[data-bind="product.price"]', '900 € HT / mois');
 await p.screenshot({ path: shots + '/1-offer.png' });
 // client
@@ -48,6 +54,6 @@ const csv = await p.evaluate(async () => { const m = await import('./lib/store.j
 const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); return m.importCSV(csv) + '/' + m.listMeetings().length + '/' + m.listMeetings()[0].top3; }, csv);
 await p.screenshot({ path: shots + '/6-history.png' });
 await p.setViewportSize({ width: 390, height: 800 }); await p.click('[data-step=persona]'); await p.screenshot({ path: shots + '/7-mobile.png' });
-const ok = rows === 1 && reimport.startsWith('1/1/') && errors.length === 0;
-console.log(JSON.stringify({ rows, reimport, errors, ok }, null, 1));
+const ok = rows === 1 && reimport.startsWith('1/1/') && errors.length === 0 && extracted >= 3 && maturity === 3;
+console.log(JSON.stringify({ extracted, maturity, rows, reimport, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);

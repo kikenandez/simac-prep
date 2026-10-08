@@ -116,3 +116,77 @@ JSON:
  "next_action":{"action":"...","owner":"me|client","due":"YYYY-MM-DD or ''","output":"..."}}` },
   ];
 }
+
+// ---------------------------------------------------------------------------
+// Étape 1 — définir l'offre : extraction depuis un texte libre, questions guidées, maturité.
+
+const PRODUCT_FIELDS = `Champs de la fiche (clé → sens) :
+name = nom du produit/service ; oneLiner = en une phrase sans jargon ; targets = cibles (qui achète / qui utilise / qui décide) ;
+problem = problème de chaque cible, avec ses mots ; who = qui parle (la personne / la marque en une phrase) ; nextStep = étape suivante voulue (le « petit oui ») ;
+mechanism = mécanisme en 3 à 5 étapes (qui fait quoi, quand, comment) ; advantages = ≥ 3 avantages tangibles et intangibles ; proofs = preuves (chiffres, références, témoignages) ;
+price = prix et unité qui parle au client ; floor = plancher (limite basse, gratuités max) ; delays = délais et conditions ; objections = 5 à 10 objections attendues ; constraints = contraintes (réglementation, ton, décisions prises).`;
+
+export function offerExtractMessages({ lang, description, sources, current }) {
+  return [
+    { role: 'system', content: sys('offer_extract', lang) },
+    { role: 'user', content:
+`DESCRIPTION LIBRE DE L'OFFRE (par la personne qui vend) :
+${description || '(vide)'}
+
+SOURCES (site web, profils collés — texte brut, peut être bruité) :
+${sources || '(aucune)'}
+
+FICHE ACTUELLE (ne pas contredire ce qui est déjà rempli ; proposer seulement pour les champs vides ou à améliorer) :
+${JSON.stringify(current, null, 1)}
+
+${PRODUCT_FIELDS}
+
+Remplis chaque champ UNIQUEMENT à partir de ce qui est dit ou lisible dans les sources. Si l'information n'existe pas, laisse la chaîne vide "" — n'invente rien.
+Pour les listes (targets, problem, mechanism, advantages, proofs, objections), une ligne par élément, séparées par "\\n".
+JSON : {"fields":{"name":"","oneLiner":"","targets":"","problem":"","who":"","nextStep":"","mechanism":"","advantages":"","proofs":"","price":"","floor":"","delays":"","objections":"","constraints":""},
+ "missing":["clés restées vides, par ordre d'importance pour vendre"],
+ "notes":"1-2 phrases : ce qui est flou ou contradictoire dans la description"}` },
+  ];
+}
+
+export function offerQuestionMessages({ lang, current, transcript, lastField, lastAnswer }) {
+  return [
+    { role: 'system', content: sys('offer_question', lang) },
+    { role: 'user', content:
+`Tu aides la personne à compléter sa fiche offre par un dialogue, UNE question à la fois, avec des mots simples.
+${PRODUCT_FIELDS}
+
+FICHE ACTUELLE :
+${JSON.stringify(current, null, 1)}
+
+DIALOGUE JUSQU'ICI :
+${transcript || '(début)'}
+
+${lastField ? `DERNIÈRE RÉPONSE (pour le champ "${lastField}") : ${lastAnswer}` : 'Aucune réponse encore : pose la première question.'}
+
+Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout ; listes = une ligne par élément). Puis choisis le champ vide ou faible le plus important pour VENDRE (ordre conseillé : oneLiner, targets, problem, nextStep, mechanism, advantages, proofs, price, objections, who, floor, delays, constraints) et pose UNE question concrète, avec un exemple court si utile. Quand tous les champs importants sont remplis, done = true et pose aucune question.
+JSON : {"field_value":"valeur propre pour le dernier champ, ou \\"\\"","next_field":"clé ou \\"\\"","question":"la question, ou \\"\\"","done":false}` },
+  ];
+}
+
+export function offerMaturityMessages({ lang, current }) {
+  return [
+    { role: 'system', content: sys('maturity', lang) },
+    { role: 'user', content:
+`Évalue la maturité commerciale de cette offre, de 1 à 5 :
+1 = encore une idée à travailler (cible floue, problème non formulé, pas de mécanisme ni de prix) ;
+2 = ébauche (cible et problème esquissés, mécanisme ou prix absents) ;
+3 = offre définie (cible, problème, mécanisme, prix), mais preuves et objections faibles ;
+4 = prête à tester (preuves, objections, étape suivante claires ; quelques trous) ;
+5 = prête à la présentation (tout est clair, chiffré, prouvé, avec plancher et objections préparées).
+Critères de la checklist : accroche sur le problème du client ; qui parle en 1 phrase ; cibles distinguées (achète/utilise/décide) ; bénéfices avant caractéristiques ; ≥ 1 preuve ; prix après la valeur et ramené à l'unité du client ; plancher connu ; 5-10 objections ; un seul petit oui.
+
+FICHE :
+${JSON.stringify(current, null, 1)}
+
+JSON : {"score":3,"label":"libellé court du niveau","summary":"2 phrases, directes, sans flatterie",
+ "strengths":["2-4 points forts, citant la fiche"],
+ "gaps":[{"field":"clé","why":"pourquoi ça bloque la vente","fix":"action concrète en 1 phrase"}],
+ "next_step":"LA chose à faire avant le prochain rendez-vous"}` },
+  ];
+}
