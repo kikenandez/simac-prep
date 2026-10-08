@@ -176,3 +176,11 @@ test('no positioning grid without at least 2 criteria and 1 sourced competitor',
   assert.equal(sanitizePositioning({ criteria: [{ label: 'Prix', us: 'x' }], competitors: [{ cells: [] }] }, [a], [s]), null);
   assert.equal(sanitizePositioning({ criteria: [{ label: 'Prix', us: 'x' }, { label: 'Format', us: 'y' }] }, [{ name: 'Interne', type: 'alternative', source_ids: [] }], [s]), null);
 });
+
+test('positioning cells accept the explicit "avantage" field (nous / eux / égal / inconnu)', () => {
+  const s = { ...makeSource('https://a.example', 'web', 'x'), included: true };
+  const a = { name: 'A', type: 'direct', source_ids: [sourceId(s)] };
+  const p = sanitizePositioning({ criteria: [{ label: 'Engagement', us: 'aucun' }, { label: 'Prix', us: '139 €' }, { label: 'Zone', us: 'Paris' }, { label: 'Format', us: '45 min' }],
+    competitors: [{ cells: [{ value: '12 mois', avantage: 'nous' }, { value: '90 €', avantage: 'eux' }, { value: 'Paris', avantage: 'Égal' }, { value: '60 min', avantage: 'inconnu' }] }] }, [a], [s]);
+  assert.deepEqual(p.columns[0].cells.map(c => c.mark), ['+', '-', '=', '?']);
+});
