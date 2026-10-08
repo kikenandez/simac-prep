@@ -114,7 +114,7 @@ const MARK_LABEL = { '+': ['plus', '+', 'notre offre plus favorable'], '-': ['mi
 function positioningGrid(p, sources) {
   const cell = ({ mark, value }) => { const [cls, sym, title] = MARK_LABEL[mark] || MARK_LABEL['?']; return `<td class="mark-${cls}" title="${title}"><b>${sym}</b> ${esc(value || 'Non publié')}</td>`; };
   return `<div class="positioning"><h3>Où se situe mon offre</h3>
-    <p class="note">Du point de vue du client. <span class="mark-plus">+ notre offre plus favorable</span> · <span class="mark-minus">− concurrent plus favorable</span> · <span class="mark-eq">= équivalent</span> · <span class="mark-unk">? non documenté</span>. Grille à relire : elle ne vaut que par ses sources.</p>
+    <p class="note">Du point de vue du client. <span class="mark-plus">+ notre offre plus favorable</span> · <span class="mark-minus">− concurrent plus favorable</span> · <span class="mark-eq">= équivalent</span> · <span class="mark-unk">? non documenté</span>. Marques proposées par l’IA : relisez-les, la grille ne vaut que par ses sources.</p>
     <div class="table-scroll"><table class="grid-pos"><thead><tr><th>Critère</th><th>Notre offre</th>${p.columns.map(c => `<th>${esc(c.name)}</th>`).join('')}</tr></thead>
     <tbody>${p.criteria.map((k, j) => `<tr><th>${esc(k.label)}</th><td class="us">${esc(k.us)}</td>${p.columns.map(c => cell(c.cells[j])).join('')}</tr>`).join('')}</tbody></table></div>
     <p class="note">Sources : ${p.columns.map(c => `${esc(c.name)} — ${citations(c.source_ids, sources)}`).join(' · ')}</p>
