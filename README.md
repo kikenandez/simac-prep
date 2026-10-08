@@ -111,4 +111,11 @@ adp.avapmo.com ou AVApmo. Les clés d'API et les données de rendez-vous restent
 
 ## Licence
 
-Code : MIT. © 2026 Guillermo Blanco.
+Code source disponible sous **[MIT + Commons Clause](LICENSE)**. © 2026 Guillermo Blanco.
+
+- Usage personnel et professionnel, modification et partage gratuits autorisés.
+- **Vente interdite sans accord de l'auteur** : revendre l'outil, ou vendre un produit ou service (hébergement,
+  intégration, support) dont la valeur repose essentiellement sur lui. Voir [VENTE.md](VENTE.md) — contact@avapmo.com.
+- La Commons Clause fait que ce n'est pas une licence open source au sens de l'OSI.
+
+Les versions publiées sous MIT seule (jusqu'au commit `142be2e`) restent sous MIT pour ceux qui les ont obtenues.
