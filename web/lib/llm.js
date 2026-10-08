@@ -189,6 +189,9 @@ function mockChat(messages, opts) {
     const next = order.find((k) => !String(fiche[k] || '').trim());
     return delay(JSON.stringify({ field_value: m ? m[2].trim() : '', next_field: next || '', question: next ? qs[next] : '', done: !next }));
   }
+  if (task === 'debrief_extract') {
+    return delay(JSON.stringify({ fields: { outcome: 'RDV décideur à fixer', objectionsHeard: 'Budget déjà engagé cette année\nVeut l’avis du professeur d’histoire', decisionMaker: 'Le directeur', nextAction: 'Présentation de 30 min au professeur d’histoire', nextOwner: 'me', nextDue: '2026-10-15', nextOutput: 'Date confirmée + dossier enseignant envoyé', notes: '[DEMO] 4 classes de 3e ; décision avant la Toussaint.' }, missing: [] }));
+  }
   if (task === 'client_brief') {
     return delay(JSON.stringify({
       company_summary: fr ? '[DEMO] PME de services, 40 salariés, en croissance, cherche à structurer sa prospection.' : '[DEMO] Service SMB, 40 staff, growing, wants to structure its prospecting.',

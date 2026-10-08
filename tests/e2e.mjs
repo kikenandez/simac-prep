@@ -49,11 +49,15 @@ await p.click('#next'); await p.fill('[data-bind="objective.primary"]', 'Accord 
 await p.click('#ai'); await p.waitForSelector('#copy');
 await p.screenshot({ path: shots + '/4-simac.png', fullPage: true });
 // followup
-await p.click('#next'); await p.selectOption('[data-bind="debrief.outcome"]', 'Proposition à envoyer');
+await p.click('#next');
+await p.fill('[data-bind="debrief.description"]', 'Il veut l’avis de sa prof. Je présente mardi, j’envoie le dossier avant.');
+await p.click('#debrief-extract'); await p.waitForFunction(() => document.querySelector('[data-bind="debrief.nextAction"]').value.length > 0);
+await p.selectOption('[data-bind="debrief.outcome"]', 'Proposition à envoyer');
 await p.fill('[data-bind="debrief.nextAction"]', 'Envoyer la proposition'); await p.fill('[data-bind="debrief.nextDue"]', '2026-10-15');
 await p.click('#ai'); await p.waitForSelector('#copy-mail');
 await p.click('#save');
 await p.screenshot({ path: shots + '/5-followup.png', fullPage: true });
+await p.click('[data-step=simac]'); await p.emulateMedia({ media: 'print' }); await p.pdf({ path: shots + '/simac.pdf', format: 'A4', printBackground: true }); await p.emulateMedia({ media: 'screen' });
 // history + csv round trip
 await p.click('[data-step=history]');
 const rows = await p.$$eval('tbody tr', r => r.length);
