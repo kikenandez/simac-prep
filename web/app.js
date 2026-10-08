@@ -1,7 +1,7 @@
 // app.js — SIMAC Prep : préparation de rendez-vous commerciaux pour TPE/PME.
 // Statique, sans serveur. L'IA est optionnelle et au choix (fournisseurs gratuits, ou mode démo).
 
-import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON } from './lib/llm.js';
+import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } from './lib/llm.js';
 import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages } from './lib/prompts.js';
 import { readUrl, searchWeb, notesSource, mergeSources } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label } from './lib/soncas.js';
@@ -50,6 +50,7 @@ function friendlyError(e) {
   if (m === 'NO_API_KEY') return 'Ajoutez une clé API gratuite dans Réglages (ou choisissez le mode démo).';
   if (m.startsWith('LLM_HTTP_401') || m.startsWith('LLM_HTTP_403')) return 'Clé API refusée. Vérifiez-la dans Réglages.';
   if (m.startsWith('LLM_HTTP_429')) return 'Quota gratuit atteint : patientez une minute ou changez de fournisseur.';
+  if (m.startsWith('LLM_HTTP_404') && /model/i.test(m)) return 'Modèle introuvable chez ce fournisseur : dans Réglages, cliquez « Lister les modèles » et choisissez-en un.';
   if (m.includes('Failed to fetch')) return 'Réseau ou CORS bloqué. Pour Ollama : lancez-le avec OLLAMA_ORIGINS="*".';
   if (e instanceof SyntaxError) return 'Réponse IA illisible (JSON). Relancez, ou changez de modèle.';
   return m.slice(0, 200);
@@ -547,7 +548,8 @@ renderers.settings = () => {
     <div class="card"><div class="grid">
       <div><label>Fournisseur</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
       <div><label>Clé API <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
-      <div><label>Modèle <small>— vide = défaut</small></label><input id="model" value="${esc(s.model)}" placeholder="${esc(PROVIDERS[s.provider]?.model || '')}"></div>
+      <div><label>Modèle <small>— vide = défaut</small></label><input id="model" list="model-list" value="${esc(s.model)}" placeholder="${esc(PROVIDERS[s.provider]?.model || '')}"><datalist id="model-list"></datalist>
+        <button class="btn ghost small" id="models" style="margin-top:6px">Lister les modèles</button> <small class="muted" id="models-note">les noms changent souvent : vérifiez ici en cas d'erreur « modèle introuvable »</small></div>
       <div><label>URL de base <small>— vide = défaut</small></label><input id="baseUrl" value="${esc(s.baseUrl)}" placeholder="${esc(PROVIDERS[s.provider]?.baseUrl || '')}"></div>
       <div class="full"><label>Clé Jina (optionnelle) <small>— lecture/recherche web ; gratuite sur <a href="https://jina.ai/reader" target="_blank" rel="noopener">jina.ai</a>, utile si la limite sans clé est atteinte</small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
     </div>
@@ -568,6 +570,14 @@ renderers.settings = () => {
   keyhelp(); $('#provider').onchange = keyhelp;
   const read = () => ({ provider: $('#provider').value, apiKey: $('#apiKey').value.trim(), model: $('#model').value.trim(), baseUrl: $('#baseUrl').value.trim(), jinaKey: $('#jinaKey').value.trim() });
   $('#save').onclick = () => { saveSettings(read()); markDone(); toast('Réglages enregistrés.'); };
+  $('#models').onclick = (e) => busy(e.target, async () => {
+    saveSettings(read());
+    const ids = await listModels();
+    $('#model-list').innerHTML = ids.map((id) => `<option value="${esc(id)}">`).join('');
+    $('#models-note').textContent = ids.length ? `${ids.length} modèle(s) : ${ids.slice(0, 8).join(', ')}${ids.length > 8 ? '…' : ''} — cliquez dans le champ Modèle pour choisir.` : 'Aucun modèle renvoyé.';
+    const cur = $('#model').value.trim() || PROVIDERS[$('#provider').value]?.model;
+    if (ids.length && !ids.includes(cur)) { $('#model').value = ids.find((i) => /gpt-oss-120b|llama.*70b|gemini.*flash|mistral-small|:free/i.test(i)) || ids[0]; toast(`Modèle « ${cur} » absent : « ${$('#model').value} » sélectionné. Enregistrez.`, 5000); }
+  });
   $('#test').onclick = (e) => busy(e.target, async () => {
     saveSettings(read()); markDone();
     const r = await chatJSON([{ role: 'system', content: 'TASK:ping LANG:fr Réponds uniquement en JSON.' }, { role: 'user', content: 'Réponds {"ok":true}' }]);

@@ -6,14 +6,14 @@ export const PROVIDERS = {
   groq: {
     label: 'Groq (free tier)',
     baseUrl: 'https://api.groq.com/openai/v1',
-    model: 'llama-3.3-70b-versatile',
+    model: 'openai/gpt-oss-120b',
     keyUrl: 'https://console.groq.com/keys',
     needsKey: true,
   },
   gemini: {
     label: 'Google Gemini (free tier)',
     baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
-    model: 'gemini-2.0-flash',
+    model: 'gemini-2.5-flash',
     keyUrl: 'https://aistudio.google.com/apikey',
     needsKey: true,
   },
@@ -57,6 +57,20 @@ export function loadSettings() {
 
 export function saveSettings(s) {
   try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(s)); } catch { /* private mode */ }
+}
+
+/** Liste les modèles disponibles chez le fournisseur courant (GET /models, OpenAI-compatible). */
+export async function listModels(settings = loadSettings()) {
+  const cfg = resolve(settings);
+  if (cfg.provider === 'mock') return ['mock'];
+  const headers = {};
+  if (cfg.apiKey) headers.Authorization = `Bearer ${cfg.apiKey}`;
+  const res = await fetch(`${cfg.baseUrl}/models`, { headers });
+  if (!res.ok) throw new Error(`LLM_HTTP_${res.status}`);
+  const data = await res.json();
+  const ids = (data?.data || data?.models || []).map((m) => m.id || m.name).filter(Boolean);
+  // on écarte les modèles audio / modération, inutiles ici
+  return ids.filter((id) => !/whisper|tts|orpheus|guard|embed|moderation|safeguard|image|vision-only/i.test(id)).sort();
 }
 
 export function resolve(settings = loadSettings()) {
