@@ -1,6 +1,8 @@
 // Recherche publique : identité officielle, événements et pages professionnelles.
 // Aucun secret partagé ; les appels sont faits depuis le navigateur.
-const MAX_CHARS = 6000;
+import { CONFIG } from '../config.js';
+const MAX_CHARS = CONFIG.limits?.charsPerSource ?? 6000;
+const TOTAL_CHARS = CONFIG.limits?.totalChars ?? 20000;
 const cache = new Map();
 const TTL = 15 * 60 * 1000;
 
@@ -70,7 +72,7 @@ export async function searchWeb(query, { jinaKey = '', signal } = {}) {
 }
 export function notesSource(text, kind = 'notes') { return makeSource(kind, kind, text); }
 export function mergeSources(list) {
-  return activeSources(list).map(s => `### ${s.kind.toUpperCase()} — ID: ${sourceId(s)}\nURL ou origine: ${s.source}\nPublication/référence: ${s.publishedAt || 'inconnue'} ; consulté: ${s.retrievedAt || 'inconnu'}\n${String(s.text).slice(0, MAX_CHARS)}`).join('\n\n').slice(0, 60000);
+  return activeSources(list).map(s => `### ${s.kind.toUpperCase()} — ID: ${sourceId(s)}\nURL ou origine: ${s.source}\nPublication/référence: ${s.publishedAt || 'inconnue'} ; consulté: ${s.retrievedAt || 'inconnu'}\n${String(s.text).slice(0, MAX_CHARS)}`).join('\n\n').slice(0, TOTAL_CHARS);
 }
 
 const bands = { '00': '0', '01': '1–2', '02': '3–5', '03': '6–9', '11': '10–19', '12': '20–49', '21': '50–99', '22': '100–199', '31': '200–249', '32': '250–499', '41': '500–999', '42': '1 000–1 999', '51': '2 000–4 999', '52': '5 000–9 999', '53': '10 000 et plus' };
