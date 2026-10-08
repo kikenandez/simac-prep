@@ -69,9 +69,9 @@ Au premier accès, une page d'instructions présente les 5 étapes et les condit
 leur acceptation et une adresse email (réglable). L'acceptation est mémorisée dans le navigateur
 (`termsVersion` dans `web/config.js` : l'incrémenter force une nouvelle acceptation).
 
-L'email est envoyé **sans serveur** vers un formulaire que vous possédez : Google Forms (gratuit, réponses dans un
-Google Sheet) ou Web3Forms / Formspree. Renseignez `emailEndpoint` et `emailFields` dans `web/config.js` ;
-tant qu'ils sont vides, l'adresse n'est conservée que localement. Mettez `emailRequired: false` pour la rendre facultative.
+L'email est envoyé **sans serveur** à la même liste Buttondown que adp.avapmo.com (double opt-in : l'adresse n'est
+inscrite qu'après confirmation par mail), étiquetée `source = simac-prep`. Réglages dans `web/config.js`
+(`emailEndpoint`, `emailSource`) ; endpoint vide = adresse conservée seulement en local ; `emailRequired: false` la rend facultative.
 
 ## Crédit et responsabilité
 
