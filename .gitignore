@@ -6,3 +6,6 @@ test-results/
 
 # cas réels partagés en formation — jamais publiés
 testCases/
+
+# stratégie commerciale locale — ne pas publier
+/tierPaidOptions/
