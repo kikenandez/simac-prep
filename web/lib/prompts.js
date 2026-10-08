@@ -1,4 +1,5 @@
 import { mergeSources } from './research.js';
+import { questionTodo } from './offer.js';
 
 // lib/prompts.js — the sales method, encoded as prompts.
 // Source material: BGE "Conclure ses ventes" (SIMAC, CABP, SONCAS-E, objections),
@@ -178,7 +179,8 @@ JSON : {"fields":{"name":"","oneLiner":"","targets":"","problem":"","who":"","ne
   ];
 }
 
-export function offerQuestionMessages({ lang, current, transcript, lastField, lastAnswer, skipped = [] }) {
+export function offerQuestionMessages({ lang, current, transcript, lastField, lastAnswer, skipped = [], asked = [], blockers = [] }) {
+  const todo = questionTodo({ current, asked, skipped, blockers });
   return [
     { role: 'system', content: sys('offer_question', lang) },
     { role: 'user', content:
@@ -192,9 +194,9 @@ DIALOGUE JUSQU'ICI :
 ${transcript || '(début)'}
 
 ${lastField ? `DERNIÈRE RÉPONSE (pour le champ "${lastField}") : ${lastAnswer}` : 'Aucune réponse encore : pose la première question.'}
-${skipped.length ? `CHAMPS PASSÉS PAR L'UTILISATEUR (ne plus les demander) : ${skipped.join(', ')}` : ''}
+CHAMPS À DEMANDER (vides, ou jugés insuffisants par l'analyse de maturité ; déjà dans l'ordre d'importance) : ${todo.length ? todo.join(', ') : 'aucun'}
 
-Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout ; listes = une ligne par élément). Ne redemande JAMAIS un champ déjà abordé dans le dialogue ni un champ passé, même si la réponse est courte : une réponse courte est une réponse. Puis choisis le champ encore VIDE le plus important pour VENDRE (ordre conseillé : oneLiner, targets, problem, nextStep, mechanism, advantages, proofs, price, objections, who, floor, delays, constraints) et pose UNE question concrète, avec un exemple court si utile. Quand tous les champs importants sont remplis, done = true et pose aucune question.
+Règles : si une dernière réponse existe, reformule-la en valeur propre pour ce champ (fidèle, sans ajout ; listes = une ligne par élément). Puis prends le PREMIER champ de « CHAMPS À DEMANDER » — jamais un autre — et pose UNE question concrète, avec un exemple court si utile ; si ce champ est déjà rempli, la question aide à le renforcer (ex. preuves : un témoignage, un chiffre). Si la liste est « aucun », done = true et pose aucune question.
 JSON : {"field_value":"valeur propre pour le dernier champ, ou \\"\\"","next_field":"clé ou \\"\\"","question":"la question, ou \\"\\"","done":false}` },
   ];
 }
