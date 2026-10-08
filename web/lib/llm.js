@@ -108,7 +108,7 @@ async function anthropicChat(cfg, messages, opts) {
   const system = messages.filter((m) => m.role === 'system').map((m) => m.content).join('\n\n');
   const rest = messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, content: m.content }));
   // Pas de `temperature` : les modèles Claude récents refusent le paramètre (400 « deprecated »).
-  const body = { model: cfg.model, max_tokens: 4096, messages: rest };
+  const body = { model: cfg.model, max_tokens: 8192, messages: rest };
   if (system) body.system = system;
   const res = await fetch(`${cfg.baseUrl}/messages`, { method: 'POST', headers: anthropicHeaders(cfg), body: JSON.stringify(body), signal: opts.signal });
   if (!res.ok) {
@@ -116,7 +116,9 @@ async function anthropicChat(cfg, messages, opts) {
     throw new Error(`LLM_HTTP_${res.status}: ${txt.slice(0, 300)}`);
   }
   const data = await res.json();
-  return (data?.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+  const text = (data?.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('');
+  if (data?.stop_reason === 'max_tokens') throw new Error('LLM_TRUNCATED: réponse coupée (trop longue). Réduisez les sources ou relancez.');
+  return text;
 }
 
 /**
@@ -163,11 +165,19 @@ export async function chatJSON(messages, opts = {}) {
 
 export function parseJSON(raw) {
   let s = String(raw).trim();
-  s = s.replace(/^```(?:json)?/i, '').replace(/```$/, '').trim();
+  // clôtures ```json … ``` n'importe où dans le texte (certains modèles commentent avant/après)
+  const fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(s); if (fence) s = fence[1].trim();
   const start = s.indexOf('{');
   const end = s.lastIndexOf('}');
   if (start >= 0 && end > start) s = s.slice(start, end + 1);
-  return JSON.parse(s);
+  try { return JSON.parse(s); } catch (e) {
+    // retours à la ligne bruts dans les chaînes (fréquent sur de longs textes) → échappés
+    const fixed = s.replace(/"(?:[^"\\]|\\.)*"/g, (m) => m.replace(/\n/g, '\\n').replace(/\t/g, '\\t'));
+    try { return JSON.parse(fixed); } catch {
+      console.error('Réponse IA non JSON :', String(raw).slice(0, 2000));
+      const err = new SyntaxError('JSON illisible'); err.raw = String(raw).slice(0, 300); throw err;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
