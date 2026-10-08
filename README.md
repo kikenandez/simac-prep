@@ -12,7 +12,7 @@ Premier cas d'usage construit avec l'**Agentic Development Protocol** — [adp.a
 
 | Étape | Ce que vous faites | Ce que fait l'IA |
 |---|---|---|
-| **1 · Offre** | Fiche produit : une phrase sans jargon, cibles, problème, mécanisme, avantages, preuves, prix et plancher, objections attendues | — (réutilisée à chaque RDV, export/import JSON) |
+| **1 · Offre** | Texte libre + site web + profils collés (LinkedIn, Instagram…) ; fiche produit éditable, export/import JSON | Remplit la fiche depuis la description (rien d'inventé : les champs sans information restent vides), pose **une question à la fois** pour les trous, et note la **maturité de l'offre de 1 à 5** (idée → prête à présenter) avec points forts, blocages et l'action prioritaire |
 | **2 · Client** | Entreprise, contact, URLs, notes collées (LinkedIn, mail…) ; lecture des pages et recherche web gratuites | Fiche client : résumé, enjeu, 3 problèmes *avec ses mots*, **faits sourcés vs hypothèses**, 6 questions de découverte |
 | **3 · Persona** | Scores SONCAS-E de 1 à 3, **modifiables** | Scores proposés d'après la fiche, 2 arguments CABP par motivation, **message principal bâti sur le top 3** |
 | **4 · SIMAC** | Objectif + repli ; script entièrement éditable, impression / copie | Ouverture (20 s), Situation, Idée, Mécanisme (**prix en dernier**), Avantages (**chacun reformule un besoin**), Conclusion (**question, deux options, étape suivante**), 5-7 objections avec réponse « accueillir → creuser → répondre → relancer » |

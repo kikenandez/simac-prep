@@ -128,3 +128,16 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .footer .disclaimer { flex-basis: 100%; font-size: 12px; }
 .footer .by { font-family: var(--font-head); font-weight: 700; color: var(--ink); }
 @media print { .footer { display: none; } }
+
+/* Étape 1 — dialogue et maturité */
+.chat-log { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.chat-msg { display: flex; }
+.chat-msg span { max-width: 85%; padding: 8px 12px; border-radius: 14px; background: var(--bg); border: 1px solid var(--line); }
+.chat-msg.ai span { border-bottom-left-radius: 4px; }
+.chat-msg.user { justify-content: flex-end; }
+.chat-msg.user span { background: var(--accent-soft); border-color: transparent; border-bottom-right-radius: 4px; }
+.chat-input { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: end; }
+.maturity { display: flex; gap: 14px; align-items: center; }
+.gauge { display: flex; gap: 4px; }
+.gauge span { width: 18px; height: 34px; border-radius: 4px; background: var(--line); }
+.gauge span.on { background: var(--accent); }

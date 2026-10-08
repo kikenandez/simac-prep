@@ -131,6 +131,37 @@ function mockChat(messages, opts) {
   const fr = lang === 'fr';
   const delay = (v) => new Promise((r) => setTimeout(() => r(v), 400));
 
+  if (task === 'offer_extract') {
+    return delay(JSON.stringify({
+      fields: {
+        name: 'Coaching prospection 3 mois', oneLiner: 'Un accompagnement de 3 mois pour structurer la prospection d’une petite entreprise.',
+        targets: 'Achète : le dirigeant\nUtilise : le dirigeant ou son commercial\nDécide : le dirigeant', problem: '« Je n’ai pas le temps de prospecter »\n« Je perds des ventes faute de préparation »',
+        who: 'Consultant indépendant, 7 ans de direction commerciale en PME', nextStep: 'Un essai sur les 3 prochains rendez-vous',
+        mechanism: 'Diagnostic de l’offre (semaine 1)\nFiche client et persona avant chaque RDV\nDébrief et mail de suivi à J+1', advantages: 'Gain de temps de préparation\nPlus de rendez-vous conclus\nTranquillité : une méthode, pas de nouvel outil',
+        proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '',
+      },
+      missing: ['price', 'proofs', 'objections', 'floor', 'delays'],
+      notes: '[DEMO] Le prix et les preuves ne sont pas dans la description.',
+    }));
+  }
+  if (task === 'offer_question') {
+    const m = /DERNIÈRE RÉPONSE \(pour le champ "(\w+)"\) : ([\s\S]*?)\n\nRègles/.exec(last);
+    const cur = /FICHE ACTUELLE :\n([\s\S]*?)\n\nDIALOGUE/.exec(last);
+    let fiche = {}; try { fiche = JSON.parse(cur?.[1] || '{}'); } catch {}
+    if (m) fiche[m[1]] = m[2].trim();
+    const order = ['oneLiner', 'targets', 'problem', 'nextStep', 'price', 'proofs', 'objections'];
+    const qs = { oneLiner: 'En une phrase, sans jargon : que vendez-vous, à qui, pour quel résultat ?', targets: 'Qui achète, qui utilise, qui décide ? (souvent trois personnes différentes)', problem: 'Quel problème chaque cible a-t-elle, avec ses propres mots ?', nextStep: 'Quel « petit oui » voulez-vous obtenir en fin de rendez-vous : un essai, un devis, un second RDV ?', price: 'Quel est votre prix, et dans quelle unité parle-t-il au client (par mois, par RDV, par élève…) ?', proofs: 'Quelles preuves pouvez-vous montrer : chiffres, références, témoignages ?', objections: 'Quelles objections entendez-vous le plus souvent ? Citez-en 5.' };
+    const next = order.find((k) => !String(fiche[k] || '').trim());
+    return delay(JSON.stringify({ field_value: m ? m[2].trim() : '', next_field: next || '', question: next ? qs[next] : '', done: !next }));
+  }
+  if (task === 'maturity') {
+    return delay(JSON.stringify({
+      score: 3, label: 'Offre définie', summary: '[DEMO] La cible, le problème et le mécanisme sont clairs. Sans preuve ni prix ramené à l’unité du client, l’argumentaire reste fragile face à « c’est trop cher ».',
+      strengths: ['Problème formulé avec les mots du client', 'Mécanisme en 3 étapes lisible', 'Petit oui identifié (essai sur 3 RDV)'],
+      gaps: [{ field: 'proofs', why: 'Sans preuve, chaque avantage est une promesse.', fix: 'Collecter 2 témoignages et 1 chiffre de résultat.' }, { field: 'price', why: 'Le prix arrive sans unité qui parle au client.', fix: 'Exprimer le prix par rendez-vous gagné ou par mois.' }, { field: 'objections', why: 'Aucune réponse préparée.', fix: 'Lister 5 objections et une réponse en 4 temps pour chacune.' }],
+      next_step: 'Obtenir deux témoignages écrits avant le prochain rendez-vous.',
+    }));
+  }
   if (task === 'client_brief') {
     return delay(JSON.stringify({
       company_summary: fr ? '[DEMO] PME de services, 40 salariés, en croissance, cherche à structurer sa prospection.' : '[DEMO] Service SMB, 40 staff, growing, wants to structure its prospecting.',

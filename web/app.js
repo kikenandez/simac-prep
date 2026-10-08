@@ -2,7 +2,7 @@
 // Statique, sans serveur. L'IA est optionnelle et au choix (fournisseurs gratuits, ou mode démo).
 
 import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON } from './lib/llm.js';
-import { clientBriefMessages, soncasMessages, simacMessages, followupMessages } from './lib/prompts.js';
+import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages } from './lib/prompts.js';
 import { readUrl, searchWeb, notesSource, mergeSources } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
@@ -18,6 +18,7 @@ function blank() {
   return {
     id: newId(), date: new Date().toISOString().slice(0, 10), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
+    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null },
     client: { company: '', sector: '', website: '', contactName: '', contactRole: '', linkedinUrl: '', notes: '', decisionProcess: '' },
     sources: [], brief: null,
     persona: { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {}, main_message: '' },
@@ -29,6 +30,7 @@ function blank() {
 }
 let S = loadDraft() || blank();
 if (!S.id) S = blank();
+if (!S.offer) S.offer = blank().offer;
 const persist = () => saveDraft(S);
 
 // ----------------------------------------------------------------------------- UI utils
@@ -91,10 +93,32 @@ $('#btn-new').addEventListener('click', () => {
 
 // ----------------------------------------------------------------------------- 1. OFFRE
 const renderers = {};
+const FIELD_LABELS = { name: 'Produit / service', oneLiner: 'En une phrase', targets: 'Cibles', problem: 'Problème de chaque cible', who: 'Qui parle', nextStep: 'Étape suivante voulue', mechanism: 'Mécanisme', advantages: 'Avantages', proofs: 'Preuves', price: 'Prix', floor: 'Plancher', delays: 'Délais et conditions', objections: 'Objections attendues', constraints: 'Contraintes' };
+const MATURITY = { 1: 'Encore une idée à travailler', 2: 'Ébauche', 3: 'Offre définie', 4: 'Prête à tester', 5: 'Prête à la présentation' };
+
 renderers.offer = () => {
+  const O = S.offer;
   $('#main').innerHTML = `
     <h1>1 · Votre offre</h1>
-    <p class="lead">La fiche produit : ce qu’on vend, à qui, pourquoi. Remplie une fois, réutilisée pour chaque rendez-vous. Ne rien inventer — ce qui manque est un trou à combler.</p>
+    <p class="lead">Décrivez votre produit ou service avec vos mots ; l’IA remplit la fiche, pose les questions qui manquent et mesure la maturité de l’offre. Ne rien inventer — ce qui manque est un trou à combler.</p>
+
+    <div class="card">
+      <h2>Décrire</h2>
+      <div class="grid">
+        ${field('offer.description', 'Texte libre', { hint: 'ce que vous vendez, à qui, comment, à quel prix — comme vous le diriez à un ami', type: 'textarea', full: true, placeholder: 'Ex. : J’accompagne des artisans pendant 3 mois pour qu’ils signent plus de devis. On commence par…' })}
+        ${field('offer.website', 'Site web', { hint: 'lu automatiquement', placeholder: 'exemple.fr' })}
+        ${field('offer.linkedin', 'Page LinkedIn / Instagram / autre', { hint: 'URL ; si la lecture échoue, collez le texte ci-dessous', placeholder: 'linkedin.com/in/… ou instagram.com/…' })}
+        ${field('offer.profileText', 'Texte collé', { hint: 'profil LinkedIn, bio Instagram, plaquette, mail… (LinkedIn et Instagram bloquent la lecture automatique)', type: 'textarea', full: true })}
+      </div>
+      <div class="actions">
+        <button class="btn ghost" id="offer-fetch">Lire les pages</button>
+        <span class="note" id="offer-src">${O.sources.length} source(s)</span>
+        <button class="btn" id="offer-extract">Analyser avec l’IA → remplir la fiche</button>
+      </div>
+      <div id="offer-notes" class="note"></div>
+    </div>
+
+    <h2>Fiche produit</h2>
     <div class="grid">
       ${field('product.name', 'Produit / service')}
       ${field('product.oneLiner', 'En une phrase, sans jargon', { placeholder: 'Ex. : un accompagnement de 3 mois pour structurer la prospection' })}
@@ -111,10 +135,68 @@ renderers.offer = () => {
       ${field('product.delays', 'Délais et conditions')}
       ${field('product.constraints', 'Contraintes', { hint: 'réglementation, ton, décisions prises' })}
     </div>
+
+    <div class="card" id="offer-chat-card">
+      <h2>Compléter par questions</h2>
+      <p class="note">L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.</p>
+      <div id="offer-chat"></div>
+    </div>
+
+    <div class="card">
+      <h2>Maturité de l’offre</h2>
+      <div class="actions" style="margin-top:0"><button class="btn ghost" id="offer-maturity">Analyser la maturité (1 à 5)</button></div>
+      <div id="offer-maturity-out"></div>
+    </div>
+
     <div class="actions"><button class="btn" id="next">Continuer → Client</button>
       <button class="btn ghost small" id="export-offer">Exporter la fiche (JSON)</button>
       <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
+  bindInputs($('#main'), O, 'offer');
+  renderOfferChat();
+  renderMaturity();
+
+  $('#offer-fetch').onclick = (e) => busy(e.target, async () => {
+    const urls = [O.website, O.linkedin].filter(Boolean);
+    if (!urls.length) return toast('Indiquez au moins une URL.');
+    const jinaKey = loadSettings().jinaKey || '';
+    let n = 0;
+    for (const u of urls) {
+      try { const src = await readUrl(u, { jinaKey }); O.sources = O.sources.filter((x) => x.source !== src.source); O.sources.push(src); n++; }
+      catch (err) { toast(/linkedin|instagram/i.test(u) ? 'Ce site bloque la lecture automatique : collez le texte du profil dans « Texte collé ».' : friendlyError(err), 6000); }
+    }
+    persist(); $('#offer-src').textContent = `${O.sources.length} source(s)`;
+    if (n) toast(`${n} page(s) lue(s).`);
+  });
+
+  $('#offer-extract').onclick = (e) => busy(e.target, async () => {
+    if (!O.description.trim() && !O.sources.length && !O.profileText.trim()) return toast('Décrivez votre offre ou ajoutez une source.');
+    const all = [...O.sources]; if (O.profileText.trim()) all.push(notesSource(O.profileText, 'profil'));
+    const r = await chatJSON(offerExtractMessages({ lang: LANG, description: O.description, sources: mergeSources(all), current: S.product }));
+    const f = r.fields || {}; let filled = 0, kept = 0;
+    for (const k of Object.keys(FIELD_LABELS)) {
+      const v = String(f[k] || '').trim(); if (!v) continue;
+      if (!String(S.product[k] || '').trim()) { S.product[k] = v; filled++; } else if (S.product[k] !== v) kept++;
+    }
+    if (kept && confirm(`${kept} champ(s) déjà remplis ont une nouvelle proposition. Les remplacer ? (Annuler = garder vos valeurs)`)) {
+      for (const k of Object.keys(FIELD_LABELS)) { const v = String(f[k] || '').trim(); if (v) S.product[k] = v; }
+      filled += kept;
+    }
+    O.maturity = null; persist(); markDone();
+    if (S.step !== 'offer') return;
+    renderers.offer();
+    const notes = [r.notes, (r.missing || []).length ? 'Manque : ' + r.missing.map((k) => FIELD_LABELS[k] || k).join(', ') + ' → utilisez « Compléter par questions ».' : ''].filter(Boolean).join(' ');
+    $('#offer-notes').textContent = notes;
+    toast(`${filled} champ(s) rempli(s).`);
+  });
+
+  $('#offer-maturity').onclick = (e) => busy(e.target, async () => {
+    if (!S.product.oneLiner && !S.product.name) return toast('Remplissez au moins le nom et la phrase.');
+    const r = await chatJSON(offerMaturityMessages({ lang: LANG, current: S.product }));
+    O.maturity = { ...r, score: Math.min(5, Math.max(1, Number(r.score) || 1)) };
+    persist(); if (S.step === 'offer') renderMaturity();
+  });
+
   $('#next').onclick = () => go('client');
   $('#export-offer').onclick = () => download('fiche-offre.json', JSON.stringify(S.product, null, 2), 'application/json');
   $('#import-offer').onchange = async (e) => {
@@ -123,6 +205,53 @@ renderers.offer = () => {
     catch { toast('Fichier illisible.'); }
   };
 };
+
+function renderOfferChat() {
+  const el = $('#offer-chat'); if (!el) return;
+  const O = S.offer;
+  const log = O.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
+  const last = O.chat[O.chat.length - 1];
+  const waiting = last && last.role === 'ai' && O.pendingField;
+  el.innerHTML = `
+    <div class="chat-log">${log || '<div class="note">Aucune question pour l’instant.</div>'}</div>
+    ${waiting ? `<div class="chat-input"><textarea id="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
+      <button class="btn" id="chat-send">Répondre</button></div>` : ''}
+    <div class="actions" style="margin-bottom:0">
+      <button class="btn ghost" id="chat-start">${O.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
+      ${O.chat.length ? '<button class="btn ghost small" id="chat-reset">Effacer le dialogue</button>' : ''}
+    </div>`;
+  const transcript = () => O.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
+  const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
+    const r = await chatJSON(offerQuestionMessages({ lang: LANG, current: S.product, transcript: transcript(), lastField, lastAnswer }));
+    if (lastField && r.field_value) { S.product[lastField] = r.field_value; O.maturity = null; }
+    if (r.done || !r.question) { O.pendingField = ''; O.chat.push({ role: 'ai', text: 'La fiche est complète sur l’essentiel. Lancez « Analyser la maturité ».' }); }
+    else { O.pendingField = r.next_field || ''; O.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
+    persist(); markDone();
+    if (S.step === 'offer') { renderers.offer(); $('#offer-chat-card')?.scrollIntoView({ block: 'center' }); }
+  });
+  $('#chat-start').onclick = (e) => ask(e.target, '', '');
+  $('#chat-reset')?.addEventListener('click', () => { O.chat = []; O.pendingField = ''; persist(); renderOfferChat(); });
+  $('#chat-send')?.addEventListener('click', (e) => {
+    const a = $('#chat-answer').value.trim(); if (!a) return;
+    const f = O.pendingField; O.chat.push({ role: 'user', text: a }); O.pendingField = '';
+    ask(e.target, f, a);
+  });
+}
+
+function renderMaturity() {
+  const el = $('#offer-maturity-out'); if (!el) return;
+  const M = S.offer.maturity; if (!M) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <div class="maturity">
+      <div class="gauge">${[1, 2, 3, 4, 5].map((i) => `<span class="${i <= M.score ? 'on' : ''}"></span>`).join('')}</div>
+      <div><b>${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</b><div class="note">${esc(M.summary)}</div></div>
+    </div>
+    <div class="grid" style="margin-top:12px">
+      <div><h3>Points forts</h3><ul class="plain">${(M.strengths || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+      <div><h3>Ce qui bloque la vente</h3><ul class="plain">${(M.gaps || []).map((g) => `<li><b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} <i>→ ${esc(g.fix)}</i></li>`).join('')}</ul></div>
+    </div>
+    <div class="card soft" style="margin-bottom:0"><b>À faire avant le prochain rendez-vous :</b> ${esc(M.next_step)}</div>`;
+}
 
 // ----------------------------------------------------------------------------- 2. CLIENT
 renderers.client = () => {
