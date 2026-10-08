@@ -254,7 +254,7 @@ function mockChat(messages, opts) {
     return delay(JSON.stringify({ field_value: m ? m[2].trim() : '', next_field: next || '', question: next ? qs[next] : '', done: !next }));
   }
   if (task === 'debrief_extract') {
-    return delay(JSON.stringify({ fields: { outcome: 'RDV décideur à fixer', objectionsHeard: 'Budget déjà engagé cette année\nVeut l’avis du professeur d’histoire', decisionMaker: 'Le directeur', nextAction: 'Présentation de 30 min au professeur d’histoire', nextOwner: 'me', nextDue: '2026-10-15', nextOutput: 'Date confirmée + dossier enseignant envoyé', notes: '[DEMO] 4 classes de 3e ; décision avant la Toussaint.' }, missing: [] }));
+    return delay(JSON.stringify({ fields: { outcome: 'RDV décideur à fixer', objectionsHeard: 'Budget déjà engagé cette année\nVeut l’avis du professeur d’histoire', decisionMaker: 'Le directeur', actions: [{ action: 'Présentation de 30 min au professeur d’histoire', owner: 'me', due: '2026-10-15', output: 'Date confirmée + dossier enseignant envoyé' }, { action: 'Envoyer le devis pour 4 classes', owner: 'me', due: '2026-10-17', output: 'Devis Chorus Pro' }], notes: '[DEMO] 4 classes de 3e ; décision avant la Toussaint.' }, missing: [] }));
   }
   if (task === 'competition') {
     return delay(JSON.stringify({ summary: '[DEMO] Exemple fictif de comparaison : aucune recherche ni vérification par le modèle.', candidates: [{ name: '[DEMO] Réaliser en interne', type: 'alternative', target: 'Même besoin à confirmer', offer: 'Mobiliser une personne en interne', price: 'Non publié', difference: 'À vérifier : temps disponible et compétences', question: 'Comment traitez-vous ce besoin aujourd’hui ?', source_ids: [] }] }));

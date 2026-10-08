@@ -30,11 +30,17 @@ function blank() {
     persona: { people: [blankPerson()], current: 0, main_message: '', tensions: [], gaps: [] },
     objective: { primary: '', fallback: '' },
     simac: null,
-    debrief: { outcome: '', objectionsHeard: '', decisionMaker: '', nextAction: '', nextOwner: 'me', nextDue: '', nextOutput: '', notes: '', description: '' },
+    debrief: { outcome: '', objectionsHeard: '', decisionMaker: '', nextAction: '', nextOwner: 'me', nextDue: '', nextOutput: '', notes: '', description: '', actions: [blankAction()] },
     followup: null,
   };
 }
 const MAX_CONTACTS = 3;
+const MAX_ACTIONS = 3;
+const ACTION_STATUS = { todo: 'À lancer', doing: 'En cours', done: 'Réalisée' };
+function blankAction() { return { action: '', owner: 'me', due: '', output: '', status: 'todo' }; }
+/** Actions convenues renseignées, au plus 3 ; la première est le CTA principal (miroir nextAction/… pour le CSV). */
+const actions = () => (S.debrief.actions || []).filter((a) => a.action).slice(0, MAX_ACTIONS);
+function syncPrimaryAction() { const a = S.debrief.actions?.[0] || blankAction(); Object.assign(S.debrief, { nextAction: a.action, nextOwner: a.owner, nextDue: a.due, nextOutput: a.output }); }
 function blankContact(weight = 'influence') { return { name: '', role: '', weight }; }
 function blankPerson() { return { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {} }; }
 /** Interlocuteurs renseignés (nom ou rôle), au plus 3. */
@@ -49,6 +55,7 @@ if (!S.id) S = blank();
 if (!Array.isArray(S.client.contacts)) { S.client.contacts = [{ name: S.client.contactName || '', role: S.client.contactRole || '', weight: 'decide' }]; delete S.client.contactName; delete S.client.contactRole; }
 if (!Array.isArray(S.persona.people)) { S.persona = { people: [{ scores: S.persona.scores || { ...DEFAULT_SCORES }, aiScores: S.persona.aiScores || null, rationale: S.persona.rationale || {}, arguments: S.persona.arguments || {} }], current: 0, main_message: S.persona.main_message || '', tensions: [], gaps: S.persona.gaps || [] }; }
 while (S.persona.people.length < S.client.contacts.length) S.persona.people.push(blankPerson());
+if (!Array.isArray(S.debrief.actions)) S.debrief.actions = [{ action: S.debrief.nextAction || '', owner: S.debrief.nextOwner || 'me', due: S.debrief.nextDue || '', output: S.debrief.nextOutput || '', status: 'todo' }];
 if (S.persona.current >= S.client.contacts.length) S.persona.current = 0;
 if (!S.offer) S.offer = blank().offer;
 if (!S.clientChat) S.clientChat = blank().clientChat;
@@ -824,10 +831,8 @@ renderers.followup = () => {
         <option>RDV décideur à fixer</option><option>Réflexion / relance datée</option><option>Pas de suite</option></select></div>
       ${field('debrief.decisionMaker', 'Décideur (nom)')}
       ${field('debrief.objectionsHeard', 'Objections entendues', { type: 'textarea', full: true })}
-      ${field('debrief.nextAction', 'Action convenue', { hint: 'le CTA', placeholder: 'Ex. : envoyer la proposition 2 pages' })}
-      <div><label>Responsable</label><select data-bind="debrief.nextOwner"><option value="me">Moi</option><option value="client">Le client</option></select></div>
-      <div><label>Échéance</label><input type="date" data-bind="debrief.nextDue"></div>
-      ${field('debrief.nextOutput', 'Livrable attendu')}
+      <div class="full"><label>Actions convenues <small>— jusqu’à ${MAX_ACTIONS} ; la première est l’appel à l’action principal, le mail est construit autour</small></label>
+        <div id="actions-list"></div></div>
       ${field('debrief.notes', 'Notes / faits nouveaux', { type: 'textarea', full: true })}
     </div>
     <div class="actions">
@@ -836,29 +841,59 @@ renderers.followup = () => {
     </div>
     <div id="fu-out"></div>`;
   bindInputs($('#main'), D, 'debrief');
+  renderActions();
   renderFollowup();
   $('#ai').onclick = (e) => busy(e.target, async () => {
-    if (!D.nextAction) return toast('Indiquez l’action convenue : le mail est construit autour.');
-    const fu = await chatJSON(followupMessages({ lang: LANG, product: S.product, client: clientView(), simac: S.simac || {}, debrief: D }));
+    syncPrimaryAction();
+    if (!D.nextAction) return toast('Indiquez au moins une action convenue : le mail est construit autour.');
+    const fu = await chatJSON(followupMessages({ lang: LANG, product: S.product, client: clientView(), simac: S.simac || {}, debrief: { ...D, actions: actions().map((a) => ({ ...a, status: ACTION_STATUS[a.status] })) } }));
     S.followup = fu;
     const na = fu.next_action || {};
-    if (!D.nextDue && na.due) D.nextDue = na.due;
-    persist(); markDone(); if (S.step === 'followup') renderFollowup();
+    if (D.actions[0] && !D.actions[0].due && na.due) D.actions[0].due = na.due;
+    syncPrimaryAction(); persist(); markDone(); if (S.step === 'followup') { renderActions(); renderFollowup(); }
   });
   $('#save').onclick = () => { saveMeeting(toRecord()); toast('Rendez-vous enregistré. Exportez le CSV depuis Historique.'); markDone(); };
   $('#debrief-extract').onclick = (e) => busy(e.target, async () => {
     if (!D.description.trim()) return toast('Racontez d’abord le rendez-vous.');
     const r = await chatJSON(debriefExtractMessages({ lang: LANG, description: D.description, current: D, today: new Date().toISOString().slice(0, 10) }));
     const f = r.fields || {}; let filled = 0;
-    for (const k of ['outcome', 'objectionsHeard', 'decisionMaker', 'nextAction', 'nextOwner', 'nextDue', 'nextOutput', 'notes']) {
-      const v = String(f[k] || '').trim(); if (v && !String(D[k] || '').trim() || (k === 'nextOwner' && v && D.nextOwner === 'me' && v === 'client')) { D[k] = v; filled++; }
+    for (const k of ['outcome', 'objectionsHeard', 'decisionMaker', 'notes']) {
+      const v = String(f[k] || '').trim(); if (v && !String(D[k] || '').trim()) { D[k] = v; filled++; }
     }
-    persist(); markDone(); if (S.step !== 'followup') return;
+    // actions : liste renvoyée par l'IA (ou l'ancienne forme à une action) ; on complète les lignes vides, on n'écrase pas
+    const found = (Array.isArray(f.actions) ? f.actions : (f.nextAction ? [{ action: f.nextAction, owner: f.nextOwner, due: f.nextDue, output: f.nextOutput }] : [])).filter((a) => a && a.action).slice(0, MAX_ACTIONS);
+    for (const a of found) {
+      if (D.actions.some((x) => x.action && x.action.toLowerCase() === String(a.action).toLowerCase())) continue;
+      const rec = { action: String(a.action), owner: a.owner === 'client' ? 'client' : 'me', due: /^\d{4}-\d{2}-\d{2}$/.test(a.due || '') ? a.due : '', output: String(a.output || ''), status: 'todo' };
+      const empty = D.actions.find((x) => !x.action);
+      if (empty) Object.assign(empty, rec); else if (D.actions.length < MAX_ACTIONS) D.actions.push(rec); else continue;
+      filled++;
+    }
+    syncPrimaryAction(); persist(); markDone(); if (S.step !== 'followup') return;
     renderers.followup();
     $('#debrief-notes').textContent = (r.missing || []).length ? 'Manque : ' + r.missing.join(', ') + ' — complétez à la main avant le mail.' : '';
     toast(`${filled} champ(s) rempli(s).`);
   });
 };
+function renderActions() {
+  const el = $('#actions-list'); if (!el) return;
+  const list = S.debrief.actions;
+  el.innerHTML = list.map((a, i) => `
+    <div class="action-row" data-i="${i}">
+      <span class="contact-n">${i + 1}</span>
+      <input data-ak="action" placeholder="${i === 0 ? 'Action convenue — le CTA (ex. : envoyer la proposition)' : 'Autre action convenue'}" value="${esc(a.action)}">
+      <select data-ak="owner"><option value="me" ${a.owner !== 'client' ? 'selected' : ''}>Moi</option><option value="client" ${a.owner === 'client' ? 'selected' : ''}>Le client</option></select>
+      <input type="date" data-ak="due" value="${esc(a.due)}" title="Échéance">
+      <input data-ak="output" placeholder="Livrable attendu" value="${esc(a.output)}">
+      <select data-ak="status" class="st-${a.status || 'todo'}">${Object.entries(ACTION_STATUS).map(([k, v]) => `<option value="${k}" ${(a.status || 'todo') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      ${list.length > 1 ? `<button class="btn ghost small" data-rm-action="${i}" title="Retirer">×</button>` : '<span></span>'}
+    </div>`).join('') +
+    (list.length < MAX_ACTIONS ? `<button class="btn ghost small" id="add-action">+ Ajouter une action (${list.length}/${MAX_ACTIONS})</button>` : `<span class="note">${MAX_ACTIONS} actions : au-delà, un rendez-vous n’a plus d’appel à l’action, il a une liste de tâches.</span>`);
+  $$('.action-row', el).forEach((row) => { const a = list[+row.dataset.i];
+    $$('[data-ak]', row).forEach((inp) => inp.addEventListener('input', () => { a[inp.dataset.ak] = inp.value; if (inp.dataset.ak === 'status') inp.className = 'st-' + inp.value; syncPrimaryAction(); persist(); })); });
+  $$('[data-rm-action]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rmAction, 1); syncPrimaryAction(); persist(); renderActions(); }));
+  $('#add-action')?.addEventListener('click', () => { list.push(blankAction()); persist(); renderActions(); $$('.action-row', el).pop()?.querySelector('input')?.focus(); });
+}
 function renderFollowup() {
   const el = $('#fu-out'); const F = S.followup; if (!F) { el.innerHTML = ''; return; }
   el.innerHTML = `
@@ -874,7 +909,7 @@ function renderFollowup() {
 function toRecord() {
   syncPeople();
   const cs = S.client.contacts; const pp = S.persona.people;
-  const sc = pp[0].scores; const M = S.simac || {}; const D = S.debrief;
+  const sc = pp[0].scores; const M = S.simac || {}; const D = S.debrief; syncPrimaryAction(); const A = actions();
   const c2 = cs[1] || {}, c3 = cs[2] || {};
   return {
     id: S.id, date: S.date, company: S.client.company, sector: S.client.sector, website: S.client.website,
@@ -888,7 +923,9 @@ function toRecord() {
     top3: top3(sc).map(label).join('|'), main_message: S.persona.main_message, tensions: (S.persona.tensions || []).join(' | '), idea: M.idea || '', conclusion: M.conclusion || '',
     objections_prepared: (M.objections || []).map((o) => o.objection).join(' | '),
     outcome: D.outcome, objections_heard: D.objectionsHeard, decision_maker: D.decisionMaker,
-    next_action: D.nextAction, next_owner: D.nextOwner, next_due: D.nextDue, next_output: D.nextOutput,
+    next_action: D.nextAction, next_owner: D.nextOwner, next_due: D.nextDue, next_output: D.nextOutput, next_status: A[0]?.status || 'todo',
+    action2: A[1]?.action || '', action2_owner: A[1]?.owner || '', action2_due: A[1]?.due || '', action2_output: A[1]?.output || '', action2_status: A[1]?.status || '',
+    action3: A[2]?.action || '', action3_owner: A[2]?.owner || '', action3_due: A[2]?.due || '', action3_output: A[2]?.output || '', action3_status: A[2]?.status || '',
     lessons: (S.followup?.lessons || []).join(' | '), notes: D.notes,
   };
 }
@@ -908,7 +945,7 @@ renderers.history = () => {
       <table><thead><tr><th>Date</th><th>Entreprise / contact</th><th>Offre</th><th>Top SONCAS</th><th>Résultat</th><th>Suite</th><th></th></tr></thead>
       <tbody>${all.map((m) => `<tr><td>${esc(m.date)}</td><td><b>${esc(m.company)}</b><br><small>${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0] || c[1]).map((c) => esc(`${c[0]}${c[1] ? ' — ' + c[1] : ''}`)).join('<br>')}</small></td>
         <td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td>
-        <td>${esc(m.next_action)}<br><small>${esc(m.next_owner === 'me' ? 'moi' : m.next_owner)} · ${esc(m.next_due)}</small></td>
+        <td>${[[m.next_action, m.next_owner, m.next_due, m.next_status], [m.action2, m.action2_owner, m.action2_due, m.action2_status], [m.action3, m.action3_owner, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `<span class="st-dot st-${esc(a[3] || 'todo')}" title="${esc(ACTION_STATUS[a[3]] || 'À lancer')}"></span>${esc(a[0])}<br><small>${esc(a[1] === 'me' ? 'moi' : a[1] || '')} · ${esc(a[2] || '')}</small>`).join('<br>')}</td>
         <td><button class="btn ghost small" data-load="${m.id}">Ouvrir</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
         || '<tr><td colspan="7" class="note">Aucun rendez-vous enregistré.</td></tr>'}</tbody></table>
     </div>`;
@@ -929,7 +966,10 @@ renderers.history = () => {
     if (cs[1]) S.persona.people[1].scores = capThrees(unpackScores(m.soncas_2));
     if (cs[2]) S.persona.people[2].scores = capThrees(unpackScores(m.soncas_3));
     S.persona.main_message = m.main_message; S.persona.tensions = m.tensions ? m.tensions.split(' | ') : [];
-    Object.assign(S.debrief, { outcome: m.outcome, objectionsHeard: m.objections_heard, decisionMaker: m.decision_maker, nextAction: m.next_action, nextOwner: m.next_owner || 'me', nextDue: m.next_due, nextOutput: m.next_output, notes: m.notes });
+    const acts = [{ action: m.next_action || '', owner: m.next_owner || 'me', due: m.next_due || '', output: m.next_output || '', status: ACTION_STATUS[m.next_status] ? m.next_status : 'todo' }];
+    if (m.action2) acts.push({ action: m.action2, owner: m.action2_owner || 'me', due: m.action2_due || '', output: m.action2_output || '', status: ACTION_STATUS[m.action2_status] ? m.action2_status : 'todo' });
+    if (m.action3) acts.push({ action: m.action3, owner: m.action3_owner || 'me', due: m.action3_due || '', output: m.action3_output || '', status: ACTION_STATUS[m.action3_status] ? m.action3_status : 'todo' });
+    Object.assign(S.debrief, { outcome: m.outcome, objectionsHeard: m.objections_heard, decisionMaker: m.decision_maker, nextAction: m.next_action, nextOwner: m.next_owner || 'me', nextDue: m.next_due, nextOutput: m.next_output, notes: m.notes, actions: acts });
     restoreResearch(m.research_json);
     persist(); go('client'); toast('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).');
   }));
@@ -1050,13 +1090,14 @@ const printViews = {
   followup() {
     const D = S.debrief; const F = S.followup;
     return `<h1>Suivi — ${esc(S.client.company || '')}</h1>
-      <div class="pgrid">${P.row('Résultat', D.outcome)}${P.row('Décideur', D.decisionMaker)}${P.row('Action convenue', D.nextAction)}${P.row('Responsable', D.nextOwner === 'me' ? 'Moi' : 'Le client')}${P.row('Échéance', D.nextDue)}${P.row('Livrable attendu', D.nextOutput)}${P.row('Objections entendues', D.objectionsHeard)}${P.row('Notes', D.notes)}</div>
+      <div class="pgrid">${P.row('Résultat', D.outcome)}${P.row('Décideur', D.decisionMaker)}${P.row('Objections entendues', D.objectionsHeard)}${P.row('Notes', D.notes)}</div>
+      ${actions().length ? `<h2>Actions convenues</h2><table class="ptable"><thead><tr><th>#</th><th>Action</th><th>Qui</th><th>Échéance</th><th>Livrable</th><th>Statut</th></tr></thead><tbody>${actions().map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.action)}</td><td>${a.owner === 'client' ? 'Le client' : 'Moi'}</td><td>${esc(a.due)}</td><td>${esc(a.output)}</td><td>${ACTION_STATUS[a.status] || 'À lancer'}</td></tr>`).join('')}</tbody></table>` : ''}
       ${F ? `<h2>Mail de suivi</h2><p><b>Objet :</b> ${esc(F.email_subject || '')}</p><div class="pbox">${P.text(F.email_body)}</div>${(F.lessons || []).length ? `<h3>Leçons pour la prochaine fois</h3>${P.ul(F.lessons)}` : ''}` : ''}`;
   },
   history() {
     const all = listMeetings();
     return `<h1>Historique — ${all.length} rendez-vous</h1><table class="ptable"><thead><tr><th>Date</th><th>Entreprise / contact</th><th>Offre</th><th>Top SONCAS</th><th>Résultat</th><th>Suite</th></tr></thead><tbody>
-      ${all.map((m) => `<tr><td>${esc(m.date)}</td><td>${esc(m.company)}<br><small>${esc(m.contact_name)}</small></td><td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td><td>${esc(m.next_action)} ${esc(m.next_due)}</td></tr>`).join('')}</tbody></table>`;
+      ${all.map((m) => `<tr><td>${esc(m.date)}</td><td>${esc(m.company)}<br><small>${esc(m.contact_name)}</small></td><td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td><td>${[[m.next_action, m.next_due, m.next_status], [m.action2, m.action2_due, m.action2_status], [m.action3, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `${esc(a[0])} — ${esc(a[1] || '')} (${ACTION_STATUS[a[2]] || 'À lancer'})`).join('<br>')}</td></tr>`).join('')}</tbody></table>`;
   },
 };
 let savedTitle = document.title, printing = false;

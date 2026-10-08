@@ -229,3 +229,11 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 [data-bind].missing { border: 1.5px dashed var(--warn); }
 [data-bind].missing::placeholder { color: var(--muted); }
 @media print { .gaps { display: none; } }
+
+/* actions convenues (étape Suivi) et statut */
+.action-row { display: grid; grid-template-columns: 22px 1.6fr 110px 140px 1.2fr 120px 32px; gap: 8px; align-items: center; margin-bottom: 6px; }
+.action-row select, .action-row input[type=date] { padding: 8px; }
+select.st-todo { border-color: var(--warn); } select.st-doing { border-color: var(--accent); } select.st-done { border-color: var(--accent); background: var(--accent-soft); }
+.st-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--warn); }
+.st-dot.st-doing { background: var(--accent); } .st-dot.st-done { background: var(--accent); box-shadow: inset 0 0 0 2px var(--panel), 0 0 0 1px var(--accent); }
+@media (max-width: 900px) { .action-row { grid-template-columns: 22px 1fr 32px; } .action-row > :nth-child(n+3):not(:last-child) { grid-column: 2; } }
