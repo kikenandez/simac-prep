@@ -1184,7 +1184,16 @@ $('#gate-change').addEventListener('click', () => {
   const c = getConsent(); $('#gate-email').value = c?.email || '';
   $('#gate-wait').hidden = true; $('#gate-form').hidden = false; $('#gate-email').focus();
 });
-$('#gate-already').addEventListener('click', (e) => { e.preventDefault(); $('#gate-already-help').hidden = false; });
+// Lien de confirmation ouvert dans un autre onglet (webmail) : cet onglet s'ouvre dès que l'accès est enregistré.
+// (Pas quand l'accueil n'affiche que les conditions en lecture : formulaire et attente masqués.)
+function unlockIfConfirmed(message = 'Adresse confirmée — bienvenue.') {
+  const gateShowsAccess = !$('#gate').hidden && (!$('#gate-wait').hidden || !$('#gate-form').hidden);
+  if (!gateShowsAccess || !hasAccepted()) return false;
+  clearInterval(resendTimer); $('#gate').hidden = true; toast(message, 4000); return true;
+}
+window.addEventListener('storage', (e) => { if (e.key === 'simac.consent') unlockIfConfirmed(); });
+window.addEventListener('focus', () => unlockIfConfirmed());
+$('#gate-already').addEventListener('click', (e) => { e.preventDefault(); if (!unlockIfConfirmed()) $('#gate-already-help').hidden = false; });
 $('#show-terms').addEventListener('click', (e) => { e.preventDefault(); showGate(true); });
 {
   // Retour du lien de confirmation Buttondown : ?ok=1 (alias ?confirmed=1).
