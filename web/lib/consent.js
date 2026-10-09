@@ -25,11 +25,19 @@ export function isPending() {
   return !!(c && c.accepted && c.version === CONFIG.termsVersion && c.confirmed === false);
 }
 
+// Cookie « confirmation SIMAC en attente », lisible par adp.avapmo.com/merci/ (même domaine parent).
+function pendingCookie(on) {
+  const c = CONFIG.pendingCookie;
+  if (!c || !globalThis.location?.hostname?.endsWith(c.domain)) return;
+  document.cookie = `${c.name}=${on ? 1 : ''}; Domain=${c.domain}; Path=/; Max-Age=${on ? c.maxAge : 0}; SameSite=Lax; Secure`;
+}
+
 // Formulaire Buttondown soumis dans un nouvel onglet, comme son embed officiel : si son pare-feu demande une
 // vérification anti-spam (Cloudflare Turnstile), la personne la voit et la valide. Un fetch en arrière-plan
 // la rendait invisible : réponse 400, aucun mail parti. À appeler pendant le clic (sinon bloqueur de pop-up).
 async function subscribe(email) {
   if (!email || !CONFIG.emailEndpoint) return false;
+  pendingCookie(true);
   try {
     const form = document.createElement('form');
     Object.assign(form, { action: CONFIG.emailEndpoint, method: 'post', target: '_blank', hidden: true });
@@ -62,6 +70,7 @@ export async function resend() {
 // Retour du lien de confirmation (?ok=1) : ouvre l'accès sur ce navigateur.
 // Renvoie true si une acceptation en attente existait, false si elle a été créée ici (lien ouvert ailleurs).
 export function confirmEmail() {
+  pendingCookie(false);
   const c = getConsent();
   const now = new Date().toISOString();
   if (c && c.accepted && c.version === CONFIG.termsVersion) { save({ ...c, confirmed: true, confirmedAt: now }); return true; }
