@@ -24,7 +24,7 @@ function blank() {
   return {
     id: newId(), date: localDay(), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
-    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, blockers: [] },
+    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, blockers: [], reworked: [] },
     market: marketDefaults(), research: researchDefaults(),
     client: { preparationMode: 'meeting', location: '', company: '', sector: '', website: '', contacts: [blankContact('decide')], linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
     clientChat: { description: '', chat: [], pendingField: '' },
@@ -306,7 +306,7 @@ renderers.offer = () => {
   bindInputs($('#main'), O, 'offer');
   renderOfferBar();
   renderGaps({ el: $('#offer-gaps'), obj: S.product, keys: OFFER_KEY_ORDER, labels: FIELD_LABELS, chatCard: '#offer-chat', prefix: 'product' });
-  renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: () => { O.maturity = null; S.market.comparison = null; invalidatePreparation(); } });
+  renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: (key) => { O.reworked = [...new Set([...(O.reworked || []), key])]; O.maturity = null; S.market.comparison = null; invalidatePreparation(); } });
   renderMaturity();
   mountMarket($('#market-research'), () => S, { save: persist, invalidate: invalidatePreparation, busy, toast });
   renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
@@ -351,6 +351,7 @@ renderers.offer = () => {
     const r = await chatJSON(offerMaturityMessages({ lang: LANG, current: S.product }));
     O.maturity = { ...r, score: Math.min(5, Math.max(1, Number(r.score) || 1)) };
     O.blockers = blockersFrom(O.maturity); // survivent aux réponses suivantes : seule une nouvelle maturité les lève
+    O.reworked = []; // … mais un bloquant répondu depuis ne compte plus comme manque
     persist(); if (S.step === 'offer') { renderers.offer(); $('#offer-maturity-out')?.scrollIntoView({ block: 'center' }); }
   });
 
@@ -397,13 +398,15 @@ function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
   const draw = () => {
     const missing = keys.filter((k) => !isFilled(k));
     // Offre : essentiels vides + champs jugés bloquants par la dernière maturité, même remplis.
-    const essential = prefix === 'product' ? essentialGaps(obj, S.offer.blockers) : missing;
+    const essential = prefix === 'product' ? essentialGaps(obj, S.offer.blockers, S.offer.reworked) : missing;
+    const recheck = prefix === 'product' ? (S.offer.reworked || []).filter((k) => (S.offer.blockers || []).includes(k)) : [];
     const n = keys.length - missing.length;
     el.className = 'gaps ' + (essential.length ? 'warn' : 'ok');
     el.innerHTML = essential.length
       ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}${isFilled(k) ? ' · à renforcer' : ''}</span>`).join(' ')}
          <button class="btn small gaps-go">Compléter par questions ↓</button>`
       : `<b>${n} / ${keys.length} champs remplis.</b> L’essentiel y est${missing.length ? ` — reste facultatif : ${missing.map((k) => labels[k] || k).join(', ')}` : ''}.`;
+    if (recheck.length) el.innerHTML += ` <span class="note">Répondu depuis la dernière maturité : ${esc(recheck.map((k) => labels[k] || k).join(', '))} — relancez « Analyser la maturité » pour confirmer.</span>`;
     const essentialKeys = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL) : keys;
     $$('[data-bind]', $('#main')).forEach((inp) => { const k = inp.dataset.bind.split('.')[1]; if (inp.dataset.bind.startsWith(prefix + '.') && keys.includes(k)) inp.classList.toggle('missing', essentialKeys.includes(k) && !isFilled(k)); });
     $('.gaps-go', el)?.addEventListener('click', () => { const card = $(chatCard); card?.scrollIntoView({ block: 'center', behavior: 'smooth' }); $('.chat-start', card)?.click(); });
@@ -418,7 +421,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   state.skipped ||= [];
   const hintAt = CHAT_HINT[step] || 6;
   const asked = state.chat.filter((m) => m.role === 'ai' && m.field).length;
-  const gapCount = step === 'offer' ? essentialGaps(target, state.blockers).length : 0;
+  const gapCount = step === 'offer' ? essentialGaps(target, state.blockers, state.reworked).length : 0;
   const log = state.chat.map((m) => `<div class="chat-msg ${m.role}"><span>${esc(m.text)}</span></div>`).join('');
   const last = state.chat[state.chat.length - 1];
   const waiting = last && last.role === 'ai' && state.pendingField;
