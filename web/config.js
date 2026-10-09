@@ -12,8 +12,8 @@ export const CONFIG = {
   // « Vérifiez votre boîte mail » ; l'outil s'ouvre au retour du lien de confirmation (?ok=1, alias ?confirmed=1).
   // false = ancien comportement (accès dès l'envoi du formulaire). Barrière « douce » : sans serveur, ?ok=1 suffit.
   // Liste partagée avec adp.avapmo.com : Buttondown n'a qu'une redirection après confirmation.
-  // Provisoirement https://simac.avapmo.com/?ok=1 ; cible : https://adp.avapmo.com/fr/confirme/, dont la page
-  // lit le cookie ci-dessous (commun à *.avapmo.com) et renvoie vers https://simac.avapmo.com/?ok=1.
+  // https://adp.avapmo.com/merci/ (entrée FR / ES / EN) lit le cookie ci-dessous (commun à *.avapmo.com)
+  // et renvoie vers https://simac.avapmo.com/?ok=1 ; sans cookie, page de confirmation dans la langue du visiteur.
   confirmToUnlock: true,
   pendingCookie: { name: 'simac_pending', domain: 'avapmo.com', maxAge: 7 * 24 * 3600 },
 
