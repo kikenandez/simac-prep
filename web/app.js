@@ -8,6 +8,7 @@ import { readUrl, notesSource, mergeSources, activeSources, groundBrief, sourceI
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
+import { localDay } from './lib/dates.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
@@ -21,7 +22,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // ----------------------------------------------------------------------------- état
 function blank() {
   return {
-    id: newId(), date: new Date().toISOString().slice(0, 10), step: 'offer',
+    id: newId(), date: localDay(), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
     offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, blockers: [] },
     market: marketDefaults(), research: researchDefaults(),
@@ -856,7 +857,7 @@ renderers.followup = () => {
   $('#save').onclick = () => { saveMeeting(toRecord()); toast('Rendez-vous enregistré. Exportez le CSV depuis Historique.'); markDone(); };
   $('#debrief-extract').onclick = (e) => busy(e.target, async () => {
     if (!D.description.trim()) return toast('Racontez d’abord le rendez-vous.');
-    const r = await chatJSON(debriefExtractMessages({ lang: LANG, description: D.description, current: D, today: new Date().toISOString().slice(0, 10) }));
+    const r = await chatJSON(debriefExtractMessages({ lang: LANG, description: D.description, current: D, today: localDay() }));
     const f = r.fields || {}; let filled = 0;
     for (const k of ['outcome', 'objectionsHeard', 'decisionMaker', 'notes']) {
       const v = String(f[k] || '').trim(); if (v && !String(D[k] || '').trim()) { D[k] = v; filled++; }
@@ -950,7 +951,7 @@ renderers.history = () => {
         <td><button class="btn ghost small" data-load="${m.id}">Ouvrir</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
         || '<tr><td colspan="7" class="note">Aucun rendez-vous enregistré.</td></tr>'}</tbody></table>
     </div>`;
-  $('#export').onclick = () => download(`simac-rdv-${new Date().toISOString().slice(0, 10)}.csv`, exportCSV());
+  $('#export').onclick = () => download(`simac-rdv-${localDay()}.csv`, exportCSV());
   $('#template').onclick = () => download('simac-modele.csv', exportCSV([]));
   $('#import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const n = importCSV(await f.text()); toast(`${n} rendez-vous importé(s).`); renderers.history(); };
   $$('[data-del]').forEach((b) => (b.onclick = () => { if (confirm('Supprimer ce rendez-vous ?')) { deleteMeeting(b.dataset.del); renderers.history(); } }));

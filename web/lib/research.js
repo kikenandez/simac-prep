@@ -1,6 +1,7 @@
 // Recherche publique : identité officielle, événements et pages professionnelles.
 // Aucun secret partagé ; les appels sont faits depuis le navigateur.
 import { CONFIG } from '../config.js';
+import { localDay } from './dates.js';
 const MAX_CHARS = CONFIG.limits?.charsPerSource ?? 6000;
 const TOTAL_CHARS = CONFIG.limits?.totalChars ?? 20000;
 const cache = new Map();
@@ -68,9 +69,11 @@ export async function readUrl(url, { jinaKey = '', signal } = {}) {
 function isoDate(raw) {
   const d = raw ? new Date(raw) : null;
   if (!d || Number.isNaN(d.getTime())) return '';
+  // moins de 24 h ou dans le futur : c'est la date de génération d'une page dynamique, pas de publication
+  if (d.getTime() > Date.now() - 24 * 3600e3) return '';
   if (/\d:\d/.test(raw)) return d.toISOString().slice(0, 10);
   // sans heure (« Sep 14, 2026 ») : lu à minuit local, on garde le jour du calendrier
-  return [d.getFullYear(), d.getMonth() + 1, d.getDate()].map((n) => String(n).padStart(2, '0')).join('-');
+  return localDay(d);
 }
 export async function searchWeb(query, { jinaKey = '', signal } = {}) {
   if (!jinaKey.trim()) throw new Error('La recherche web nécessite une clé Jina dans Réglages (crédits selon votre offre). Les données officielles restent accessibles sans clé.');
@@ -113,13 +116,33 @@ export function companySource(entity) {
     `${entity.name}\nSIREN ${entity.siren} ; établissement SIRET ${entity.siret}\nAdresse professionnelle : ${entity.address}\nCode NAF : ${entity.naf}\nÉtat établissement : ${entity.status}; unité légale : ${entity.companyStatus}\nCréation unité légale : ${entity.created}\nEffectif de l'unité légale (pas nécessairement de ce site) : ${entity.employees} ; année ${entity.employeesYear || 'inconnue'}\nÉtablissements ouverts : ${entity.establishments ?? 'inconnu'}\n${finance}\nMandats publics (ne prouvent pas la participation au rendez-vous ni le pouvoir d'achat) : ${entity.officers.map(d => `${d.name} — ${d.role}`).join('; ')}`,
     { title: `${entity.name} — ${entity.siret}`, publishedAt: entity.updated, entitySiren: entity.siren, included: true });
 }
+const NOTICE_PARTS = { acte: 'Acte', modificationsgenerales: 'Modifications', jugement: 'Jugement', radiationaurcs: 'Radiation', depot: 'Dépôt' };
+const NOTICE_KEYS = { dateCloture: 'date de clôture', typeDepot: 'type de dépôt', dateImmatriculation: 'date d’immatriculation', dateCommencementActivite: 'début d’activité', precedentExploitant: 'précédent exploitant', precedentProprietaire: 'précédent propriétaire', complementJugement: 'complément', radiationPM: 'radiation' };
+/** L'API BODACC range ses détails en JSON dans des chaînes : on les remet en lignes lisibles. */
+function noticeValue(value) {
+  if (value == null || value === '') return '';
+  if (typeof value === 'string') {
+    if (!/^\s*[{[]/.test(value)) return value.trim();
+    try { return noticeValue(JSON.parse(value)); } catch { return value.trim(); }
+  }
+  if (Array.isArray(value)) return value.map(noticeValue).filter(Boolean).join(' ; ');
+  if (typeof value === 'object') return Object.entries(value).map(([k, v]) => {
+    const text = noticeValue(v);
+    if (!text) return '';
+    return k === 'descriptif' ? text : `${NOTICE_KEYS[k] || k.replace(/([A-Z])/g, ' $1').toLowerCase()} : ${text}`;
+  }).filter(Boolean).join(' ; ');
+  return String(value);
+}
+function noticeDetails(n) {
+  return Object.entries(NOTICE_PARTS).map(([k, label]) => { const text = noticeValue(n[k]); return text ? `${label} : ${text}` : ''; }).filter(Boolean).join('\n');
+}
 export async function fetchNotices(siren, options = {}) {
   if (!/^\d{9}$/.test(siren)) throw new Error('Sélectionnez d’abord une entreprise.');
   const since = new Date(); since.setUTCFullYear(since.getUTCFullYear() - 2);
   const params = new URLSearchParams({ where: `registre="${siren}" AND dateparution >= date'${since.toISOString().slice(0, 10)}'`, order_by: 'dateparution desc', limit: '10' });
   const data = await request(`https://www.bodacc.fr/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?${params}`, { ...options, cached: true });
   return (data.results || []).map(n => makeSource(safeUrl(n.url_complete) || `https://www.bodacc.fr/pages/annonces-commerciales-detail/?q.id=${encodeURIComponent(n.id)}`, 'bodacc',
-    `${n.commercant || ''}\nSIREN recherché : ${siren}\n${n.familleavis_lib || ''} — ${n.typeavis_lib || ''}\nDate de publication : ${n.dateparution}\n${JSON.stringify({ acte: n.acte, modifications: n.modificationsgenerales, jugement: n.jugement, radiation: n.radiationaurcs, depot: n.depot })}\nUne annonce passée ne suffit pas à déduire la situation actuelle ni un besoin commercial.`,
+    `${n.commercant || ''}\nSIREN recherché : ${siren}\n${n.familleavis_lib || ''} — ${n.typeavis_lib || ''}\nDate de publication : ${n.dateparution}\n${noticeDetails(n)}\nUne annonce passée ne suffit pas à déduire la situation actuelle ni un besoin commercial.`,
     { title: `${n.familleavis_lib || 'Annonce BODACC'} — ${n.dateparution}`, publishedAt: n.dateparution, entitySiren: siren, included: true }));
 }
 export function clientQueries(client) {

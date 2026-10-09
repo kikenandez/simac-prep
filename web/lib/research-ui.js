@@ -1,4 +1,5 @@
 import { activeSources, clientQueries, competitorQuery, companySource, fetchNotices, readUrl, safeUrl, positionable, positioningChoice, rankSources, sanitizeComparison, sanitizePositioning, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
+import { localDay } from './dates.js';
 import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -11,7 +12,7 @@ export const marketFingerprint = s => JSON.stringify([s.id, s.product, s.market.
 export function citations(ids, sources) {
   return (Array.isArray(ids) ? ids : []).map(id => {
     const s = activeSources(sources).find(s => sourceId(s) === id);
-    return s ? `${link(s.source, s.title || s.source)} <small>(réf. ${esc(s.publishedAt || 'inconnue')}, consulté ${esc(s.retrievedAt?.slice(0, 10) || 'inconnu')})</small>` : '<small>Source à vérifier</small>';
+    return s ? `${link(s.source, s.title || s.source)} <small>(réf. ${esc(s.publishedAt || 'inconnue')}, consulté ${esc(localDay(s.retrievedAt) || 'inconnu')})</small>` : '<small>Source à vérifier</small>';
   }).join(' · ');
 }
 const matchLine = (r) => `<p class="match"><b>Correspondance ${r.score} / ${r.total}</b> ${[...r.hits.map((h) => `<span class="ok">✓ ${esc(h)}</span>`), ...r.misses.map((m) => `<span class="ko">✗ ${esc(m)}</span>`)].join(' ')}</p>`;
@@ -23,7 +24,7 @@ export function renderEvidence(el, sources, changed, rank = null) {
     <label class="check"><input type="checkbox" data-include="${i}" ${s.included !== false ? 'checked' : ''}> Inclure dans la préparation</label>
     <b>${esc(s.kind)}</b> — ${link(s.source, s.title || s.source)}
     ${rank ? matchLine(r) : ''}
-    <p class="note">${s.subject ? `Recherche : ${esc(s.subject)} · ` : ''}Publication / référence : ${esc(s.publishedAt || 'inconnue')} · Consulté le ${esc(s.retrievedAt?.slice(0, 10) || 'inconnu')}${s.stale ? ' · Client modifié : vérifiez la pertinence avant de réinclure.' : ''}</p>
+    <p class="note">${s.subject ? `Recherche : ${esc(s.subject)} · ` : ''}Publication / référence : ${esc(s.publishedAt || 'inconnue')} · Consulté le ${esc(localDay(s.retrievedAt) || 'inconnu')}${s.stale ? ' · Client modifié : vérifiez la pertinence avant de réinclure.' : ''}</p>
     <details><summary>Vérifier le texte collecté${s.truncated ? ' (tronqué)' : ''}</summary><pre class="source-text">${esc(s.text)}</pre></details>
     <button class="btn ghost small" data-remove="${i}">Retirer</button>
     </div>`).join('');

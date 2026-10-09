@@ -52,6 +52,17 @@ test('BODACC uses an exact identifier, date window and safe fallback notice link
   await assert.rejects(fetchNotices('bad'), /Sélectionnez/);
 });
 
+test('BODACC details are readable lines, not raw JSON (the API nests JSON in strings)', async t => {
+  t.mock.method(globalThis, 'fetch', async () => json({ results: [{ id: 'n2', dateparution: '2026-03-02', familleavis_lib: 'Dépôts des comptes',
+    depot: '{"dateCloture":"2025-12-31","typeDepot":"Comptes annuels et rapports","descriptif":"Comptes annuels"}',
+    modificationsgenerales: 'Nouvel établissement', jugement: null, acte: '' }] }));
+  const [notice] = await fetchNotices('123456789', { refresh: true });
+  assert.doesNotMatch(notice.text, /[{}"]|null/);
+  assert.match(notice.text, /Dépôt : date de clôture : 2025-12-31 ; type de dépôt : Comptes annuels et rapports ; Comptes annuels/);
+  assert.match(notice.text, /Modifications : Nouvel établissement/);
+  assert.doesNotMatch(notice.text, /Jugement|Acte/);
+});
+
 test('unavailable services give actionable errors and do not invent empty data', async t => {
   t.mock.method(globalThis, 'fetch', async () => new Response('', { status: 429 }));
   await assert.rejects(searchCompanies('Quota', '', { refresh: true }), /Quota/);
@@ -105,6 +116,16 @@ test('web search keeps the publication date and allows slow answers (Jina often 
   t.mock.timers.tick(30000);
   const sources = await pending;
   assert.deepEqual(sources.map(s => s.publishedAt), ['2016-09-22', '2026-09-14', '']);
+});
+
+test('a publication date of the last 24 h (or in the future) is the page generation date: shown as unknown', async t => {
+  const now = Date.now();
+  t.mock.method(globalThis, 'fetch', async () => json({ data: [
+    { url: 'https://a.example', title: 'A', content: 'x', publishedTime: new Date(now - 3600e3).toISOString() },
+    { url: 'https://b.example', title: 'B', content: 'x', publishedTime: new Date(now + 86400e3).toISOString() },
+    { url: 'https://c.example', title: 'C', content: 'x', publishedTime: new Date(now - 3 * 86400e3).toISOString() }] }));
+  const sources = await searchWeb('dynamic page', { jinaKey: 'k' });
+  assert.deepEqual(sources.map(s => s.publishedAt === ''), [true, true, false]);
 });
 
 test('web search still gives up after its own longer timeout', async t => {
