@@ -55,7 +55,8 @@ export async function accept({ email }) {
   email = email || '';
   // Confirmation exigée seulement si un mail de confirmation peut partir (adresse donnée + endpoint configuré).
   const needsConfirm = !!(CONFIG.confirmToUnlock && email && CONFIG.emailEndpoint);
-  const rec = { accepted: true, version: CONFIG.termsVersion, email, at: new Date().toISOString(), sent: false, confirmed: !needsConfirm };
+  // Déjà confirmé sur ce navigateur (par ex. lien ouvert dans un autre onglet) : l'accès n'est jamais refermé.
+  const rec = { accepted: true, version: CONFIG.termsVersion, email, at: new Date().toISOString(), sent: false, confirmed: hasAccepted() || !needsConfirm };
   rec.sent = await subscribe(email);
   return save(rec);
 }

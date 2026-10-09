@@ -21,8 +21,11 @@ const waiting = await p.evaluate(() => !document.querySelector('#gate').hidden &
   && JSON.parse(localStorage.getItem('simac.consent')).confirmed === false);
 // rechargement avant confirmation : toujours en attente
 await p.reload(); await p.waitForSelector('#gate-wait:not([hidden])');
-// retour du lien de confirmation Buttondown
-await p.goto('http://localhost:8765/?ok=1'); await p.waitForSelector('#gate[hidden]', { state: 'attached' });
+// lien de confirmation ouvert dans un AUTRE onglet (webmail) : l'onglet resté sur « Vérifiez votre boîte mail » s'ouvre seul
+const [mailTab] = await Promise.all([p.waitForEvent('popup'), p.evaluate(() => window.open('/?ok=1', '_blank'))]); await mailTab.waitForSelector('#gate[hidden]', { state: 'attached' }); await mailTab.close();
+await p.waitForSelector('#gate[hidden]', { state: 'attached', timeout: 3000 });
+// re-soumettre le formulaire après confirmation ne referme jamais l'accès
+const stillOpen = await p.evaluate(async () => { const m = await import('./lib/consent.js'); await m.accept({ email: 'test@exemple.fr' }); return m.hasAccepted(); });
 const subscribedVisibly = subscribePosts.length === 1 && /^POST /.test(subscribePosts[0]) && /test%40exemple\.fr/.test(subscribePosts[0]) && /metadata__source/.test(subscribePosts[0]) && p.context().pages().length === 2;
 const confirmed = await p.evaluate(() => { const c = JSON.parse(localStorage.getItem('simac.consent')); return c.confirmed === true && c.email === 'test@exemple.fr' && location.search === '' && /bienvenue/.test(document.querySelector('#toast').textContent); });
 const gateAgain = await p.evaluate(() => JSON.parse(localStorage.getItem('simac.consent')).accepted);
@@ -120,7 +123,7 @@ const radar = await p.$$eval('#radar svg polygon.me', s => s.length);
 await p.setViewportSize({ width: 1200, height: 900 }); await p.click('[data-step=offer]');
 p.once('dialog', d => d.accept()); await p.click('#offer-reset');
 const blanked = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return !d.product.oneLiner && !d.client.company && d.client.contacts.length === 1 && !d.client.contacts[0].name && !d.persona.people[0].name && d.simac === null && !d.debrief.description && !d.clientChat.description && d.sources.length === 0 && d.step === 'offer' && JSON.parse(localStorage.getItem('simac.meetings')).length === 1 && !document.querySelector('#steps button.done'); });
-const ok = subscribedVisibly && blanked && rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
+const ok = stillOpen && subscribedVisibly && blanked && rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
   && actionRows === 2 && /\/doing\/Envoyer le devis pour 4 classes/.test(reimport) && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3';
-console.log(JSON.stringify({ subscribedVisibly, blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
+console.log(JSON.stringify({ stillOpen, subscribedVisibly, blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);
