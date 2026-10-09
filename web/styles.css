@@ -73,6 +73,10 @@ input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); ou
 
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; margin: 12px 0; }
 .card.soft { background: var(--accent-soft); border-color: transparent; }
+dl.facts { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 8px 0; font-size: 14px; }
+dl.facts dt { color: var(--muted); }
+dl.facts dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 520px) { dl.facts { grid-template-columns: 1fr; } dl.facts dd { margin-bottom: 6px; } }
 .card.warn { background: var(--warn-soft); border-color: transparent; color: var(--ink); }
 .card h2:first-child { margin-top: 0; }
 .note { font-size: 13px; color: var(--muted); }

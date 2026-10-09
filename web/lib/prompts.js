@@ -287,6 +287,8 @@ DATE DU JOUR : ${today}
 Champs : outcome = résultat parmi exactement [Vente conclue | Essai / pilote accepté | Proposition à envoyer | RDV décideur à fixer | Réflexion / relance datée | Pas de suite] ;
 objectionsHeard = objections entendues (une ligne par objection, avec les mots du client) ; decisionMaker = nom ou fonction du décideur ;
 actions = TOUTES les actions convenues, AU PLUS 3, dans l'ordre d'importance commerciale (la première est l'appel à l'action principal) : chacune { action (une phrase), owner = "me" si c'est le vendeur qui agit, "client" sinon, due = date YYYY-MM-DD déduite du texte (« lundi », « jeudi prochain », « avant vendredi »… par rapport à la date du jour) sinon "", output = livrable attendu } ;
+les engagements du client sont des actions à part entière (« elle revient vers nous avant… », « il valide le budget », « elle transmet à la direction ») : owner = "client" ; relis le débrief phrase par phrase et ne laisse de côté aucun engagement daté ;
+dates approximatives : « semaine du 3 novembre » → le lundi de cette semaine ; « avant la fin du mois » → le dernier jour du mois en cours ; « début janvier » → le premier jour ouvré ;
 notes = faits nouveaux appris (budget, calendrier, personnes, préférences).
 Rien d'inventé : information absente → "" ou []. Si aucune action ni date n'a été convenue, actions = [] et notes doit le dire (« aucune suite datée »).
 JSON : {"fields":{"outcome":"","objectionsHeard":"","decisionMaker":"","actions":[{"action":"","owner":"me","due":"","output":""}],"notes":""},"missing":["clés vides importantes : actions, dates, decisionMaker…"]}` },

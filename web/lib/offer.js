@@ -13,10 +13,10 @@ export function blockersFrom(maturity) {
   return inOrder(new Set((maturity.gaps || []).map((g) => g.field)));
 }
 
-/** Manques pour vendre : essentiels vides + champs remplis mais jugés bloquants par la maturité. */
-export function essentialGaps(product, blockers = []) {
+/** Manques pour vendre : essentiels vides + champs jugés bloquants par la maturité, sauf ceux retravaillés depuis (reworked). */
+export function essentialGaps(product, blockers = [], reworked = []) {
   const empty = OFFER_KEY_ORDER.slice(0, OFFER_ESSENTIAL).filter((k) => isEmpty(product, k));
-  return inOrder(new Set([...empty, ...blockers]));
+  return inOrder(new Set([...empty, ...blockers.filter((k) => !reworked.includes(k))]));
 }
 
 /** Champs à demander, dans l'ordre : vides ou bloquants, jamais déjà demandés ni passés. */

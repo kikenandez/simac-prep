@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { activeSources, companySource, fetchNotices, groundBrief, makeSource, mergeSources, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources, clientQueries, rankSource, rankSources, competitorQuery, sanitizePositioning, positionable } from '../web/lib/research.js';
+import { activeSources, companySource, entityFacts, fetchNotices, groundBrief, makeSource, mergeSources, readUrl, safeUrl, sanitizeComparison, searchCompanies, searchWeb, sourceId, upsertSources, clientQueries, rankSource, rankSources, competitorQuery, sanitizePositioning, positionable } from '../web/lib/research.js';
 import { clientBriefMessages, competitionMessages, simacMessages } from '../web/lib/prompts.js';
 const json = data => new Response(JSON.stringify(data), { status: 200 });
 
@@ -39,6 +39,23 @@ test('entity matching keeps establishments distinct and does not expose birth de
   assert.match(src.text, /20–49/); assert.match(src.text, /2023/); assert.match(src.text, /CA 0 EUR/);
   assert.doesNotMatch(src.text, /1970/); assert.equal(src.included, true);
   await searchCompanies('Entreprise', 'Lyon'); assert.equal(fetch.mock.callCount(), 2);
+});
+
+test('the chosen establishment shows its register facts (activity, size, latest revenue, officers), not only in the collected text', () => {
+  const facts = entityFacts({ siren: '1', siret: '2', name: 'X', naf: '73.11Z', status: 'A', companyStatus: 'A', created: '1990-05-01', employees: '500–999', employeesYear: '2023', establishments: 12,
+    finances: { 2023: { ca: 150000000, resultat_net: 1 }, 2024: { ca: 179000000, resultat_net: -2 } }, officers: [{ name: 'Anne Durand', role: 'Présidente' }, { name: 'Bo', role: 'DG' }, { name: 'C', role: 'x' }, { name: 'D', role: 'y' }] });
+  const get = l => facts.find(([k]) => k === l)?.[1];
+  assert.equal(get('Activité (NAF)'), '73.11Z');
+  assert.equal(get('État'), 'Établissement actif · unité légale active');
+  assert.equal(get('Effectif (unité légale)'), '500–999 (2023)');
+  assert.equal(get('Chiffre d’affaires'), '179 M€ (2024)');
+  assert.equal(get('Création'), '1990-05-01');
+  assert.equal(get('Établissements ouverts'), '12');
+  assert.equal(get('Mandats publics'), 'Anne Durand — Présidente ; Bo — DG ; C — x (+1)');
+  const bare = entityFacts({ siren: '1', siret: '2', name: 'Y', status: 'F', companyStatus: 'A', employees: 'non renseigné', finances: {}, officers: [] });
+  assert.equal(bare.find(([k]) => k === 'État')[1], 'Établissement fermé · unité légale active');
+  assert.equal(bare.find(([k]) => k === 'Chiffre d’affaires')[1], 'non publié');
+  assert.equal(bare.some(([k]) => k === 'Mandats publics'), false);
 });
 
 test('BODACC uses an exact identifier, date window and safe fallback notice link', async t => {

@@ -1,4 +1,4 @@
-import { activeSources, clientQueries, competitorQuery, companySource, fetchNotices, readUrl, safeUrl, positionable, positioningChoice, rankSources, sanitizeComparison, sanitizePositioning, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
+import { activeSources, clientQueries, competitorQuery, companySource, entityFacts, fetchNotices, readUrl, safeUrl, positionable, positioningChoice, rankSources, sanitizeComparison, sanitizePositioning, searchCompanies, searchWeb, sourceId, upsertSources } from './research.js';
 import { localDay } from './dates.js';
 import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
@@ -136,6 +136,8 @@ export function mountClientResearch(el, getState, { save, invalidate, busy, toas
     <div class="actions"><button class="btn ghost" id="company-search">Rechercher dans l’Annuaire des entreprises</button></div>
     <div id="company-candidates" aria-live="polite"></div>
     ${entity ? `<div class="card soft"><b>${esc(entity.name)}</b><p>${esc(entity.address)}<br>SIREN ${esc(entity.siren)} · SIRET ${esc(entity.siret)}</p>
+      <dl class="facts">${entityFacts(entity).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
+      <p class="note">Source : Annuaire des entreprises${entity.updated ? `, mis à jour le ${esc(entity.updated.slice(0, 10))}` : ''}. Un mandat public ne prouve pas le pouvoir de décision pour cet achat.</p>
       <p>${link(`https://annuaire-entreprises.data.gouv.fr/etablissement/${entity.siret}`, 'Annuaire officiel')} · ${link(`https://www.pappers.fr/entreprise/${entity.siren}`, 'Consulter Pappers')}</p>
       <button class="btn ghost small" id="company-refresh">Actualiser les données officielles</button>
       <button class="btn ghost small" id="company-notices">Rechercher les annonces BODACC</button>

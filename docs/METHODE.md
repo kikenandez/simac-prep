@@ -41,7 +41,7 @@ Une objection est une demande d'information, pas un refus. Séquence : **accueil
 Trop parler de soi au début · pas d'objectif clair · découverte trop courte → proposition hors sujet · prix donné trop tôt · vouloir convaincre à tout prix (écouter > convaincre) · se justifier face aux objections · pas de suite / pas d'appel à l'action.
 
 ## Conclure et suivre
-On ne repart jamais sans **une date** et **le nom du décideur**. Enregistrer quatre choses : l'action, le responsable, la date, le livrable attendu. Mail de suivi < 150 mots, un seul lien, fin = proposition datée (« mardi ou jeudi ? »), jamais « n'hésitez pas ». Relance notée à J+7.
+On ne repart jamais sans **une date** et **le nom du décideur**. Enregistrer quatre choses : l'action, le responsable, la date, le livrable attendu. Les engagements du client (« elle revient vers nous avant la fin du mois ») sont des actions comme les autres, avec le client pour responsable. Mail de suivi < 150 mots, un seul lien, fin = proposition datée (« mardi ou jeudi ? »), jamais « n'hésitez pas ». Relance notée à J+7.
 
 ## Prix, conditions
 Prix après la valeur, ramené à l'unité qui parle au client. Plancher connu avant d'entrer ; leviers de négociation sans remise (périmètre, quantité, délai, paiement). Aucune promesse qu'on ne peut pas tenir.

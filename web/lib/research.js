@@ -136,6 +136,23 @@ function noticeValue(value) {
 function noticeDetails(n) {
   return Object.entries(NOTICE_PARTS).map(([k, label]) => { const text = noticeValue(n[k]); return text ? `${label} : ${text}` : ''; }).filter(Boolean).join('\n');
 }
+const euros = n => { const f = (v, u) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v)} ${u}`;
+  return Math.abs(n) >= 1e6 ? f(n / 1e6, 'M€') : Math.abs(n) >= 1e3 ? f(n / 1e3, 'k€') : f(n, '€'); };
+/** Faits du registre affichés sur la carte de l'établissement choisi (le texte complet reste dans les sources). */
+export function entityFacts(entity) {
+  const state = (code, what) => `${what} ${code === 'A' ? 'actif' : code === 'F' ? 'fermé' : 'état à vérifier'}`;
+  const [year, last] = Object.entries(entity.finances || {}).filter(([, f]) => f?.ca != null).sort(([a], [b]) => b.localeCompare(a))[0] || [];
+  const officers = entity.officers || [];
+  return [
+    ['Activité (NAF)', entity.naf || 'non renseignée'],
+    ['État', `${state(entity.status, 'Établissement')} · ${state(entity.companyStatus, 'unité légale').replace('actif', 'active').replace('fermé', 'fermée')}`],
+    ['Création', entity.created || 'inconnue'],
+    ['Effectif (unité légale)', `${entity.employees || 'non renseigné'}${entity.employeesYear ? ` (${entity.employeesYear})` : ''}`],
+    ['Établissements ouverts', String(entity.establishments ?? 'inconnu')],
+    ['Chiffre d’affaires', last ? `${euros(last.ca)} (${year})` : 'non publié'],
+    ...(officers.length ? [['Mandats publics', officers.slice(0, 3).map(d => `${d.name} — ${d.role}`).join(' ; ') + (officers.length > 3 ? ` (+${officers.length - 3})` : '')]] : []),
+  ];
+}
 export async function fetchNotices(siren, options = {}) {
   if (!/^\d{9}$/.test(siren)) throw new Error('Sélectionnez d’abord une entreprise.');
   const since = new Date(); since.setUTCFullYear(since.getUTCFullYear() - 2);

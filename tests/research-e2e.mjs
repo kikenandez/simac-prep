@@ -84,6 +84,7 @@ try {
   await page.click('[data-select-company="0"]');
   await page.waitForSelector('#company-notices');
   assert.match(await page.textContent('#client-research'), /12345678900002/);
+  assert.match(await page.textContent('#client-research dl.facts'), /Effectif \(unité légale\)/);
   await page.click('#company-notices');
   await page.waitForFunction(() => document.querySelector('#official-status').textContent.includes('1 annonce'));
   assert.match(await page.textContent('#sources'), /2026-09-01/);
