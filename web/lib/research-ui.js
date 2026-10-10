@@ -3,7 +3,7 @@ import { localDay } from './dates.js';
 import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-const link = (url, label) => safeUrl(url) ? `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer">${esc(label || url)}</a>` : esc(label || url);
+const link = (url, label) => safeUrl(url) ? `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label || url)} (nouvel onglet)">${esc(label || url)}</a>` : esc(label || url);
 export const marketDefaults = () => ({ geography: 'France', query: '', url: '', sources: [], comparison: null });
 export const researchDefaults = () => ({ query: '', entity: null });
 export const clientFingerprint = s => JSON.stringify([s.id, s.client.company, s.client.location, s.client.contacts]);
@@ -13,7 +13,7 @@ export function citations(ids, sources) {
   return (Array.isArray(ids) ? ids : []).map(id => {
     const s = activeSources(sources).find(s => sourceId(s) === id);
     return s ? `${link(s.source, s.title || s.source)} <small>(réf. ${esc(s.publishedAt || 'inconnue')}, consulté ${esc(localDay(s.retrievedAt) || 'inconnu')})</small>` : '<small>Source à vérifier</small>';
-  }).join(' · ');
+  }).join(', ');
 }
 const matchLine = (r) => `<p class="match"><b>Correspondance ${r.score} / ${r.total}</b> ${[...r.hits.map((h) => `<span class="ok">✓ ${esc(h)}</span>`), ...r.misses.map((m) => `<span class="ko">✗ ${esc(m)}</span>`)].join(' ')}</p>`;
 /** Sources à cocher ; avec `rank` (critères de recherche), classées du plus au moins correspondant, critères affichés. */
@@ -24,7 +24,7 @@ export function renderEvidence(el, sources, changed, rank = null) {
     <label class="check"><input type="checkbox" data-include="${i}" ${s.included !== false ? 'checked' : ''}> Inclure dans la préparation</label>
     <b>${esc(s.kind)}</b> — ${link(s.source, s.title || s.source)}
     ${rank ? matchLine(r) : ''}
-    <p class="note">${s.subject ? `Recherche : ${esc(s.subject)} · ` : ''}Publication / référence : ${esc(s.publishedAt || 'inconnue')} · Consulté le ${esc(localDay(s.retrievedAt) || 'inconnu')}${s.stale ? ' · Client modifié : vérifiez la pertinence avant de réinclure.' : ''}</p>
+    <p class="note">${s.subject ? `Recherche : ${esc(s.subject)}. ` : ''}Publication ou référence : ${esc(s.publishedAt || 'inconnue')}. Consulté le ${esc(localDay(s.retrievedAt) || 'inconnu')}.${s.stale ? ' Le client a changé : vérifiez la pertinence avant de réinclure.' : ''}</p>
     <details><summary>Vérifier le texte collecté${s.truncated ? ' (tronqué)' : ''}</summary><pre class="source-text">${esc(s.text)}</pre></details>
     <button class="btn ghost small" data-remove="${i}">Retirer</button>
     </div>`).join('');
@@ -115,10 +115,10 @@ const MARK_LABEL = { '+': ['plus', '+', 'notre offre plus favorable'], '-': ['mi
 function positioningGrid(p, sources) {
   const cell = ({ mark, value }) => { const [cls, sym, title] = MARK_LABEL[mark] || MARK_LABEL['?']; return `<td class="mark-${cls}" title="${title}"><b>${sym}</b> ${esc(value || 'Non publié')}</td>`; };
   return `<div class="positioning"><h3>Où se situe mon offre</h3>
-    <p class="note">Du point de vue du client. <span class="mark-plus">+ notre offre plus favorable</span> · <span class="mark-minus">− concurrent plus favorable</span> · <span class="mark-eq">= équivalent</span> · <span class="mark-unk">? non documenté</span>. Marques proposées par l’IA : relisez-les, la grille ne vaut que par ses sources.</p>
+    <p class="note">Du point de vue du client. <span class="mark-plus">+ notre offre plus favorable</span>, <span class="mark-minus">− concurrent plus favorable</span>, <span class="mark-eq">= équivalent</span>, <span class="mark-unk">? non documenté</span>. Marques proposées par l’IA : relisez-les, la grille ne vaut que par ses sources.</p>
     <div class="table-scroll"><table class="grid-pos"><thead><tr><th>Critère</th><th>Notre offre</th>${p.columns.map(c => `<th>${esc(c.name)}</th>`).join('')}</tr></thead>
     <tbody>${p.criteria.map((k, j) => `<tr><th>${esc(k.label)}</th><td class="us">${esc(k.us)}</td>${p.columns.map(c => cell(c.cells[j])).join('')}</tr>`).join('')}</tbody></table></div>
-    <p class="note">Sources : ${p.columns.map(c => `${esc(c.name)} — ${citations(c.source_ids, sources)}`).join(' · ')}</p>
+    <p class="note">Sources : ${p.columns.map(c => `${esc(c.name)} — ${citations(c.source_ids, sources)}`).join(' ; ')}</p>
     ${p.suggestions.length ? `<h3>Pistes pour mieux se positionner</h3><ol>${p.suggestions.map(x => `<li>${esc(x)}</li>`).join('')}</ol>` : ''}</div>`;
 }
 
@@ -135,10 +135,10 @@ export function mountClientResearch(el, getState, { save, invalidate, busy, toas
     <label>Nom, SIREN ou SIRET <input id="company-query" value="${esc(r.query || state.client.company)}"></label>
     <div class="actions"><button class="btn ghost" id="company-search">Rechercher dans l’Annuaire des entreprises</button></div>
     <div id="company-candidates" aria-live="polite"></div>
-    ${entity ? `<div class="card soft"><b>${esc(entity.name)}</b><p>${esc(entity.address)}<br>SIREN ${esc(entity.siren)} · SIRET ${esc(entity.siret)}</p>
+    ${entity ? `<div class="card soft"><b>${esc(entity.name)}</b><p>${esc(entity.address)}<br>SIREN ${esc(entity.siren)}, SIRET ${esc(entity.siret)}</p>
       <dl class="facts">${entityFacts(entity).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
       <p class="note">Source : Annuaire des entreprises${entity.updated ? `, mis à jour le ${esc(entity.updated.slice(0, 10))}` : ''}. Un mandat public ne prouve pas le pouvoir de décision pour cet achat.</p>
-      <p>${link(`https://annuaire-entreprises.data.gouv.fr/etablissement/${entity.siret}`, 'Annuaire officiel')} · ${link(`https://www.pappers.fr/entreprise/${entity.siren}`, 'Consulter Pappers')}</p>
+      <p>${link(`https://annuaire-entreprises.data.gouv.fr/etablissement/${entity.siret}`, 'Annuaire officiel')}, ${link(`https://www.pappers.fr/entreprise/${entity.siren}`, 'Consulter Pappers')}</p>
       <button class="btn ghost small" id="company-refresh">Actualiser les données officielles</button>
       <button class="btn ghost small" id="company-notices">Rechercher les annonces BODACC</button>
       <p class="note">Les 10 annonces les plus récentes sur 24 mois. Pappers : consultation externe uniquement.</p></div>` : ''}
@@ -157,7 +157,7 @@ export function mountClientResearch(el, getState, { save, invalidate, busy, toas
     const candidates = await searchCompanies(query, state.client.location || '');
     if (!current() || fingerprint !== clientFingerprint(state) || !el.isConnected) return;
     const out = el.querySelector('#company-candidates');
-    out.innerHTML = candidates.length ? candidates.map((c, i) => `<div class="card"><b>${esc(c.name)}</b><p>${esc(c.address)}<br>SIREN ${esc(c.siren)} · SIRET ${esc(c.siret)} · ${c.status === 'A' ? 'Actif' : 'Fermé / état à vérifier'}</p><button class="btn ghost small" data-select-company="${i}">Choisir cet établissement</button></div>`).join('') : '<p>Aucun résultat. Vérifiez le nom, la commune ou le numéro. Vous pouvez continuer avec vos notes et des sources web.</p>';
+    out.innerHTML = candidates.length ? candidates.map((c, i) => `<div class="card"><b>${esc(c.name)}</b><p>${esc(c.address)}<br>SIREN ${esc(c.siren)}, SIRET ${esc(c.siret)}. ${c.status === 'A' ? 'Établissement actif.' : 'Fermé ou état à vérifier.'}</p><button class="btn ghost small" data-select-company="${i}">Choisir cet établissement</button></div>`).join('') : '<p>Aucun résultat. Vérifiez le nom, la commune ou le numéro. Vous pouvez continuer avec vos notes et des sources web.</p>';
     out.querySelectorAll('[data-select-company]').forEach(button => button.onclick = () => {
       const c = candidates[+button.dataset.selectCompany];
       if (r.entity && r.entity.siret !== c.siret) state.sources.forEach(s => { s.included = false; s.stale = true; });
