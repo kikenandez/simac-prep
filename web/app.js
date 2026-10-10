@@ -115,7 +115,7 @@ function renderOfferBar() {
   el.innerHTML = `
     <label>Mes offres <small>— conservées dans ce navigateur ; un nouveau rendez-vous garde l’offre en cours</small></label>
     <div class="actions" style="margin:4px 0 0">
-      <select id="offer-pick"><option value="">${all.length ? '— choisir une offre enregistrée —' : '— aucune offre enregistrée —'}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} · ${esc(o.savedAt.slice(0, 10))}</option>`).join('')}</select>
+      <select id="offer-pick"><option value="">${all.length ? '— choisir une offre enregistrée —' : '— aucune offre enregistrée —'}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} (${esc(o.savedAt.slice(0, 10))})</option>`).join('')}</select>
       <button class="btn ghost small" id="offer-save">Enregistrer l’offre</button>
       <button class="btn ghost small" id="offer-new">Nouvelle offre</button>
       <button class="btn ghost small" id="offer-reset" title="Tout effacer (offre, client, persona, SIMAC, suivi), sans enregistrer">Remettre à blanc</button>
@@ -218,7 +218,7 @@ function markDone() {
   };
   $$('#steps button').forEach((b) => b.classList.toggle('done', !!done[b.dataset.step]));
   const cfg = resolve();
-  $('#provider-badge').textContent = cfg.provider === 'mock' ? 'Mode démo (sans IA)' : `${PROVIDERS[cfg.provider]?.label.split(' (')[0]} · ${cfg.model}`;
+  $('#provider-badge').textContent = cfg.provider === 'mock' ? 'Mode démo (sans IA)' : `${PROVIDERS[cfg.provider]?.label.split(' (')[0]}, ${cfg.model}`;
 }
 $('#steps').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.step); });
 $('#btn-new').addEventListener('click', () => {
@@ -238,7 +238,7 @@ function verdictBanner() {
   const v = M.verdict || VERDICT[M.score];
   if (/vente/.test(v)) return '';
   const hint = /travailler/.test(v) ? 'Des trous dans la fiche empêchent d’argumenter sans inventer — complétez l’offre avant un vrai rendez-vous.' : 'Utilisez ce rendez-vous comme un entraînement ; complétez les manques signalés avant de vendre.';
-  return `<div class="card warn"><b>Avis de l’outil : ${esc(v)}</b> (${M.score}/5). ${hint}</div>`;
+  return `<div class="card${M.score < 3 ? ' warn' : ''}"><b>Avis de l’outil : ${esc(v)}</b> (${M.score}/5). ${hint}</div>`;
 }
 
 renderers.offer = () => {
@@ -262,7 +262,7 @@ renderers.offer = () => {
         <span class="note" id="offer-src">${O.sources.length} source(s)</span>
       </div>
       <div id="offer-sources"></div>
-      <div class="actions"><button class="btn" id="offer-extract">Analyser avec l’IA → remplir la fiche</button></div>
+      <div class="actions"><button class="btn" id="offer-extract">Analyser et remplir la fiche avec l’IA</button></div>
       <div id="offer-notes" class="note"></div>
     </div>
 
@@ -299,7 +299,7 @@ renderers.offer = () => {
       <div id="offer-maturity-out"></div>
     </div>
 
-    <div class="actions"><button class="btn" id="next">Continuer → Client</button>
+    <div class="actions"><button class="btn" id="next">Passer à l’étape Client</button>
       <button class="btn ghost small" id="export-offer">Exporter la fiche (JSON)</button>
       <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
@@ -403,8 +403,8 @@ function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
     const n = keys.length - missing.length;
     el.className = 'gaps ' + (essential.length ? 'warn' : 'ok');
     el.innerHTML = essential.length
-      ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}${isFilled(k) ? ' · à renforcer' : ''}</span>`).join(' ')}
-         <button class="btn small gaps-go">Compléter par questions ↓</button>`
+      ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}${isFilled(k) ? ' (à renforcer)' : ''}</span>`).join(' ')}
+         <button class="btn small gaps-go">Compléter par questions</button>`
       : `<b>${n} / ${keys.length} champs remplis.</b> L’essentiel y est${missing.length ? ` — reste facultatif : ${missing.map((k) => labels[k] || k).join(', ')}` : ''}.`;
     if (recheck.length) el.innerHTML += ` <span class="note">Répondu depuis la dernière maturité : ${esc(recheck.map((k) => labels[k] || k).join(', '))} — relancez « Analyser la maturité » pour confirmer.</span>`;
     const essentialKeys = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL) : keys;
@@ -431,7 +431,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
       <button class="btn chat-send">Répondre</button><button class="btn ghost small chat-skip" title="Je ne sais pas / plus tard">Passer</button></div>` : ''}
     ${asked >= hintAt && gapCount ? `<div class="card warn" style="margin:8px 0"><b>${asked} questions et il manque encore ${gapCount} élément(s) essentiel(s).</b> C’est le signe d’une offre pas encore mûre : continuez si les réponses viennent, sinon travaillez-la hors de l’outil (prix, preuves, objections) et revenez — la maturité ne s’atteint pas en répondant vite.</div>` : ''}
     <div class="actions" style="margin-bottom:0">
-      <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Commencer les questions'}</button>
+      <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Poser la première question'}</button>
       <span class="note">${asked} question${asked > 1 ? 's' : ''} posée${asked > 1 ? 's' : ''}</span>
       ${state.chat.length ? '<button class="btn ghost small chat-reset">Nouvelle série</button>' : ''}
     </div>`;
@@ -488,7 +488,7 @@ renderers.client = () => {
       ${field('clientChat.description', 'Texte libre', { hint: 'l’interlocuteur, l’établissement, le rendez-vous (mail, visio, sur place, salon…), ce que vous savez déjà', type: 'textarea', full: true, placeholder: 'Ex. : Rendez-vous jeudi sur place avec la directrice d’un collège privé du 15e, 30 min. Elle veut un projet innovant pour la 3e mais le budget est serré…' })}
       <div class="actions">
         <label class="btn ghost" style="margin:0">Joindre un mail / document <input type="file" id="client-files" accept="${ACCEPT}" multiple hidden></label>
-        <button class="btn" id="client-extract">Analyser avec l’IA → remplir la fiche</button><span class="note" id="client-notes"></span></div>
+        <button class="btn" id="client-extract">Analyser et remplir la fiche client avec l’IA</button><span class="note" id="client-notes"></span></div>
     </div>
 
     <h2>Fiche client</h2>
@@ -521,7 +521,7 @@ renderers.client = () => {
       <span class="note" id="src-count">${S.sources.length} source(s) collectée(s)</span>
     </div>
     <div id="sources"></div>
-    <div class="actions"><button class="btn" id="brief">Préparer ce rendez-vous / cet email avec l’IA</button></div>
+    <div class="actions"><button class="btn" id="brief">Générer la fiche client</button></div>
     <div id="brief-out"></div>`;
   bindInputs($('#main'), S.client, 'client');
   bindInputs($('#main'), C, 'clientChat');
@@ -658,7 +658,7 @@ function renderBrief() {
       ${b.preparation ? `<h3>${S.client.preparationMode === 'email' ? 'Email de prise de contact' : 'Ouverture du rendez-vous'}</h3><p>${esc(b.preparation.opening)}</p>${S.client.preparationMode === 'email' ? `<label>Objet<input id="prep-email-subject" value="${esc(b.preparation.email_subject)}"></label><label>Email à relire<textarea id="prep-email-body">${esc(b.preparation.email_body)}</textarea></label><button class="btn ghost small" id="copy-prep-email">Copier l’email</button>` : ''}` : ''}
       <h3>Questions de découverte</h3><ol class="steps-list">${li(b.questions_to_ask)}</ol>
     </div>
-    <div class="actions"><button class="btn" id="to-persona">Continuer → Persona</button></div>`;
+    <div class="actions"><button class="btn" id="to-persona">Passer à l’étape Persona</button></div>`;
   $('#to-persona').onclick = () => go('persona');
   $('#prep-email-subject')?.addEventListener('input', e => { b.preparation.email_subject = e.target.value; persist(); });
   $('#prep-email-body')?.addEventListener('input', e => { b.preparation.email_body = e.target.value; persist(); });
@@ -677,7 +677,7 @@ renderers.persona = () => {
       <button class="btn" id="ai">Proposer avec l’IA</button>
       ${person().aiScores ? '<span class="note">Proposition IA reçue — ajustez les scores si besoin.</span>' : '<span class="note">Sans IA : notez à la main, puis rédigez le message.</span>'}
     </div>
-    ${multi ? `<div class="tabs" id="people-tabs">${cs.map((c, i) => `<button class="${i === P.current ? 'on' : ''}" data-p="${i}"><span>${esc(contactLabel(c, i))} <small>· ${WEIGHTS[c.weight] || ''}</small></span>${c.role ? `<em>${esc(c.role)}</em>` : ''}</button>`).join('')}</div>` : ''}
+    ${multi ? `<div class="tabs" id="people-tabs">${cs.map((c, i) => `<button class="${i === P.current ? 'on' : ''}" data-p="${i}"><span>${esc(contactLabel(c, i))} <small>(${WEIGHTS[c.weight] || ''})</small></span>${c.role ? `<em>${esc(c.role)}</em>` : ''}</button>`).join('')}</div>` : ''}
     <div class="persona-grid">
       <div class="card radar-card" id="radar"></div>
       <div class="soncas" id="soncas"></div>
@@ -688,7 +688,7 @@ renderers.persona = () => {
       <textarea data-bind="persona.main_message" class="main-message" placeholder="1 à 2 phrases, bâties sur les 3 motivations les plus fortes${multi ? ' de la personne qui décide, sans contredire les autres' : ''}"></textarea>
     </div>
     ${(P.gaps || []).length ? `<div class="card"><h3>Ce qui manque à la fiche offre pour ce client</h3><ul class="plain">${P.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">Complétez l’offre (étape 1) puis relancez : rien de ceci ne sera inventé.</p></div>` : ''}
-    <div class="actions"><button class="btn" id="next">Continuer → SIMAC</button></div>`;
+    <div class="actions"><button class="btn" id="next">Passer à l’étape SIMAC</button></div>`;
   bindInputs($('#main'), P, 'persona');
   renderSoncas();
   $$('#people-tabs button').forEach((b) => (b.onclick = () => { P.current = +b.dataset.p; persist(); renderers.persona(); }));
@@ -732,7 +732,7 @@ function capThrees(scores) {
 }
 function renderSoncas() {
   const P = person(); const t3 = top3(P.scores);
-  $('#top3').textContent = t3.map(label).join(' · ');
+  $('#top3').textContent = t3.map(label).join(', ');
   if ($('#radar')) $('#radar').innerHTML = soncasRadar(P.scores, P.aiScores);
   $('#soncas').innerHTML = SONCAS.map((d) => `
     <div class="dim ${t3.includes(d.code) ? 'top' : ''}">
@@ -788,7 +788,7 @@ function renderSimac() {
       <div class="simac-block"><div class="k">Situation</div>${ta('situation', M.situation)}</div>
       <div class="simac-block"><div class="k">Idée</div>${ta('idea', M.idea)}</div>
       <div class="simac-block"><div class="k">Mécanisme — prix en dernier</div>${list('mechanism', M.mechanism)}</div>
-      <div class="simac-block"><div class="k">Avantages — chacun reformule un besoin${contacts().length > 1 ? ' · « Pour X : … » par interlocuteur' : ''}</div>${list('advantages', M.advantages)}</div>
+      <div class="simac-block"><div class="k">Avantages — chacun reformule un besoin${contacts().length > 1 ? ', avec un « Pour X : … » par interlocuteur' : ''}</div>${list('advantages', M.advantages)}</div>
       <div class="simac-block"><div class="k">Conclusion — question, deux options, étape suivante</div>${ta('conclusion', M.conclusion)}</div>
     </div>
     <div class="card">
@@ -798,11 +798,11 @@ function renderSimac() {
       ${(M.mistakes_watch || []).length ? `<h3>Erreurs à surveiller dans ce RDV</h3><ul class="plain">${M.mistakes_watch.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
     </div>
     ${(M.gaps || []).length ? `<div class="card"><h3>Ce que la fiche offre ne permet pas de dire</h3><ul class="plain">${M.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">Rien n’a été inventé pour combler ces points : complétez l’offre (étape 1) et relancez.</p></div>` : ''}
-    <div class="card warn"><b>Avant d’entrer :</b> plancher connu · leviers sans remise listés · on ne repart jamais sans <b>une date</b> et <b>le nom du décideur</b>.</div>
+    <div class="card">Avant d’entrer, connaissez votre plancher et listez les leviers qui ne sont pas des remises. Ne repartez jamais sans <b>une date</b> et <b>le nom du décideur</b>.</div>
     <div class="actions">
       <button class="btn ghost" id="print">Imprimer / PDF</button>
       <button class="btn ghost" id="copy">Copier le script</button>
-      <button class="btn" id="next">Après le RDV → Suivi</button>
+      <button class="btn" id="next">Passer au suivi du rendez-vous</button>
     </div>`;
   $$('textarea[data-k]', el).forEach((t) => t.addEventListener('input', () => {
     M[t.dataset.k] = t.hasAttribute('data-list') ? t.value.split('\n').map((x) => x.trim()).filter(Boolean) : t.value; persist();
@@ -828,7 +828,7 @@ renderers.followup = () => {
     <div class="card">
       <h2>Raconter</h2>
       ${field('debrief.description', 'Texte libre', { hint: 'comment ça s’est passé, ce qu’il a dit, ce qui a été convenu et pour quand', type: 'textarea', full: true, placeholder: 'Ex. : Bon accueil, il veut l’avis de sa prof d’histoire avant de décider. Budget déjà engagé cette année. On s’est mis d’accord : je présente 30 min à la prof et à la documentaliste mardi prochain, j’envoie le dossier avant.' })}
-      <div class="actions"><button class="btn" id="debrief-extract">Analyser avec l’IA → remplir le débrief</button><span class="note" id="debrief-notes"></span></div>
+      <div class="actions"><button class="btn" id="debrief-extract">Analyser et remplir le débrief avec l’IA</button><span class="note" id="debrief-notes"></span></div>
     </div>
     <div class="grid">
       <div><label>Résultat</label><select data-bind="debrief.outcome">
@@ -950,7 +950,7 @@ renderers.history = () => {
       <table><thead><tr><th>Date</th><th>Entreprise / contact</th><th>Offre</th><th>Top SONCAS</th><th>Résultat</th><th>Suite</th><th></th></tr></thead>
       <tbody>${all.map((m) => `<tr><td>${esc(m.date)}</td><td><b>${esc(m.company)}</b><br><small>${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0] || c[1]).map((c) => esc(`${c[0]}${c[1] ? ' — ' + c[1] : ''}`)).join('<br>')}</small></td>
         <td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td>
-        <td>${[[m.next_action, m.next_owner, m.next_due, m.next_status], [m.action2, m.action2_owner, m.action2_due, m.action2_status], [m.action3, m.action3_owner, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `<span class="st-dot st-${esc(a[3] || 'todo')}" title="${esc(ACTION_STATUS[a[3]] || 'À lancer')}"></span>${esc(a[0])}<br><small>${esc(a[1] === 'me' ? 'moi' : a[1] || '')} · ${esc(a[2] || '')}</small>`).join('<br>')}</td>
+        <td>${[[m.next_action, m.next_owner, m.next_due, m.next_status], [m.action2, m.action2_owner, m.action2_due, m.action2_status], [m.action3, m.action3_owner, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `<span class="st-dot st-${esc(a[3] || 'todo')}" title="${esc(ACTION_STATUS[a[3]] || 'À lancer')}"></span>${esc(a[0])}<br><small>${esc(a[1] === 'me' ? 'moi' : a[1] || '')}${a[2] ? `, ${esc(a[2])}` : ''}</small>`).join('<br>')}</td>
         <td><button class="btn ghost small" data-load="${m.id}">Ouvrir</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
         || '<tr><td colspan="7" class="note">Aucun rendez-vous enregistré.</td></tr>'}</tbody></table>
     </div>`;
@@ -986,29 +986,29 @@ renderers.settings = () => {
   $('#main').innerHTML = `
     <h1>Réglages — IA gratuite, au choix</h1>
     <p class="lead">Aucun serveur : votre clé reste dans ce navigateur et n’est envoyée qu’au fournisseur choisi. Tous ceux listés ont une offre gratuite, ou tournent sur votre machine.</p>
-    <div class="card warn"><b>Clé gratuite = pour tester et pour les données publiques</b> (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> pour traiter l’IA localement. Les recherches web et officielles contactent toujours leurs fournisseurs.</div>
+    <div class="card warn">Une clé gratuite sert à tester et à traiter des données publiques (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> pour traiter l’IA localement. Les recherches web et officielles contactent toujours leurs fournisseurs.</div>
     <div class="card"><div class="grid">
       <div><label>Fournisseur</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
       <div><label>Clé API <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
       <div><label>Modèle <small>— vide = défaut</small></label><input id="model" list="model-list" value="${esc(s.model)}" placeholder="${esc(PROVIDERS[s.provider]?.model || '')}"><datalist id="model-list"></datalist>
         <button class="btn ghost small" id="models" style="margin-top:6px">Lister les modèles</button> <small class="muted" id="models-note">les noms changent souvent : vérifiez ici en cas d'erreur « modèle introuvable »</small></div>
       <div><label>URL de base <small>— vide = défaut</small></label><input id="baseUrl" value="${esc(s.baseUrl)}" placeholder="${esc(PROVIDERS[s.provider]?.baseUrl || '')}"></div>
-      <div class="full"><label>Clé Jina (requise pour la recherche web) <small>— lecture de pages sans clé à faible volume ; recherche avec clé et crédits sur <a href="https://jina.ai/reader" target="_blank" rel="noopener">jina.ai</a></small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
+      <div class="full"><label>Clé Jina (requise pour la recherche web) <small>— lecture de pages sans clé à faible volume ; recherche avec clé et crédits sur <a href="https://jina.ai/reader" target="_blank" rel="noopener" aria-label="jina.ai (nouvel onglet)">jina.ai</a></small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
     </div>
     <div class="actions"><button class="btn" id="save">Enregistrer</button><button class="btn ghost" id="test">Tester</button></div></div>
     <div class="card">
       <h2>Comment obtenir une clé gratuite</h2>
       <ul class="plain">
-        <li><b>Groq</b> — rapide, Llama 3.3 70B, quota gratuit généreux : <a href="https://console.groq.com/keys" target="_blank" rel="noopener">console.groq.com/keys</a></li>
-        <li><b>Google Gemini</b> — Gemini Flash, gratuit : <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">aistudio.google.com/apikey</a></li>
-        <li><b>Mistral</b> — plan « Experiment » gratuit, modèles français : <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener">console.mistral.ai</a></li>
-        <li><b>OpenRouter</b> — modèles suffixés <code>:free</code> : <a href="https://openrouter.ai/keys" target="_blank" rel="noopener">openrouter.ai/keys</a></li>
-        <li><b>Claude (Anthropic)</b> — payant, à l’usage (quelques centimes par rendez-vous), données non utilisées pour l’entraînement : <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a> — le choix « Travailler » ci-dessous.</li>
+        <li><b>Groq</b> — rapide, Llama 3.3 70B, quota gratuit généreux : <a href="https://console.groq.com/keys" target="_blank" rel="noopener" aria-label="console.groq.com/keys (nouvel onglet)">console.groq.com/keys</a></li>
+        <li><b>Google Gemini</b> — Gemini Flash, gratuit : <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" aria-label="aistudio.google.com/apikey (nouvel onglet)">aistudio.google.com/apikey</a></li>
+        <li><b>Mistral</b> — plan « Experiment » gratuit, modèles français : <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener" aria-label="console.mistral.ai (nouvel onglet)">console.mistral.ai</a></li>
+        <li><b>OpenRouter</b> — modèles suffixés <code>:free</code> : <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" aria-label="openrouter.ai/keys (nouvel onglet)">openrouter.ai/keys</a></li>
+        <li><b>Claude (Anthropic)</b> — payant, à l’usage (quelques centimes par rendez-vous), données non utilisées pour l’entraînement : <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" aria-label="console.anthropic.com (nouvel onglet)">console.anthropic.com</a> — le choix « Travailler » ci-dessous.</li>
         <li><b>Ollama</b> — 100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.</li>
         <li><b>Mode démo</b> — génération IA sans réseau ; les boutons de recherche contactent les sources publiques.</li>
       </ul>
       <h3>Limites de la version gratuite</h3>
-      <p class="note">${CONFIG.limits.sourcesPerStep} sources par étape, ${CONFIG.limits.charsPerSource.toLocaleString('fr-FR')} caractères conservés par source, ${CONFIG.limits.totalChars.toLocaleString('fr-FR')} caractères envoyés à l’IA par analyse. Dimensionné pour que les réponses soient toujours complètes.</p>
+      <p class="note">${CONFIG.limits.sourcesPerStep} sources par étape, ${CONFIG.limits.charsPerSource.toLocaleString('fr-FR')} caractères conservés par source, ${CONFIG.limits.totalChars.toLocaleString('fr-FR')} caractères envoyés à l’IA par analyse, pour que les réponses restent complètes.</p>
       <div class="card soft" id="managed-interest"></div>
       <h3>Données sensibles : trois niveaux</h3>
       <ul class="plain">
@@ -1018,7 +1018,7 @@ renderers.settings = () => {
       </ul>
       <p class="note">Les quotas gratuits évoluent ; en cas d’erreur 429, changez de fournisseur. Vos données de rendez-vous restent dans ce navigateur (voir Historique pour l’export CSV).</p>
     </div>`;
-  const keyhelp = () => { const p = PROVIDERS[$('#provider').value]; $('#keyhelp').innerHTML = p.needsKey ? `— <a href="${p.keyUrl}" target="_blank" rel="noopener">obtenir</a>` : '— non requise'; $('#model').placeholder = p.model; $('#baseUrl').placeholder = p.baseUrl; };
+  const keyhelp = () => { const p = PROVIDERS[$('#provider').value]; $('#keyhelp').innerHTML = p.needsKey ? `— <a href="${p.keyUrl}" target="_blank" rel="noopener" aria-label="Obtenir une clé (nouvel onglet)">obtenir</a>` : '— non requise'; $('#model').placeholder = p.model; $('#baseUrl').placeholder = p.baseUrl; };
   keyhelp(); $('#provider').onchange = keyhelp;
   renderManagedInterest();
   const read = () => ({ provider: $('#provider').value, apiKey: $('#apiKey').value.trim(), model: $('#model').value.trim(), baseUrl: $('#baseUrl').value.trim(), jinaKey: $('#jinaKey').value.trim() });
@@ -1049,9 +1049,9 @@ function renderManagedInterest() {
   const subject = encodeURIComponent('SIMAC Prep — version gérée : ça m’intéresse');
   const body = encodeURIComponent(`Bonjour,\n\nUne version de SIMAC Prep où les clés et les appels IA sont pris en charge (sans plafonds, sans clé à gérer) m’intéresserait.\n\nMon usage : [quelques mots : combien de rendez-vous par mois, quel type de clients]\n\n${email ? `Adresse : ${email}\n` : ''}`);
   el.innerHTML = done
-    ? `<b>Version gérée — merci, c’est noté${done.at ? ` (${done.at.slice(0, 10)})` : ''}.</b> <span class="note">Clés et appels IA pris en charge, plafonds étendus : elle existera si la demande est là. Nous vous écrirons.</span>`
-    : `<b>Une version gérée vous intéresserait ?</b> <span class="note">Clés et appels IA pris en charge, plafonds étendus, rien à configurer. Elle n’existe pas encore : nous la construirons si la demande est là.</span>
-       <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="mailto:${CONFIG.contact}?subject=${subject}&body=${body}">Ça m’intéresse — envoyer un mot</a></div>`;
+    ? `<span class="note">Merci, votre intérêt pour une version gérée est noté${done.at ? ` (${done.at.slice(0, 10)})` : ''}. Elle existera si la demande est là, et nous vous écrirons.</span>`
+    : `<b>Une version gérée vous intéresserait ?</b> <span class="note">Les clés et les appels IA y seraient pris en charge, avec des plafonds plus larges. Elle n’existe pas encore et nous la construirons si la demande est là.</span>
+       <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="mailto:${CONFIG.contact}?subject=${subject}&body=${body}">Écrire pour dire que ça m’intéresse</a></div>`;
   $('#interest-yes')?.addEventListener('click', () => { try { localStorage.setItem(INTEREST_KEY, JSON.stringify({ at: new Date().toISOString() })); } catch {} setTimeout(renderManagedInterest, 500); });
 }
 
@@ -1073,7 +1073,7 @@ const printViews = {
     const M = S.offer?.maturity; const m = S.market?.comparison;
     return `<h1>Offre — ${esc(S.product.name || '')}</h1>
       <div class="pgrid">${OFFER_KEY_ORDER.map((k) => P.row(FIELD_LABELS[k] || k, S.product[k])).join('')}</div>
-      ${M ? `<h2>Maturité : ${M.score} / 5 — ${esc(M.label || MATURITY[M.score])} · ${esc(M.verdict || VERDICT[M.score])}</h2><p>${esc(M.summary || '')}</p>
+      ${M ? `<h2>Maturité : ${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</h2><p>Avis de l’outil : ${esc(M.verdict || VERDICT[M.score])}.</p><p>${esc(M.summary || '')}</p>
         <div class="pgrid"><div><b>Points forts</b>${P.ul(M.strengths)}</div><div><b>Ce qui bloque la vente</b>${P.ul(M.gaps, (g) => `<b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} → ${esc(g.fix)}`)}</div></div>
         ${M.next_step ? `<p><b>À faire avant le prochain rendez-vous :</b> ${esc(M.next_step)}</p>` : ''}` : ''}
       ${m && (m.summary || m.alternatives) ? `<h2>Concurrents et alternatives (candidats à vérifier)</h2><p>${esc(m.summary || '')}</p>${P.ul(m.alternatives || m.items, (a) => `<b>${esc(a.name || '')}</b> — ${esc(a.positioning || a.summary || '')}`)}` : ''}`;
@@ -1091,7 +1091,7 @@ const printViews = {
   persona() {
     syncPeople();
     const blocks = S.client.contacts.map((c, i) => { const pp = S.persona.people[i]; const t3 = top3(pp.scores);
-      return `<h2>${esc(contactLabel(c, i))} <small>· ${esc(c.role || '')} · ${WEIGHTS[c.weight] || ''}</small> — top 3 : ${t3.map(label).join(' · ')}</h2>
+      return `<h2>${esc(contactLabel(c, i))} <small>(${[c.role, WEIGHTS[c.weight]].filter(Boolean).map(esc).join(', ')})</small> — top 3 : ${t3.map(label).join(', ')}</h2>
         <table class="ptable"><thead><tr><th>Motivation</th><th>Score</th><th>Pourquoi</th><th>Arguments</th></tr></thead><tbody>
         ${SONCAS.map((d) => `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${d.label}</td><td>${pp.scores[d.code]}</td><td>${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(pp.arguments?.[d.code])}</td></tr>`).join('')}</tbody></table>`; }).join('');
     return `<h1>Persona SONCAS — ${esc(S.client.company || '')}</h1>${blocks}
@@ -1101,7 +1101,7 @@ const printViews = {
   simac() {
     const M = S.simac || {}; const multi = contacts().length > 1;
     return `<h1>Déroulé SIMAC — ${esc(S.client.company || '')} / ${esc(contacts().map((c, i) => contactLabel(c, i)).join(', '))}</h1>
-      <p><b>Objectif :</b> ${esc(S.objective.primary || '')} <b>· Repli :</b> ${esc(S.objective.fallback || '')}</p>
+      <p><b>Objectif :</b> ${esc(S.objective.primary || '')}<br><b>Repli :</b> ${esc(S.objective.fallback || '')}</p>
       <div class="pbox"><b>Message principal</b><br>${P.text(S.persona.main_message)}</div>
       ${P.row('Ouverture (20 premières secondes)', M.opening)}${P.row('Situation', M.situation)}${P.row('Idée', M.idea)}
       ${P.row('Mécanisme — prix en dernier', (M.mechanism || []).map((x, i) => `${i + 1}. ${x}`).join('\n'))}
@@ -1109,7 +1109,7 @@ const printViews = {
       ${P.row('Conclusion — question, deux options, étape suivante', M.conclusion)}
       ${(M.objections || []).length ? `<h2>Objections probables</h2><table class="ptable"><thead><tr>${multi ? '<th>Qui</th>' : ''}<th>Objection</th><th>Accueillir → creuser → répondre → relancer</th></tr></thead><tbody>${M.objections.map((o) => `<tr>${multi ? `<td>${esc(o.who || '')}</td>` : ''}<td>${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('')}</tbody></table>` : ''}
       ${(M.mistakes_watch || []).length ? `<h3>Erreurs à surveiller</h3>${P.ul(M.mistakes_watch)}` : ''}
-      <p class="note">Avant d’entrer : plancher connu · leviers sans remise listés · on ne repart jamais sans une date et le nom du décideur.</p>`;
+      <p class="note">Avant d’entrer, connaissez votre plancher et listez les leviers qui ne sont pas des remises. Ne repartez jamais sans une date et le nom du décideur.</p>`;
   },
   followup() {
     const D = S.debrief; const F = S.followup;
@@ -1132,9 +1132,9 @@ window.addEventListener('beforeprint', () => {
   $('#print-view')?.remove();
   const who = [S.client.company, contacts().map((c, i) => contactLabel(c, i)).join(', ')].filter(Boolean).join(' — ');
   const v = document.createElement('div'); v.id = 'print-view';
-  v.innerHTML = `<div class="print-head"><b>SIMAC Prep · ${esc(STEP_TITLES[step])}</b> · ${esc(S.product.name || '')}${who ? ' · ' + esc(who) : ''} · ${esc(S.date)}</div>
+  v.innerHTML = `<div class="print-head"><b>SIMAC Prep, ${esc(STEP_TITLES[step])}.</b> ${[S.product.name, who, S.date].filter(Boolean).map(esc).join(', ')}</div>
     ${printViews[step]()}
-    <div class="print-foot"><p class="print-credit">Ce document a été préparé avec <b>SIMAC Prep</b> — simac.avapmo.com · un outil AVApmo (adp.avapmo.com) · contact : ${esc(CONFIG.contact)}</p>
+    <div class="print-foot"><p class="print-credit">Ce document a été préparé avec <b>SIMAC Prep</b> (simac.avapmo.com), un outil AVApmo (adp.avapmo.com). Contact : ${esc(CONFIG.contact)}.</p>
       <p>Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.</p></div>`;
   document.body.appendChild(v);
 });
