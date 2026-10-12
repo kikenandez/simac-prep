@@ -10,6 +10,7 @@ import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDra
 import { download } from './lib/csv.js';
 import { localDay } from './lib/dates.js';
 import { icsEvent, icsCalendar, googleCalendarUrl, dueBuckets, ACTION_COLUMNS } from './lib/agenda.js';
+import { mailLinks } from './lib/safety.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
@@ -662,13 +663,14 @@ function renderBrief() {
       ${(b.participants || []).map(p => `<div class="card soft"><h3>${esc(p.name)}</h3><p>${esc(p.documented_role)} — ${esc(p.identity_check)}</p><p>${t('À explorer :')} ${esc(p.hypothesis)}</p><p><b>${t('Question :')}</b> ${esc(p.question)}</p><p class="note">${citations(p.source_ids, evidence)}</p></div>`).join('')}
       ${(b.signals || []).map(s => `<p><b>${esc(s.fact)}</b><br>${esc(s.relevance)}<br>${t('Question :')} ${esc(s.question)}<br>${citations(s.source_ids, evidence)}</p>`).join('')}
       ${(b.competitive_context || []).length ? `<h3>${t('Comparaisons à préparer')}</h3><ul>${li(b.competitive_context)}</ul>` : ''}
-      ${b.preparation ? `<h3>${S.client.preparationMode === 'email' ? t('Email de prise de contact') : t('Ouverture du rendez-vous')}</h3><p>${esc(b.preparation.opening)}</p>${S.client.preparationMode === 'email' ? `<label>${t('Objet')}<input id="prep-email-subject" value="${esc(b.preparation.email_subject)}"></label><label>${t('Email à relire')}<textarea id="prep-email-body">${esc(b.preparation.email_body)}</textarea></label><button class="btn ghost small" id="copy-prep-email">${t('Copier l’email')}</button>` : ''}` : ''}
+      ${b.preparation ? `<h3>${S.client.preparationMode === 'email' ? t('Email de prise de contact') : t('Ouverture du rendez-vous')}</h3><p>${esc(b.preparation.opening)}</p>${S.client.preparationMode === 'email' ? `<label>${t('Objet')}<input id="prep-email-subject" value="${esc(b.preparation.email_subject)}"></label><label>${t('Email à relire')}<textarea id="prep-email-body">${esc(b.preparation.email_body)}</textarea></label><button class="btn ghost small" id="copy-prep-email">${t('Copier l’email')}</button><span class="actions" id="prep-email-links" style="display:inline-flex;margin:0 0 0 6px">${composeLinks({ subject: b.preparation.email_subject, body: b.preparation.email_body })}</span>` : ''}` : ''}
       <h3>${t('Questions de découverte')}</h3><ol class="steps-list">${li(b.questions_to_ask)}</ol>
     </div>
     <div class="actions"><button class="btn" id="to-persona">${t('Passer à l’étape Persona')}</button></div>`;
   $('#to-persona').onclick = () => go('persona');
-  $('#prep-email-subject')?.addEventListener('input', e => { b.preparation.email_subject = e.target.value; persist(); });
-  $('#prep-email-body')?.addEventListener('input', e => { b.preparation.email_body = e.target.value; persist(); });
+  const refreshPrepLinks = () => { const el = $('#prep-email-links'); if (el) el.innerHTML = composeLinks({ subject: b.preparation.email_subject, body: b.preparation.email_body }); };
+  $('#prep-email-subject')?.addEventListener('input', e => { b.preparation.email_subject = e.target.value; persist(); refreshPrepLinks(); });
+  $('#prep-email-body')?.addEventListener('input', e => { b.preparation.email_body = e.target.value; persist(); refreshPrepLinks(); });
   $('#copy-prep-email')?.addEventListener('click', e => busy(e.currentTarget, async () => { await navigator.clipboard.writeText(`${b.preparation.email_subject}\n\n${b.preparation.email_body}`); toast(t('Email copié.')); }));
 }
 
@@ -942,14 +944,19 @@ function renderActionsAgenda() {
   $$('[data-ics]', el).forEach((b) => (b.onclick = () => downloadIcs([events.find((e) => e.uid === b.dataset.ics)], `simac-relance-${localDay()}.ics`)));
   $('#ics-all')?.addEventListener('click', () => downloadIcs(events, `simac-relances-${localDay()}.ics`));
 }
+/** Ouvrir un mail prérempli : messagerie locale (mailto:), ou Gmail / Outlook web quand aucune n'est configurée. */
+function composeLinks({ subject, body }) {
+  const l = mailLinks({ subject: subject || '', body: body || '' });
+  const ext = (href, label) => `<a class="btn ghost small" href="${esc(href)}" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: label })}">${label}</a>`;
+  return `<a class="btn ghost small" href="${esc(l.mailto)}">${t('Ouvrir dans ma messagerie')}</a> ${ext(l.gmail, 'Gmail')} ${ext(l.outlook, 'Outlook')}`;
+}
 function renderFollowup() {
   const el = $('#fu-out'); const F = S.followup; if (!F) { el.innerHTML = ''; return; }
   el.innerHTML = `
     <div class="card"><h2>${t('Mail de suivi')}</h2>
       <p><b>${t('Objet :')}</b> ${esc(F.email_subject)}</p>
       <pre class="email" id="email">${esc(F.email_body)}</pre>
-      <div class="actions"><button class="btn ghost small" id="copy-mail">${t('Copier')}</button>
-        <a class="btn ghost small" href="mailto:?subject=${encodeURIComponent(F.email_subject || '')}&body=${encodeURIComponent(F.email_body || '')}">${t('Ouvrir dans ma messagerie')}</a></div>
+      <div class="actions"><button class="btn ghost small" id="copy-mail">${t('Copier')}</button>${composeLinks({ subject: F.email_subject, body: F.email_body })}</div>
       ${(F.lessons || []).length ? `<h3>${t('Leçons pour la prochaine fois')}</h3><ul class="plain">${F.lessons.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
     </div>`;
   $('#copy-mail').onclick = () => navigator.clipboard.writeText(`${F.email_subject}\n\n${F.email_body}`).then(() => toast(t('Mail copié.')));
