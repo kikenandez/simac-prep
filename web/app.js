@@ -1047,17 +1047,51 @@ renderers.settings = () => {
 // Pas de version payante tant que la demande n'est pas là : on la mesure. Zéro serveur → un mail pré-rempli,
 // compté dans la boîte contact@ ; le clic est mémorisé localement pour ne pas redemander.
 const INTEREST_KEY = 'simac.interest.managed';
+// Fonctions candidates de la version gérée, à cocher dans le mail : c'est la mesure de ce qui est réellement demandé.
+// Codes stables (comptés dans la boîte contact@) ; libellés traduits à l'affichage.
+const INTEREST_FEATURES = [
+  ['keys', t('IA et recherche incluses, sans clé à configurer')],
+  ['backup', t('Dossiers sauvegardés et chiffrés, retrouvés sur tous mes postes')],
+  ['reminders', t('Rappel par email des relances à faire')],
+  ['calendar', t('Mes relances dans mon agenda (flux abonnable)')],
+  ['data', t('Données officielles et financières des entreprises incluses')],
+  ['mcp', t('Préparer un rendez-vous depuis Claude ou ChatGPT')],
+];
+const INTEREST_USAGE = [
+  ['multi', t('J’utilise SIMAC Prep sur plusieurs postes')],
+  ['lost', t('J’ai déjà perdu des dossiers (navigateur vidé, autre poste)')],
+];
 function renderManagedInterest() {
   const el = $('#managed-interest'); if (!el) return;
   let done = null; try { done = JSON.parse(localStorage.getItem(INTEREST_KEY) || 'null'); } catch {}
+  if (done) {
+    el.innerHTML = `<span class="note">${done.at ? t('Merci, votre intérêt pour une version gérée est noté ({date}). Elle existera si la demande est là, et nous vous écrirons.', { date: done.at.slice(0, 10) }) : t('Merci, votre intérêt pour une version gérée est noté. Elle existera si la demande est là, et nous vous écrirons.')}</span>`;
+    return;
+  }
   const email = getConsent()?.email || '';
-  const subject = encodeURIComponent(t('SIMAC Prep — version gérée : ça m’intéresse'));
-  const body = encodeURIComponent(t('Bonjour,\n\nUne version de SIMAC Prep où les clés et les appels IA sont pris en charge (sans plafonds, sans clé à gérer) m’intéresserait.\n\nMon usage : [quelques mots : combien de rendez-vous par mois, quel type de clients]\n\n') + (email ? t('Adresse : {email}', { email }) + '\n' : ''));
-  el.innerHTML = done
-    ? `<span class="note">${done.at ? t('Merci, votre intérêt pour une version gérée est noté ({date}). Elle existera si la demande est là, et nous vous écrirons.', { date: done.at.slice(0, 10) }) : t('Merci, votre intérêt pour une version gérée est noté. Elle existera si la demande est là, et nous vous écrirons.')}</span>`
-    : `<b>${t('Une version gérée vous intéresserait ?')}</b> <span class="note">${t('Les clés et les appels IA y seraient pris en charge, avec des plafonds plus larges. Elle n’existe pas encore et nous la construirons si la demande est là.')}</span>
-       <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="mailto:${CONFIG.contact}?subject=${subject}&body=${body}">${t('Écrire pour dire que ça m’intéresse')}</a></div>`;
-  $('#interest-yes')?.addEventListener('click', () => { try { localStorage.setItem(INTEREST_KEY, JSON.stringify({ at: new Date().toISOString() })); } catch {} setTimeout(renderManagedInterest, 500); });
+  const box = (code, label, name) => `<label class="check"><input type="checkbox" name="${name}" value="${code}"> <span>${label}</span></label>`;
+  el.innerHTML = `<b>${t('Une version gérée vous intéresserait ?')}</b> <span class="note">${t('Les clés et les appels IA y seraient pris en charge, avec des plafonds plus larges. Elle n’existe pas encore et nous la construirons si la demande est là.')}</span>
+     <p class="note" style="margin:8px 0 2px">${t('Cochez ce qui vous serait utile — c’est ce que nous construirons en premier :')}</p>
+     <div class="check-list" id="interest-features">${INTEREST_FEATURES.map(([c, l]) => box(c, l, 'feature')).join('')}</div>
+     <div class="check-list" id="interest-usage">${INTEREST_USAGE.map(([c, l]) => box(c, l, 'usage')).join('')}</div>
+     <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="#">${t('Écrire pour dire que ça m’intéresse')}</a></div>`;
+  const link = $('#interest-yes');
+  const build = () => {
+    const picked = (name) => $$(`input[name="${name}"]:checked`, el).map((i) => i.value);
+    const features = picked('feature'), usage = picked('usage');
+    const lines = [t('Bonjour,'), '', t('Une version de SIMAC Prep où les clés et les appels IA sont pris en charge (sans plafonds, sans clé à gérer) m’intéresserait.'), ''];
+    lines.push(t('Ce qui me serait utile :'));
+    for (const [c, l] of INTEREST_FEATURES) lines.push(`[${features.includes(c) ? 'x' : ' '}] ${l}`);
+    lines.push('', t('Mon usage :'));
+    for (const [c, l] of INTEREST_USAGE) lines.push(`[${usage.includes(c) ? 'x' : ' '}] ${l}`);
+    lines.push(`[ ] ${t('Combien de rendez-vous par mois, quel type de clients : …')}`, '');
+    if (email) lines.push(t('Adresse : {email}', { email }));
+    lines.push('', `Fonctions: ${features.join(',') || '-'} | Usage: ${usage.join(',') || '-'} | Lang: ${LANG}`);
+    link.href = `mailto:${CONFIG.contact}?subject=${encodeURIComponent(t('SIMAC Prep — version gérée : ça m’intéresse'))}&body=${encodeURIComponent(lines.join('\n'))}`;
+  };
+  build();
+  $$('input[type="checkbox"]', el).forEach((i) => i.addEventListener('change', build));
+  link.addEventListener('click', () => { try { localStorage.setItem(INTEREST_KEY, JSON.stringify({ at: new Date().toISOString(), features: $$('input[name="feature"]:checked', el).map((i) => i.value) })); } catch {} setTimeout(renderManagedInterest, 500); });
 }
 
 // ----------------------------------------------------------------------------- impression / PDF
