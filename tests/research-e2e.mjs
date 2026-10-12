@@ -93,7 +93,7 @@ try {
   await page.waitForFunction(() => document.querySelector('#toast').textContent.includes('503'));
   assert.equal(await page.locator('#sources .evidence').count(), 2);
   bodaccUnavailable = false;
-  await page.selectOption('#client-search-angle', '1');
+  await page.selectOption('#client-search-angle', '2');
   assert.match(await page.inputValue('#client-search-query'), /Alice Martin.*Direction/);
   await page.click('#client-research-search');
   await page.waitForFunction(() => document.querySelectorAll('#sources .evidence').length === 3);
