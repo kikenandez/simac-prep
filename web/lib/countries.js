@@ -1,7 +1,7 @@
 // lib/countries.js — pays du marché et du client : mots de recherche et sources publiques à consulter.
 // Seule la France a des API officielles ouvertes sans clé et avec CORS (Annuaire des entreprises, BODACC) :
 // pour les autres pays, l'outil propose des liens de consultation (registres, avis, emploi) et des recherches web ciblées.
-import { lang } from './i18n.js';
+import { lang, t } from './i18n.js';
 
 const q = (s) => encodeURIComponent(String(s || '').trim());
 // Computrabajo : mots-clés en slug (« trabajo-de-acme-co »)
@@ -193,4 +193,21 @@ export function marketLabel(code = getCountry()) {
     en: { FR: 'France', CO: 'Colombia', MX: 'Mexico', PA: 'Panama', AR: 'Argentina', CL: 'Chile', UY: 'Uruguay', PE: 'Peru', EC: 'Ecuador', VE: 'Venezuela', GT: 'Guatemala', SV: 'El Salvador', HN: 'Honduras', NI: 'Nicaragua', CR: 'Costa Rica', ES: 'Spain', US: 'United States', CA: 'Canada', GB: 'United Kingdom', BE: 'Belgium', INT: 'International' },
     es: { FR: 'Francia', CO: 'Colombia', MX: 'México', PA: 'Panamá', AR: 'Argentina', CL: 'Chile', UY: 'Uruguay', PE: 'Perú', EC: 'Ecuador', VE: 'Venezuela', GT: 'Guatemala', SV: 'El Salvador', HN: 'Honduras', NI: 'Nicaragua', CR: 'Costa Rica', ES: 'España', US: 'Estados Unidos', CA: 'Canadá', GB: 'Reino Unido', BE: 'Bélgica', INT: 'Internacional' } };
   return (names[lang()] || names.fr)[code] || code;
+}
+
+/** Drapeau emoji à partir du code ISO (« FR » → 🇫🇷) ; globe pour International. Sans police emoji (Windows), les lettres s'affichent. */
+export const flag = (code) => (code === 'INT' ? '🌐' : String.fromCodePoint(...[...code].map((c) => 0x1f1a5 + c.charCodeAt(0))));
+/** Options « 🇫🇷 France » du sélecteur, dans la langue de l'interface. */
+export const countryOptions = (selected = getCountry()) => Object.keys(COUNTRIES)
+  .map((k) => `<option value="${k}" ${k === selected ? 'selected' : ''}>${flag(k)} ${marketLabel(k)}</option>`).join('');
+/** Sélecteur de pays dans chaque élément .country-switch ; onChange redessine la vue en cours. */
+export function mountCountrySwitch(onChange, root = document) {
+  root.querySelectorAll('.country-switch').forEach((el) => {
+    el.innerHTML = `<select aria-label="${t('Pays : recherches et sources')}" title="${t('Pays : recherches et sources')}">${countryOptions()}</select>`;
+    el.querySelector('select').onchange = (e) => { setCountry(e.target.value); syncCountrySwitches(); onChange?.(); };
+  });
+}
+/** Garde les sélecteurs de pays (barre du haut et cartes) alignés après un changement. */
+export function syncCountrySwitches(root = document) {
+  root.querySelectorAll('.country-switch select').forEach((s) => { s.value = getCountry(); });
 }

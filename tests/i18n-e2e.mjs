@@ -33,6 +33,13 @@ for (const [lang, x] of Object.entries(expect)) {
   await page.selectOption('#market-country', 'MX');
   assert.match(await page.inputValue('#market-query'), /proveedores precios/);
   await page.selectOption('#market-country', x.country);
+  // sélecteur de pays de la barre du haut, avec drapeau : la carte Concurrents suit
+  assert.match(await page.textContent('.topbar .country-switch option[value="CO"]'), /🇨🇴/);
+  await page.selectOption('.topbar .country-switch select', 'CO');
+  await page.waitForFunction(() => document.querySelector('#market-country').value === 'CO');
+  assert.match(await page.inputValue('#market-geography'), /Colombia/);
+  await page.selectOption('.topbar .country-switch select', x.country);
+  await page.waitForFunction((c) => document.querySelector('#market-country').value === c, x.country);
   // démo : la fiche se remplit dans la langue choisie, sans erreur
   await page.fill('[data-bind="offer.description"]', 'Yoga classes for companies, 45 minutes, on site.');
   await page.click('#offer-extract');
