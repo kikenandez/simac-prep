@@ -110,7 +110,9 @@ if (!printCredit) { console.error('mention SIMAC Prep absente du document imprim
 await p.emulateMedia({ media: 'print' }); await p.pdf({ path: shots + '/simac.pdf', format: 'A4', printBackground: true }); await p.emulateMedia({ media: 'screen' });
 // history + csv round trip
 await p.click('[data-step=history]');
-const rows = await p.$$eval('tbody tr', r => r.length);
+const rows = await p.$$eval('.card:not(.due-card) tbody tr', r => r.length);
+// relances à faire : l'action datée « en cours » du RDV enregistré est listée en tête, avec ses liens agenda
+const dueRows = await p.$$eval('#due-list tbody tr', r => r.length); const dueIcs = await p.$$eval('#due-list [data-ics]', r => r.length);
 const csv = await p.evaluate(async () => { const m = await import('./lib/store.js'); return m.exportCSV(); });
 const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); const n = m.importCSV(csv); const r = m.listMeetings()[0]; return n + '/' + m.listMeetings().length + '/' + r.top3 + '/' + r.contact2_name + '/' + r.contact3_weight + '/' + r.soncas_2 + '/' + r.next_status + '/' + r.action2; }, csv);
 // recharger depuis l'historique : 3 interlocuteurs et leurs scores reviennent
@@ -124,6 +126,6 @@ await p.setViewportSize({ width: 1200, height: 900 }); await p.click('[data-step
 p.once('dialog', d => d.accept()); await p.click('#offer-reset');
 const blanked = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return !d.product.oneLiner && !d.client.company && d.client.contacts.length === 1 && !d.client.contacts[0].name && !d.persona.people[0].name && d.simac === null && !d.debrief.description && !d.clientChat.description && d.sources.length === 0 && d.step === 'offer' && JSON.parse(localStorage.getItem('simac.meetings')).length === 1 && !document.querySelector('#steps button.done'); });
 const ok = stillOpen && subscribedVisibly && blanked && rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
-  && actionRows === 2 && /\/doing\/Envoyer le devis pour 4 classes/.test(reimport) && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3';
-console.log(JSON.stringify({ stillOpen, subscribedVisibly, blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, errors, ok }, null, 1));
+  && actionRows === 2 && /\/doing\/Envoyer le devis pour 4 classes/.test(reimport) && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3' && dueRows >= 1 && dueIcs === dueRows;
+console.log(JSON.stringify({ stillOpen, subscribedVisibly, blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, dueRows, dueIcs, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);
