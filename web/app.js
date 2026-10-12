@@ -1170,7 +1170,42 @@ function renderManagedInterest() {
 // ----------------------------------------------------------------------------- impression / PDF
 const STEP_TITLES = { offer: t('Offre'), client: t('Client'), persona: t('Persona SONCAS'), simac: t('Déroulé SIMAC'), followup: t('Suivi'), history: t('Historique'), settings: t('Réglages') };
 const STEP_SLUG = { offer: 'offre', client: 'client', persona: 'persona', simac: 'simac', followup: 'suivi', history: 'historique', settings: 'reglages' };
-$('#btn-print').onclick = () => window.print();
+// Choix du document avant d'imprimer : l'étape affichée, une fiche d'une page à emporter, ou le dossier complet.
+const PRINT_KEY = 'simac.print';
+const PRINT_SECTIONS = ['offer', 'client', 'persona', 'simac', 'followup'];
+function printPrefs() {
+  const d = { mode: 'step', sections: PRINT_SECTIONS, sources: true };
+  try { const p = JSON.parse(localStorage.getItem(PRINT_KEY) || '{}'); return { ...d, ...p, sections: Array.isArray(p.sections) ? p.sections.filter((k) => PRINT_SECTIONS.includes(k)) : d.sections }; } catch { return d; }
+}
+let printMode = null; // choix pour l'impression en cours ; null (Ctrl+P, tests) = étape affichée
+$('#btn-print').onclick = () => openPrintDialog();
+function openPrintDialog() {
+  let d = $('#print-dialog');
+  if (!d) { d = document.createElement('dialog'); d.id = 'print-dialog'; document.body.appendChild(d); }
+  const p = printPrefs(); const mode = p.mode === 'sheet' && !(S.client.company || S.simac) ? 'step' : p.mode;
+  const radio = (v, title, hint) => `<label class="check"><input type="radio" name="mode" value="${v}" ${mode === v ? 'checked' : ''}> <span><b>${title}</b> <small>— ${hint}</small></span></label>`;
+  d.innerHTML = `<form method="dialog">
+    <h2>${t('Imprimer / enregistrer en PDF')}</h2>
+    <div class="check-list">
+      ${radio('step', t('Cette étape'), t('la vue affichée : {step}', { step: esc(STEP_TITLES[printViews[S.step] ? S.step : 'offer']) }))}
+      ${radio('sheet', t('Fiche 1 page'), t('à emporter au rendez-vous : interlocuteurs, message, ouverture, questions, objections, conclusion'))}
+      ${radio('full', t('Dossier complet'), t('les étapes choisies, avec les sources consultées'))}
+    </div>
+    <div class="check-list print-sections">
+      ${PRINT_SECTIONS.map((k) => `<label class="check"><input type="checkbox" name="s" value="${k}" ${p.sections.includes(k) ? 'checked' : ''}> <span>${esc(STEP_TITLES[k])}</span></label>`).join('')}
+      <label class="check"><input type="checkbox" name="sources" ${p.sources ? 'checked' : ''}> <span>${t('Sources consultées')}</span></label>
+    </div>
+    <div class="actions"><button class="btn" value="print">${t('Imprimer / PDF')}</button> <button class="btn ghost" value="cancel">${t('Annuler')}</button></div></form>`;
+  const sync = () => { $('.print-sections', d).hidden = $('input[name="mode"]:checked', d).value !== 'full'; };
+  $$('input[name="mode"]', d).forEach((r) => (r.onchange = sync)); sync();
+  d.onclose = () => {
+    if (d.returnValue !== 'print') return;
+    const prefs = { mode: $('input[name="mode"]:checked', d).value, sections: $$('input[name="s"]:checked', d).map((i) => i.value), sources: $('input[name="sources"]', d).checked };
+    try { localStorage.setItem(PRINT_KEY, JSON.stringify(prefs)); } catch {}
+    printMode = prefs; window.print();
+  };
+  d.showModal();
+}
 
 // ----------------------------------------------------------------------------- impression / PDF
 // Une vue dédiée, construite depuis l'état (pas depuis le formulaire) : pas de zone de texte, pas de panneau
@@ -1236,21 +1271,49 @@ const printViews = {
       ${all.map((m) => `<tr><td>${esc(m.date)}</td><td>${esc(m.company)}<br><small>${esc(m.contact_name)}</small></td><td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome ? t(m.outcome) : '')}</td><td>${[[m.next_action, m.next_due, m.next_status], [m.action2, m.action2_due, m.action2_status], [m.action3, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `${esc(a[0])} — ${esc(a[1] || '')} (${ACTION_STATUS[a[2]] || t('À lancer')})`).join('<br>')}</td></tr>`).join('')}</tbody></table>`;
   },
 };
+/** Fiche d'une page à emporter : l'essentiel pour tenir le rendez-vous, sans les sources ni les hypothèses. */
+function printSheet() {
+  const b = S.brief || {}; const M = S.simac || {}; syncPeople();
+  const people = S.client.contacts.map((c, i) => { const pp = S.persona.people[i]; return `<li><b>${esc(contactLabel(c, i))}</b>${c.role ? ' — ' + esc(c.role) : ''} (${esc(WEIGHTS[c.weight] || '')}) · ${top3(pp.scores).map(label).join(', ')}</li>`; }).join('');
+  const objections = (M.objections || []).slice(0, 6);
+  return `<h1>${esc(S.client.company || t('Client'))} — ${esc(S.product.name || '')}</h1>
+    <div class="pgrid">
+      <div>${P.row(t('Objectif'), S.objective.primary)}${P.row(t('Repli'), S.objective.fallback)}<b>${t('Interlocuteurs')}</b><ul>${people}</ul>${(S.persona.tensions || []).length ? `<b>${t('Tensions entre interlocuteurs')}</b>${P.ul(S.persona.tensions)}` : ''}</div>
+      <div><div class="pbox"><b>${t('Message principal')}</b><br>${P.text(S.persona.main_message)}</div>${P.row(t('Ouverture (20 premières secondes)'), M.opening)}</div>
+    </div>
+    <div class="pgrid"><div><b>${t('Questions de découverte')}</b>${P.ul((b.questions_to_ask || []).slice(0, 8))}</div><div><b>${t('Avantages — chacun reformule un besoin')}</b>${P.ul(M.advantages)}</div></div>
+    ${objections.length ? `<table class="ptable"><thead><tr><th>${t('Objection')}</th><th>${t('Accueillir → creuser → répondre → relancer')}</th></tr></thead><tbody>${objections.map((o) => `<tr><td>${o.who ? `<i>${esc(o.who)}</i> ` : ''}${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('')}</tbody></table>` : ''}
+    ${P.row(t('Conclusion — question, deux options, étape suivante'), M.conclusion)}
+    <p class="note">${t('Ne repartez jamais sans une date et le nom du décideur.')} ${t('Action convenue : ____________________ · Qui : ________ · Quand : ________')}</p>`;
+}
+/** Dossier complet : les étapes choisies, une par page, puis la liste des sources consultées. */
+function printFull({ sections, sources }) {
+  const parts = PRINT_SECTIONS.filter((k) => sections.includes(k)).map((k) => `<section class="print-section">${printViews[k]()}</section>`);
+  if (sources) parts.push(`<section class="print-section"><h1>${t('Sources consultées')}</h1>${printSources()}</section>`);
+  return parts.join('') || `<p class="note">${t('Aucune étape choisie.')}</p>`;
+}
+function printSources() {
+  const groups = [[t('Offre'), S.offer?.sources || []], [t('Marché'), S.market?.sources || []], [t('Client'), S.sources || []]];
+  const rows = groups.flatMap(([g, list]) => activeSources(list).map((x) => `<tr><td>${esc(g)}</td><td>${esc(x.title || x.source)}</td><td>${/^https?:/.test(x.source) ? `<a href="${esc(x.source)}">${esc(x.source)}</a>` : esc(x.kind)}</td><td>${esc(localDay(x.retrievedAt) || '')}</td></tr>`));
+  return rows.length ? `<table class="ptable"><thead><tr><th>${t('Étape')}</th><th>${t('Source')}</th><th>${t('Adresse / type')}</th><th>${t('Consultée le')}</th></tr></thead><tbody>${rows.join('')}</tbody></table>` : `<p class="note">${t('Aucune source conservée.')}</p>`;
+}
 let savedTitle = document.title, printing = false;
 window.addEventListener('beforeprint', () => {
   const step = printViews[S.step] ? S.step : 'offer';
+  const mode = printMode?.mode === 'sheet' || printMode?.mode === 'full' ? printMode.mode : 'step';
   if (!printing) { savedTitle = document.title; printing = true; } // l'événement peut être émis deux fois
-  document.title = `${S.date}_simac_prep_${STEP_SLUG[step]}`; // nom de fichier proposé par « Enregistrer en PDF »
+  document.title = `${S.date}_simac_prep_${mode === 'sheet' ? 'fiche' : mode === 'full' ? 'dossier' : STEP_SLUG[step]}`; // nom de fichier proposé par « Enregistrer en PDF »
   $('#print-view')?.remove();
   const who = [S.client.company, contacts().map((c, i) => contactLabel(c, i)).join(', ')].filter(Boolean).join(' — ');
-  const v = document.createElement('div'); v.id = 'print-view';
-  v.innerHTML = `<div class="print-head"><b>SIMAC Prep, ${esc(STEP_TITLES[step])}.</b> ${[S.product.name, who, S.date].filter(Boolean).map(esc).join(', ')}</div>
-    ${printViews[step]()}
+  const v = document.createElement('div'); v.id = 'print-view'; v.className = 'print-' + mode;
+  const docTitle = mode === 'sheet' ? t('Fiche 1 page') : mode === 'full' ? t('Dossier complet') : STEP_TITLES[step];
+  v.innerHTML = `<div class="print-head"><b>SIMAC Prep, ${esc(docTitle)}.</b> ${[S.product.name, who, S.date].filter(Boolean).map(esc).join(', ')}</div>
+    ${mode === 'sheet' ? printSheet() : mode === 'full' ? printFull(printMode) : printViews[step]()}
     <div class="print-foot"><p class="print-credit">${t('Ce document a été préparé avec <b>SIMAC Prep</b> (simac.avapmo.com), un outil AVApmo (adp.avapmo.com). Contact : {contact}.', { contact: esc(CONFIG.contact) })}</p>
       <p>${t('Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.')}</p></div>`;
   document.body.appendChild(v);
 });
-window.addEventListener('afterprint', () => { $('#print-view')?.remove(); document.title = savedTitle; printing = false; });
+window.addEventListener('afterprint', () => { $('#print-view')?.remove(); document.title = savedTitle; printing = false; printMode = null; });
 
 // ----------------------------------------------------------------------------- accueil + conditions
 function showGate(readOnly = false) {
