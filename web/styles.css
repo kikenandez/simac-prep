@@ -201,8 +201,9 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .gate-terms summary { cursor: pointer; }
 .gate-terms ul { margin: 8px 0 0; font-size: 14px; }
 .gate-form { display: grid; gap: 10px; margin: 14px 0; }
-.gate-form label.check { display: flex; gap: 8px; align-items: center; font-weight: 500; }
-.gate-form label.check input { width: auto; }
+.gate-form label.check, .check-list label.check { display: flex; gap: 8px; align-items: center; font-weight: 500; }
+.gate-form label.check input, .check-list label.check input { width: auto; margin: 0; }
+.check-list { display: grid; gap: 4px; margin: 4px 0 6px; font-size: 14px; }
 .gate-form .btn { justify-self: start; }
 @media print { .gate { display: none; } }
 
