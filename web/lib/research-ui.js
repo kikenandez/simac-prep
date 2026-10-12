@@ -3,10 +3,10 @@ import { localDay } from './dates.js';
 import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 import { t, lang } from './i18n.js';
-import { COUNTRIES, country, getCountry, setCountry, marketLabel } from './countries.js';
+import { COUNTRIES, country, getCountry, setCountry, marketLabel, geoName } from './countries.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const link = (url, label) => safeUrl(url) ? `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label || url)} ${esc(t('(nouvel onglet)'))}">${esc(label || url)}</a>` : esc(label || url);
-export const marketDefaults = () => ({ geography: marketLabel(), query: '', url: '', sources: [], comparison: null });
+export const marketDefaults = () => ({ geography: geoName(), query: '', url: '', sources: [], comparison: null });
 export const researchDefaults = () => ({ query: '', entity: null });
 export const clientFingerprint = s => JSON.stringify([s.id, s.client.company, s.client.location, s.client.contacts]);
 export const marketFingerprint = s => JSON.stringify([s.id, s.product, s.market.geography]);
@@ -56,8 +56,11 @@ export function mountMarket(el, getState, { save, invalidate, busy, toast }) {
   // pays : mots de recherche, domaine national et sources ; le marché suit le pays s'il n'a pas été personnalisé
   el.querySelector('#market-country').onchange = e => {
     const before = getCountry(); setCountry(e.target.value);
-    if (!m.geography.trim() || m.geography === marketLabel(before)) m.geography = marketLabel();
-    m.query = competitorQuery(state.product, m.geography, getCountry()); m.comparison = null; invalidate(); save(); redraw();
+    const autoQuery = competitorQuery(state.product, m.geography, before);
+    if (!m.geography.trim() || [geoName(before), marketLabel(before)].includes(m.geography)) m.geography = geoName();
+    // une recherche modifiée à la main est conservée ; sinon elle suit le pays
+    if (!m.query || m.query === autoQuery) m.query = competitorQuery(state.product, m.geography, getCountry());
+    m.comparison = null; invalidate(); save(); redraw();
   };
   renderEvidence(el.querySelector('#market-sources'), m.sources, changed, rankCriteria());
   el.querySelector('#market-geography').oninput = e => { m.geography = e.target.value; m.comparison = null; m.sources.forEach(s => { s.included = false; }); invalidate(); save(); el.querySelector('#market-comparison').innerHTML = ''; renderEvidence(el.querySelector('#market-sources'), m.sources, changed, rankCriteria()); };

@@ -44,6 +44,9 @@ test('countries: search words and sources follow the country', () => {
   // domaine national et prix en livres reconnus pour le Royaume-Uni
   const r = rankSource(makeSource('https://acme.co.uk/pricing', 'web', 'Yoga sessions from £40'), { query: 'corporate yoga', geography: 'United Kingdom', country: 'GB' });
   assert.ok(r.hits.includes('United Kingdom') && r.hits.includes('prix publié'), JSON.stringify(r));
+  // devises en mots entiers : « 20 years 2 ago » (ars 2) ou « open 24 hours » (pen 2) ne sont pas des prix
+  for (const text of ['founded 20 years 2 ago', 'open 24 hours']) assert.ok(!rankSource(makeSource('https://acme.com', 'web', text), { query: 'yoga' }).hits.includes('prix publié'), text);
+  assert.match(COUNTRIES.CO.links.find(l => l.label === 'Computrabajo').url('Acme Co'), /trabajo-de-acme-co$/);
 });
 
 test('prompts: Spanish method and output language, enumerated codes kept', () => {

@@ -4,6 +4,8 @@
 import { lang } from './i18n.js';
 
 const q = (s) => encodeURIComponent(String(s || '').trim());
+// Computrabajo : mots-clés en slug (« trabajo-de-acme-co »)
+const slug = (s) => encodeURIComponent(String(s || '').trim().toLowerCase().replace(/\s+/g, '-'));
 // Mots ajoutés aux recherches web, dans la langue du pays.
 const WORDS = {
   fr: { providers: 'prestataires tarifs', news: 'projets actualités activité', person: 'rôle interview publication', reviews: 'avis clients' },
@@ -27,7 +29,7 @@ export const COUNTRIES = {
     links: [
       { kind: 'registre', label: 'RUES', url: () => 'https://www.rues.org.co/' },
       { kind: 'registre', label: 'OpenCorporates', url: (n) => `https://opencorporates.com/companies/co?q=${q(n)}` },
-      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://co.computrabajo.com/trabajo-de-${q(n)}` },
+      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://co.computrabajo.com/trabajo-de-${slug(n)}` },
     ] },
   MX: { label: 'México', words: WORDS.es, tld: ['.mx'],
     reviewSites: ['seccionamarilla.com.mx'],
@@ -58,7 +60,7 @@ export const COUNTRIES = {
       { kind: 'registre', label: 'Registro de Empresas y Sociedades', url: () => 'https://www.registrodeempresasysociedades.cl/' },
       { kind: 'registre', label: 'SII', url: () => 'https://www.sii.cl/' },
       { kind: 'registre', label: 'OpenCorporates', url: (n) => `https://opencorporates.com/companies?q=${q(n)}` },
-      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://cl.computrabajo.com/trabajo-de-${q(n)}` },
+      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://cl.computrabajo.com/trabajo-de-${slug(n)}` },
     ] },
   UY: { label: 'Uruguay', words: WORDS.es, tld: ['.uy'],
     reviewSites: [],
@@ -73,7 +75,7 @@ export const COUNTRIES = {
       { kind: 'registre', label: 'SUNAT (consulta RUC)', url: () => 'https://e-consultaruc.sunat.gob.pe/' },
       { kind: 'registre', label: 'SUNARP', url: () => 'https://www.gob.pe/sunarp' },
       { kind: 'registre', label: 'OpenCorporates', url: (n) => `https://opencorporates.com/companies?q=${q(n)}` },
-      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://pe.computrabajo.com/trabajo-de-${q(n)}` },
+      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://pe.computrabajo.com/trabajo-de-${slug(n)}` },
     ] },
   EC: { label: 'Ecuador', words: WORDS.es, tld: ['.ec'],
     reviewSites: [],
@@ -81,7 +83,7 @@ export const COUNTRIES = {
       { kind: 'registre', label: 'Superintendencia de Compañías', url: () => 'https://www.supercias.gob.ec/' },
       { kind: 'registre', label: 'SRI', url: () => 'https://www.sri.gob.ec/' },
       { kind: 'registre', label: 'OpenCorporates', url: (n) => `https://opencorporates.com/companies?q=${q(n)}` },
-      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://ec.computrabajo.com/trabajo-de-${q(n)}` },
+      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://ec.computrabajo.com/trabajo-de-${slug(n)}` },
     ] },
   VE: { label: 'Venezuela', words: WORDS.es, tld: ['.ve'],
     reviewSites: [],
@@ -95,7 +97,7 @@ export const COUNTRIES = {
     links: [
       { kind: 'registre', label: 'Registro Mercantil', url: () => 'https://www.registromercantil.gob.gt/' },
       { kind: 'registre', label: 'OpenCorporates', url: (n) => `https://opencorporates.com/companies?q=${q(n)}` },
-      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://gt.computrabajo.com/trabajo-de-${q(n)}` },
+      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://gt.computrabajo.com/trabajo-de-${slug(n)}` },
     ] },
   SV: { label: 'El Salvador', words: WORDS.es, tld: ['.sv'],
     reviewSites: [],
@@ -118,13 +120,12 @@ export const COUNTRIES = {
     links: [
       { kind: 'registre', label: 'Registro Nacional', url: () => 'https://www.rnpdigital.com/' },
       { kind: 'registre', label: 'OpenCorporates', url: (n) => `https://opencorporates.com/companies?q=${q(n)}` },
-      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://cr.computrabajo.com/trabajo-de-${q(n)}` },
+      { kind: 'emploi', label: 'Computrabajo', url: (n) => `https://cr.computrabajo.com/trabajo-de-${slug(n)}` },
     ] },
   ES: { label: 'España', words: WORDS.es, tld: ['.es'],
     reviewSites: ['es.trustpilot.com', 'paginasamarillas.es'],
     links: [
       { kind: 'registre', label: 'BORME (BOE)', url: () => 'https://www.boe.es/diario_borme/' },
-      { kind: 'registre', label: 'LibreBOR', url: () => 'https://librebor.me/' },
       { kind: 'registre', label: 'Infoempresa', url: () => 'https://www.infoempresa.com/' },
       { kind: 'registre', label: 'Registro Mercantil Central', url: () => 'https://www.rmc.es/' },
       { kind: 'avis', label: 'Trustpilot', url: (n) => `https://es.trustpilot.com/search?query=${q(n)}` },
@@ -184,7 +185,9 @@ export function setCountry(code) { if (!COUNTRIES[code]) return; try { localStor
 export const country = (code = getCountry()) => COUNTRIES[code] || COUNTRIES.FR;
 /** Mots de recherche du pays ; « International » suit la langue de l'interface. */
 export const words = (code = getCountry()) => country(code).words || WORDS[lang()] || WORDS.fr;
-/** Libellé du marché par défaut dans la langue de l'interface. */
+/** Marché par défaut, écrit dans la langue du pays (c'est un mot de la recherche web) ; vide pour International. */
+export const geoName = (code = getCountry()) => (code === 'INT' ? '' : country(code).label);
+/** Nom du pays dans la langue de l'interface (sélecteur). */
 export function marketLabel(code = getCountry()) {
   const names = { fr: { FR: 'France', CO: 'Colombie', MX: 'Mexique', PA: 'Panama', AR: 'Argentine', CL: 'Chili', UY: 'Uruguay', PE: 'Pérou', EC: 'Équateur', VE: 'Venezuela', GT: 'Guatemala', SV: 'Salvador', HN: 'Honduras', NI: 'Nicaragua', CR: 'Costa Rica', ES: 'Espagne', US: 'États-Unis', CA: 'Canada', GB: 'Royaume-Uni', BE: 'Belgique', INT: 'International' },
     en: { FR: 'France', CO: 'Colombia', MX: 'Mexico', PA: 'Panama', AR: 'Argentina', CL: 'Chile', UY: 'Uruguay', PE: 'Peru', EC: 'Ecuador', VE: 'Venezuela', GT: 'Guatemala', SV: 'El Salvador', HN: 'Honduras', NI: 'Nicaragua', CR: 'Costa Rica', ES: 'Spain', US: 'United States', CA: 'Canada', GB: 'United Kingdom', BE: 'Belgium', INT: 'International' },
