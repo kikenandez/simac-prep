@@ -12,11 +12,13 @@ import { localDay } from './lib/dates.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
+import { mountCountrySwitch } from './lib/countries.js';
 import { marketDefaults, researchDefaults, mountMarket, mountClientResearch, renderEvidence, citations, clientFingerprint } from './lib/research-ui.js';
 import { t, lang, locale, initI18n } from './lib/i18n.js';
 
 const LANG = lang();
 initI18n(); // HTML statique traduit et sélecteur de langue posé avant l'accueil et le premier rendu
+mountCountrySwitch(() => renderers[S.step]?.()); // pays : la vue en cours suit (marché, registres)
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));

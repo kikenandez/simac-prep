@@ -3,10 +3,10 @@ import { localDay } from './dates.js';
 import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 import { t, lang } from './i18n.js';
-import { COUNTRIES, country, getCountry, setCountry, marketLabel, geoName } from './countries.js';
+import { country, getCountry, setCountry, marketLabel, geoName, countryOptions, syncCountrySwitches } from './countries.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const link = (url, label) => safeUrl(url) ? `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label || url)} ${esc(t('(nouvel onglet)'))}">${esc(label || url)}</a>` : esc(label || url);
-export const marketDefaults = () => ({ geography: geoName(), query: '', url: '', sources: [], comparison: null });
+export const marketDefaults = () => ({ country: getCountry(), geography: geoName(), query: '', url: '', sources: [], comparison: null });
 export const researchDefaults = () => ({ query: '', entity: null });
 export const clientFingerprint = s => JSON.stringify([s.id, s.client.company, s.client.location, s.client.contacts]);
 export const marketFingerprint = s => JSON.stringify([s.id, s.product, s.market.geography]);
@@ -38,6 +38,15 @@ export function mountMarket(el, getState, { save, invalidate, busy, toast }) {
   if (!el) return;
   const state = getState(), m = state.market;
   const current = () => getState() === state && getState().market === m;
+  // pays changé ailleurs (barre du haut, carte client) : le marché et la recherche automatique suivent ;
+  // un marché ou une recherche modifiés à la main sont conservés
+  const code = getCountry(), before = m.country || 'FR';
+  if (before !== code) {
+    const autoQuery = competitorQuery(state.product, m.geography, before);
+    if (!m.geography.trim() || [geoName(before), marketLabel(before)].includes(m.geography)) m.geography = geoName(code);
+    if (!m.query || m.query === autoQuery) m.query = competitorQuery(state.product, m.geography, code);
+    m.country = code; m.comparison = null; invalidate(); save();
+  }
   el.innerHTML = `<div class="card"><h2>${t('Concurrents et alternatives')}</h2>
     <p class="note">${t('Comparez des solutions pour la même cible et le même besoin. Les résultats sont des candidats à vérifier, pas des concurrents connus du client.')}</p>
     ${countryPicker('market-country')}
@@ -54,14 +63,7 @@ export function mountMarket(el, getState, { save, invalidate, busy, toast }) {
   const changed = () => { m.comparison = null; invalidate(); save(); redraw(); };
   const rankCriteria = () => ({ query: m.query || el.querySelector('#market-query').value, geography: m.geography, country: getCountry() });
   // pays : mots de recherche, domaine national et sources ; le marché suit le pays s'il n'a pas été personnalisé
-  el.querySelector('#market-country').onchange = e => {
-    const before = getCountry(); setCountry(e.target.value);
-    const autoQuery = competitorQuery(state.product, m.geography, before);
-    if (!m.geography.trim() || [geoName(before), marketLabel(before)].includes(m.geography)) m.geography = geoName();
-    // une recherche modifiée à la main est conservée ; sinon elle suit le pays
-    if (!m.query || m.query === autoQuery) m.query = competitorQuery(state.product, m.geography, getCountry());
-    m.comparison = null; invalidate(); save(); redraw();
-  };
+  el.querySelector('#market-country').onchange = e => { setCountry(e.target.value); syncCountrySwitches(); redraw(); };
   renderEvidence(el.querySelector('#market-sources'), m.sources, changed, rankCriteria());
   el.querySelector('#market-geography').oninput = e => { m.geography = e.target.value; m.comparison = null; m.sources.forEach(s => { s.included = false; }); invalidate(); save(); el.querySelector('#market-comparison').innerHTML = ''; renderEvidence(el.querySelector('#market-sources'), m.sources, changed, rankCriteria()); };
   el.querySelector('#market-query').oninput = e => { m.query = e.target.value; save(); };
@@ -165,7 +167,7 @@ export function mountClientResearch(el, getState, { save, invalidate, busy, toas
     <label>${t('Recherche modifiable')} <textarea id="client-search-query">${esc(queries[0]?.query || '')}</textarea></label>
     <button class="btn ghost" id="client-research-search">${t('Rechercher cet angle sur le web')}</button>
     <p class="note">${t('Clé Jina requise. Pour un profil inaccessible, ajoutez un extrait professionnel pertinent dans les notes.')}</p></div>`;
-  el.querySelector('#client-country').onchange = e => { setCountry(e.target.value); redraw(); };
+  el.querySelector('#client-country').onchange = e => { setCountry(e.target.value); syncCountrySwitches(); redraw(); };
   el.querySelector('#registry-read')?.addEventListener('click', e => busy(e.currentTarget, async () => {
     const fingerprint = clientFingerprint(state);
     const source = await readUrl(el.querySelector('#registry-url').value, { jinaKey: loadSettings().jinaKey || '' });
@@ -226,7 +228,7 @@ export function mountClientResearch(el, getState, { save, invalidate, busy, toas
 /** Choix du pays : mots des recherches web, domaine national, registres et sites d'avis proposés. Réglage commun à tous les rendez-vous. */
 function countryPicker(id) {
   const code = getCountry();
-  return `<label>${t('Pays : recherches et sources')} <select id="${id}">${Object.keys(COUNTRIES).map(k => `<option value="${k}" ${k === code ? 'selected' : ''}>${esc(marketLabel(k))}</option>`).join('')}</select></label>`;
+  return `<label>${t('Pays : recherches et sources')} <span class="country-switch"><select id="${id}">${countryOptions(code)}</select></span></label>`;
 }
 const KIND_LABEL = { registre: 'Registres officiels', avis: 'Avis clients', annuaire: 'Annuaires', emploi: 'Offres d’emploi' };
 /** Hors de France : pas d'API officielle ouverte sans clé ; liens à ouvrir (nom pré-rempli quand le site le permet) et lecture d'une page choisie. */
