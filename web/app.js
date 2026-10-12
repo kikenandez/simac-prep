@@ -9,6 +9,7 @@ import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackSco
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { localDay } from './lib/dates.js';
+import { icsEvent, icsCalendar, googleCalendarUrl, dueBuckets, ACTION_COLUMNS } from './lib/agenda.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
@@ -221,6 +222,7 @@ function markDone() {
     followup: !!S.followup,
   };
   $$('#steps button').forEach((b) => b.classList.toggle('done', !!done[b.dataset.step]));
+  renderDueBadge();
   const cfg = resolve();
   $('#provider-badge').textContent = cfg.provider === 'mock' ? t('Mode démo (sans IA)') : `${PROVIDERS[cfg.provider]?.label.split(' (')[0]}, ${cfg.model}`;
 }
@@ -842,7 +844,7 @@ renderers.followup = () => {
       ${field('debrief.decisionMaker', t('Décideur (nom)'))}
       ${field('debrief.objectionsHeard', t('Objections entendues'), { type: 'textarea', full: true })}
       <div class="full"><label>${t('Actions convenues')} <small>— ${t('jusqu’à {max} ; la première est l’appel à l’action principal, le mail est construit autour', { max: MAX_ACTIONS })}</small></label>
-        <div id="actions-list"></div></div>
+        <div id="actions-list"></div><div id="actions-agenda" class="agenda-row"></div></div>
       ${field('debrief.notes', t('Notes / faits nouveaux'), { type: 'textarea', full: true })}
     </div>
     <div class="actions">
@@ -900,9 +902,45 @@ function renderActions() {
     </div>`).join('') +
     (list.length < MAX_ACTIONS ? `<button class="btn ghost small" id="add-action">${t('+ Ajouter une action ({n}/{max})', { n: list.length, max: MAX_ACTIONS })}</button>` : `<span class="note">${t('{max} actions : au-delà, un rendez-vous n’a plus d’appel à l’action, il a une liste de tâches.', { max: MAX_ACTIONS })}</span>`);
   $$('.action-row', el).forEach((row) => { const a = list[+row.dataset.i];
-    $$('[data-ak]', row).forEach((inp) => inp.addEventListener('input', () => { a[inp.dataset.ak] = inp.value; if (inp.dataset.ak === 'status') inp.className = 'st-' + inp.value; syncPrimaryAction(); persist(); })); });
+    $$('[data-ak]', row).forEach((inp) => inp.addEventListener('input', () => { a[inp.dataset.ak] = inp.value; if (inp.dataset.ak === 'status') inp.className = 'st-' + inp.value; syncPrimaryAction(); persist(); if (['due', 'action', 'output'].includes(inp.dataset.ak)) renderActionsAgenda(); })); });
+  renderActionsAgenda();
   $$('[data-rm-action]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rmAction, 1); syncPrimaryAction(); persist(); renderActions(); }));
   $('#add-action')?.addEventListener('click', () => { list.push(blankAction()); persist(); renderActions(); $$('.action-row', el).pop()?.querySelector('input')?.focus(); });
+}
+// ----------------------------------------------------------------------------- agenda (.ics, Google) et relances
+/** Événement d'agenda pour une action convenue : titre = action et client, description = livrable, qui, date du RDV. */
+function actionEvent(a, { company, date, id }, i) {
+  const who = a.owner === 'client' ? t('le client') : t('moi');
+  const title = [a.action, company].filter(Boolean).join(' — ');
+  const description = [a.output ? t('Livrable : {output}', { output: a.output }) : '', company ? t('Client : {company}', { company }) : '', t('Qui : {who}', { who }), date ? t('Rendez-vous du {date}', { date }) : '', t('Préparé avec SIMAC Prep (simac.avapmo.com)')].filter(Boolean).join('\n');
+  return { uid: `${id || 'draft'}-${i}`, date: a.due, title, description };
+}
+function downloadIcs(events, name) {
+  const evs = events.map((e) => icsEvent(e)).filter(Boolean);
+  if (!evs.length) return toast(t('Indiquez une échéance pour ajouter l’action à l’agenda.'));
+  download(name, icsCalendar(evs), 'text/calendar;charset=utf-8');
+}
+const agendaLinks = (ev, cls = 'btn ghost small') => ev.date ? `<button class="${cls}" data-ics="${esc(ev.uid)}" title="${t('Fichier .ics : s’ouvre dans Apple Calendar, Outlook, Thunderbird… avec un rappel la veille')}">${t('+ Agenda (.ics)')}</button> <a class="${cls}" href="${esc(googleCalendarUrl(ev))}" target="_blank" rel="noopener" aria-label="${t('Google Agenda (nouvel onglet)')}">Google</a>` : '';
+/** Relances datées à faire : compteur sur le bouton Historique. */
+function renderDueBadge() {
+  const b = $('#steps [data-step="history"]'); if (!b) return;
+  const { overdue, week } = dueBuckets(listMeetings(), localDay());
+  let el = $('.nav-badge', b);
+  if (!overdue.length && !week.length) { el?.remove(); return; }
+  if (!el) { el = document.createElement('span'); el.className = 'nav-badge'; b.appendChild(el); }
+  el.textContent = overdue.length + week.length; el.classList.toggle('late', overdue.length > 0);
+  el.title = t('{late} en retard, {week} cette semaine', { late: overdue.length, week: week.length });
+}
+function renderActionsAgenda() {
+  const el = $('#actions-agenda'); if (!el) return;
+  const meeting = { company: S.client.company, date: S.date, id: S.id };
+  const dated = S.debrief.actions.map((a, i) => ({ a, i })).filter(({ a }) => a.action && a.due);
+  if (!dated.length) { el.innerHTML = `<span class="note">${t('Une action avec une échéance peut être ajoutée à votre agenda (rappel la veille).')}</span>`; return; }
+  const events = dated.map(({ a, i }) => actionEvent(a, meeting, i));
+  el.innerHTML = `<span class="note">${t('Ajouter à mon agenda :')}</span> ` + dated.map(({ a, i }, k) => `<span class="agenda-item"><b>${i + 1}</b> ${agendaLinks(events[k])}</span>`).join(' ')
+    + (dated.length > 1 ? ` <button class="btn ghost small" id="ics-all">${t('Toutes (.ics)')}</button>` : '');
+  $$('[data-ics]', el).forEach((b) => (b.onclick = () => downloadIcs([events.find((e) => e.uid === b.dataset.ics)], `simac-relance-${localDay()}.ics`)));
+  $('#ics-all')?.addEventListener('click', () => downloadIcs(events, `simac-relances-${localDay()}.ics`));
 }
 function renderFollowup() {
   const el = $('#fu-out'); const F = S.followup; if (!F) { el.innerHTML = ''; return; }
@@ -951,6 +989,7 @@ renderers.history = () => {
       <label class="btn ghost" style="margin:0">${t('Importer CSV')} <input type="file" id="import" accept=".csv,text/csv" hidden></label>
       <button class="btn ghost small" id="template">${t('Modèle CSV vide')}</button>
     </div>
+    <div id="due-list"></div>
     <div class="card">
       <table><thead><tr><th>${t('Date')}</th><th>${t('Entreprise / contact')}</th><th>${t('Offre')}</th><th>${t('Top SONCAS')}</th><th>${t('Résultat')}</th><th>${t('Suite')}</th><th></th></tr></thead>
       <tbody>${all.map((m) => `<tr><td>${esc(m.date)}</td><td><b>${esc(m.company)}</b><br><small>${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0] || c[1]).map((c) => esc(`${c[0]}${c[1] ? ' — ' + c[1] : ''}`)).join('<br>')}</small></td>
@@ -959,6 +998,7 @@ renderers.history = () => {
         <td><button class="btn ghost small" data-load="${m.id}">${t('Ouvrir')}</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
         || `<tr><td colspan="7" class="note">${t('Aucun rendez-vous enregistré.')}</td></tr>`}</tbody></table>
     </div>`;
+  renderDueList(all); renderDueBadge();
   $('#export').onclick = () => download(`simac-rdv-${localDay()}.csv`, exportCSV());
   $('#template').onclick = () => download('simac-modele.csv', exportCSV([]));
   $('#import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const n = importCSV(await f.text()); toast(t('{n} rendez-vous importé(s).', { n })); renderers.history(); };
@@ -984,6 +1024,32 @@ renderers.history = () => {
     persist(); go('client'); toast(t('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).'));
   }));
 };
+
+/** Relances à faire, en tête de l'Historique : en retard, puis cette semaine ; statut modifiable sur place, agenda. */
+function renderDueList(all) {
+  const el = $('#due-list'); if (!el) return;
+  const today = localDay();
+  const { overdue, week } = dueBuckets(all, today);
+  if (!overdue.length && !week.length) { el.innerHTML = all.length ? `<p class="note">${t('Aucune relance en retard ni prévue cette semaine.')}</p>` : ''; return; }
+  const events = [...overdue, ...week].map((x) => actionEvent(x, x.meeting, x.i));
+  const row = (x, late) => { const ev = actionEvent(x, x.meeting, x.i); return `<tr class="${late ? 'late' : ''}" data-mid="${esc(x.meeting.id)}" data-i="${x.i}">
+    <td><b>${esc(x.due)}</b></td><td><b>${esc(x.meeting.company)}</b><br><small>${esc(x.meeting.contact_name || '')}</small></td>
+    <td>${esc(x.action)}${x.output ? `<br><small>${esc(x.output)}</small>` : ''}</td><td>${x.owner === 'client' ? t('le client') : t('moi')}</td>
+    <td><select class="due-status st-${x.status}">${Object.entries(ACTION_STATUS).map(([k, v]) => `<option value="${k}" ${x.status === k ? 'selected' : ''}>${v}</option>`).join('')}</select></td>
+    <td class="agenda-cell">${agendaLinks(ev)} <button class="btn ghost small" data-load="${esc(x.meeting.id)}">${t('Ouvrir')}</button></td></tr>`; };
+  el.innerHTML = `<div class="card due-card"><h2>${t('Relances à faire')} <small>${t('{late} en retard, {week} cette semaine', { late: overdue.length, week: week.length })}</small>
+      ${events.length > 1 ? `<button class="btn ghost small" id="ics-due" style="float:right">${t('Toutes dans l’agenda (.ics)')}</button>` : ''}</h2>
+    <table><thead><tr><th>${t('Échéance')}</th><th>${t('Entreprise / contact')}</th><th>${t('Action')}</th><th>${t('Qui')}</th><th>${t('Statut')}</th><th></th></tr></thead>
+    <tbody>${overdue.map((x) => row(x, true)).join('')}${week.map((x) => row(x, false)).join('')}</tbody></table></div>`;
+  $$('[data-ics]', el).forEach((b) => (b.onclick = () => downloadIcs([events.find((e) => e.uid === b.dataset.ics)], `simac-relance-${localDay()}.ics`)));
+  $('#ics-due')?.addEventListener('click', () => downloadIcs(events, `simac-relances-${localDay()}.ics`));
+  $$('.due-status', el).forEach((sel) => sel.addEventListener('change', () => {
+    const tr = sel.closest('tr'); const m = all.find((x) => x.id === tr.dataset.mid); if (!m) return;
+    m[ACTION_COLUMNS[+tr.dataset.i].status] = sel.value; saveMeeting(m);
+    if (S.id === m.id && S.debrief.actions[+tr.dataset.i]) { S.debrief.actions[+tr.dataset.i].status = sel.value; persist(); }
+    renderers.history(); toast(t('Statut enregistré.'));
+  }));
+}
 
 // ----------------------------------------------------------------------------- RÉGLAGES
 renderers.settings = () => {

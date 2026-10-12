@@ -255,6 +255,14 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
 .action-row { display: grid; grid-template-columns: 22px 1.6fr 110px 140px 1.2fr 120px 32px; gap: 8px; align-items: center; margin-bottom: 6px; }
 .action-row select, .action-row input[type=date] { padding: 8px; }
 select.st-doing { border-color: var(--accent); } select.st-done { border-color: var(--accent); background: var(--accent-soft); }
+.nav-badge { margin-left: auto; font-size: 11px; font-weight: 700; min-width: 18px; text-align: center; padding: 1px 5px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); }
+.nav-badge.late { background: var(--warn-soft); color: var(--warn); }
+.agenda-row { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.agenda-item { white-space: nowrap; }
+.due-card h2 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
+.due-card tr.late td:first-child b { color: var(--warn); }
+.due-card .due-status { padding: 5px 6px; font-size: 13px; width: auto; }
+.agenda-cell { white-space: nowrap; }
 .st-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--muted); }
 .st-dot.st-doing { background: var(--accent); } .st-dot.st-done { background: var(--accent); border: 2px solid var(--panel); outline: 1px solid var(--accent); }
 @media (max-width: 900px) { .action-row { grid-template-columns: 22px 1fr 32px; } .action-row > :nth-child(n+3):not(:last-child) { grid-column: 2; } }
