@@ -29,6 +29,8 @@ ou servez-vous-en comme amorce RAG dans un autre outil. Colonnes dans [`web/lib/
 
 ## Recherche pour préparer un rendez-vous ou un email
 
+- **Langue et pays** : interface en français (par défaut), anglais ou espagnol, via le sélecteur en haut de page ; l’IA répond dans la langue choisie. Le pays (France, Colombie, Mexique, Panama, Espagne, États-Unis, Canada, Royaume-Uni, Belgique, International) règle les mots des recherches, les sites d’avis et les registres proposés : API officielles en France, liens de consultation ailleurs. Détails dans [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#langues-et-pays) et [docs/METHODE.md](docs/METHODE.md#en-anglais-et-en-espagnol).
+
 - **Offre** : « Concurrents et alternatives » utilise la description, les cibles et le marché géographique (France par défaut). Modifiez la recherche, ou lisez une URL précise. Vérifiez et cochez les sources puis comparez : cible, offre, prix publié, différence étayée, question à poser. La comparaison est éditable et reste séparée de votre fiche produit.
 - **Client** : choisissez rendez-vous ou email, renseignez entreprise, commune et interlocuteurs. Recherchez dans l’Annuaire des entreprises puis choisissez explicitement le SIRET. Les données de l’unité légale et de l’établissement sont distinguées. BODACC ajoute jusqu’à 10 annonces des 24 derniers mois.
 - **Personnes** : recherchez séparément l’organisation et chacun des trois interlocuteurs/destinataires. Les résultats web sont décochés par défaut : vérifiez leur identité et leur pertinence. Aucun mandat public ne vaut confirmation du pouvoir de décision pour l’achat.

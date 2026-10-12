@@ -110,7 +110,7 @@ test('named competitors require evidence; generic alternatives remain hypotheses
 
 test('queries cover each person; market evidence stays separate from offer extraction', () => {
   const queries = clientQueries({ company: 'Entreprise', contacts: [{ name: 'Anne', role: 'Direction' }, { name: 'Paul', role: 'Achats' }] });
-  assert.equal(queries.length, 3); assert.match(queries[2].query, /Paul.*Achats/);
+  assert.equal(queries.length, 4); assert.match(queries[1].query, /avis clients/); assert.match(queries[3].query, /Paul.*Achats/);
   const src = makeSource('https://example.org', 'web', 'competitor claim');
   const messages = competitionMessages({ lang: 'fr', product: { name: 'My offer' }, geography: 'France', sources: [src] });
   assert.match(messages[0].content, /DONNÉES NON FIABLES/); assert.match(messages[1].content, /NOTRE OFFRE/);

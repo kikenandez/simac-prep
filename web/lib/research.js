@@ -2,6 +2,8 @@
 // Aucun secret partagé ; les appels sont faits depuis le navigateur.
 import { CONFIG } from '../config.js';
 import { localDay } from './dates.js';
+import { t, locale } from './i18n.js';
+import { country, words } from './countries.js';
 const MAX_CHARS = CONFIG.limits?.charsPerSource ?? 6000;
 const TOTAL_CHARS = CONFIG.limits?.totalChars ?? 20000;
 const cache = new Map();
@@ -14,7 +16,7 @@ export function safeUrl(value) {
 function normalizeUrl(value) {
   const text = String(value).trim();
   const url = safeUrl(/^[a-z][a-z\d+.-]*:/i.test(text) ? text : `https://${text}`);
-  if (!url) throw new Error('Indiquez une URL http ou https valide.');
+  if (!url) throw new Error(t('Indiquez une URL http ou https valide.'));
   return url;
 }
 export function restrictedSource(url) {
@@ -44,22 +46,22 @@ async function request(url, { signal, headers = {}, refresh = false, cached = fa
   try {
     const res = await fetch(url, { headers, signal: controller.signal, credentials: 'omit', referrerPolicy: 'no-referrer' });
     if (!res.ok) {
-      if (res.status === 429) throw new Error('Quota de recherche atteint. Réessayez plus tard ; les sources déjà collectées sont conservées.');
-      if (res.status === 401 || res.status === 403) throw new Error('Accès refusé. Pour la recherche web, vérifiez votre clé Jina et ses crédits dans Réglages.');
-      throw new Error(`Source indisponible (${res.status}). Réessayez plus tard.`);
+      if (res.status === 429) throw new Error(t('Quota de recherche atteint. Réessayez plus tard ; les sources déjà collectées sont conservées.'));
+      if (res.status === 401 || res.status === 403) throw new Error(t('Accès refusé. Pour la recherche web, vérifiez votre clé Jina et ses crédits dans Réglages.'));
+      throw new Error(t('Source indisponible ({status}). Réessayez plus tard.', { status: res.status }));
     }
     const data = json ? await res.json() : await res.text();
     if (cached) { if (cache.size >= 50) cache.delete(cache.keys().next().value); cache.set(url, { at: Date.now(), data }); }
     return data;
   } catch (e) {
-    if (controller.signal.aborted) throw new Error(`Recherche interrompue ou délai dépassé (${timeout / 1000} s). Réessayez.`);
+    if (controller.signal.aborted) throw new Error(t('Recherche interrompue ou délai dépassé ({s} s). Réessayez.', { s: timeout / 1000 }));
     throw e;
   } finally { clearTimeout(timer); signal?.removeEventListener('abort', abort); }
 }
 
 export async function readUrl(url, { jinaKey = '', signal } = {}) {
   const u = normalizeUrl(url);
-  if (restrictedSource(u)) throw new Error('Pappers : ouvrez la fiche pour consultation. La collecte automatique nécessite une licence adaptée.');
+  if (restrictedSource(u)) throw new Error(t('Pappers : ouvrez la fiche pour consultation. La collecte automatique nécessite une licence adaptée.'));
   const headers = { Accept: 'text/plain', 'X-Return-Format': 'text' };
   if (jinaKey) headers.Authorization = `Bearer ${jinaKey}`;
   const text = await request(`https://r.jina.ai/${u}`, { headers, signal, json: false });
@@ -76,7 +78,7 @@ function isoDate(raw) {
   return localDay(d);
 }
 export async function searchWeb(query, { jinaKey = '', signal } = {}) {
-  if (!jinaKey.trim()) throw new Error('La recherche web nécessite une clé Jina dans Réglages (crédits selon votre offre). Les données officielles restent accessibles sans clé.');
+  if (!jinaKey.trim()) throw new Error(t('La recherche web nécessite une clé Jina dans Réglages (crédits selon votre offre). Les données officielles restent accessibles sans clé.'));
   const headers = { Accept: 'application/json', Authorization: `Bearer ${jinaKey}` };
   const q = `${query} -site:pappers.fr`;
   const data = await request(`https://s.jina.ai/${encodeURIComponent(q)}`, { headers, signal, timeout: SEARCH_TIMEOUT_MS });
@@ -91,9 +93,9 @@ export function mergeSources(list) {
 const bands = { '00': '0', '01': '1–2', '02': '3–5', '03': '6–9', '11': '10–19', '12': '20–49', '21': '50–99', '22': '100–199', '31': '200–249', '32': '250–499', '41': '500–999', '42': '1 000–1 999', '51': '2 000–4 999', '52': '5 000–9 999', '53': '10 000 et plus' };
 export async function searchCompanies(query, location = '', options = {}) {
   const raw = String(query).trim();
-  if (!raw) throw new Error('Indiquez un nom, un SIREN ou un SIRET.');
+  if (!raw) throw new Error(t('Indiquez un nom, un SIREN ou un SIRET.'));
   const digits = raw.replace(/\s/g, '');
-  if (/^\d+$/.test(digits) && ![9, 14].includes(digits.length)) throw new Error('Un SIREN comporte 9 chiffres ; un SIRET, 14.');
+  if (/^\d+$/.test(digits) && ![9, 14].includes(digits.length)) throw new Error(t('Un SIREN comporte 9 chiffres ; un SIRET, 14.'));
   const q = /^\d{9}(\d{5})?$/.test(digits) ? digits : `${raw} ${location}`.trim();
   const data = await request(`https://recherche-entreprises.api.gouv.fr/search?${new URLSearchParams({ q, per_page: '5' })}`, { ...options, cached: true });
   return (data.results || []).flatMap(c => {
@@ -136,25 +138,25 @@ function noticeValue(value) {
 function noticeDetails(n) {
   return Object.entries(NOTICE_PARTS).map(([k, label]) => { const text = noticeValue(n[k]); return text ? `${label} : ${text}` : ''; }).filter(Boolean).join('\n');
 }
-const euros = n => { const f = (v, u) => `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }).format(v)} ${u}`;
+const euros = n => { const f = (v, u) => `${new Intl.NumberFormat(locale(), { maximumFractionDigits: 1 }).format(v)} ${u}`;
   return Math.abs(n) >= 1e6 ? f(n / 1e6, 'M€') : Math.abs(n) >= 1e3 ? f(n / 1e3, 'k€') : f(n, '€'); };
 /** Faits du registre affichés sur la carte de l'établissement choisi (le texte complet reste dans les sources). */
 export function entityFacts(entity) {
-  const state = (code, what) => `${what} ${code === 'A' ? 'actif' : code === 'F' ? 'fermé' : 'état à vérifier'}`;
+  const state = (code, what, female = false) => t(code === 'A' ? (female ? '{what} active' : '{what} actif') : code === 'F' ? (female ? '{what} fermée' : '{what} fermé') : '{what} : état à vérifier', { what });
   const [year, last] = Object.entries(entity.finances || {}).filter(([, f]) => f?.ca != null).sort(([a], [b]) => b.localeCompare(a))[0] || [];
   const officers = entity.officers || [];
   return [
-    ['Activité (NAF)', entity.naf || 'non renseignée'],
-    ['État', `${state(entity.status, 'Établissement')} · ${state(entity.companyStatus, 'unité légale').replace('actif', 'active').replace('fermé', 'fermée')}`],
-    ['Création', entity.created || 'inconnue'],
-    ['Effectif (unité légale)', `${entity.employees || 'non renseigné'}${entity.employeesYear ? ` (${entity.employeesYear})` : ''}`],
-    ['Établissements ouverts', String(entity.establishments ?? 'inconnu')],
-    ['Chiffre d’affaires', last ? `${euros(last.ca)} (${year})` : 'non publié'],
-    ...(officers.length ? [['Mandats publics', officers.slice(0, 3).map(d => `${d.name} — ${d.role}`).join(' ; ') + (officers.length > 3 ? ` (+${officers.length - 3})` : '')]] : []),
+    [t('Activité (NAF)'), entity.naf || t('non renseignée')],
+    [t('État'), `${state(entity.status, t('Établissement'))} · ${state(entity.companyStatus, t('unité légale'), true)}`],
+    [t('Création'), entity.created || t('inconnue')],
+    [t('Effectif (unité légale)'), `${entity.employees === 'non renseigné' || !entity.employees ? t('non renseigné') : entity.employees.replace('10 000 et plus', t('10 000 et plus'))}${entity.employeesYear ? ` (${entity.employeesYear})` : ''}`],
+    [t('Établissements ouverts'), String(entity.establishments ?? t('inconnu'))],
+    [t('Chiffre d’affaires'), last ? `${euros(last.ca)} (${year})` : t('non publié')],
+    ...(officers.length ? [[t('Mandats publics'), officers.slice(0, 3).map(d => `${d.name} — ${d.role}`).join(' ; ') + (officers.length > 3 ? ` (+${officers.length - 3})` : '')]] : []),
   ];
 }
 export async function fetchNotices(siren, options = {}) {
-  if (!/^\d{9}$/.test(siren)) throw new Error('Sélectionnez d’abord une entreprise.');
+  if (!/^\d{9}$/.test(siren)) throw new Error(t('Sélectionnez d’abord une entreprise.'));
   const since = new Date(); since.setUTCFullYear(since.getUTCFullYear() - 2);
   const params = new URLSearchParams({ where: `registre="${siren}" AND dateparution >= date'${since.toISOString().slice(0, 10)}'`, order_by: 'dateparution desc', limit: '10' });
   const data = await request(`https://www.bodacc.fr/api/explore/v2.1/catalog/datasets/annonces-commerciales/records?${params}`, { ...options, cached: true });
@@ -162,51 +164,60 @@ export async function fetchNotices(siren, options = {}) {
     `${n.commercant || ''}\nSIREN recherché : ${siren}\n${n.familleavis_lib || ''} — ${n.typeavis_lib || ''}\nDate de publication : ${n.dateparution}\n${noticeDetails(n)}\nUne annonce passée ne suffit pas à déduire la situation actuelle ni un besoin commercial.`,
     { title: `${n.familleavis_lib || 'Annonce BODACC'} — ${n.dateparution}`, publishedAt: n.dateparution, entitySiren: siren, included: true }));
 }
-export function clientQueries(client) {
+export function clientQueries(client, code) {
   const company = String(client.company || '').trim();
   if (!company) return [];
   const base = `"${company.replace(/"/g, '')}" ${client.location || ''}`;
+  const w = words(code), sites = country(code).reviewSites || [];
   return [
-    { label: 'Organisation : projets et actualités', query: `${base} projets actualités activité`, subject: 'organisation' },
-    ...(client.contacts || []).filter(c => c.name).slice(0, 3).map(c => ({ label: `${c.name} : rôle et publications professionnelles`, query: `${base} "${c.name.replace(/"/g, '')}" ${c.role || ''} rôle interview publication`, subject: c.name })),
+    { label: t('Organisation : projets et actualités'), query: `${base} ${w.news}`, subject: 'organisation' },
+    // avis et réputation : sites d'avis du pays (Trustpilot, annuaires…) ; un avis isolé ne décrit pas l'entreprise
+    { label: t('Organisation : avis clients et réputation'), query: `${base} ${w.reviews}${sites.length ? ' ' + sites.map(d => `site:${d}`).join(' OR ') : ''}`, subject: 'organisation' },
+    ...(client.contacts || []).filter(c => c.name).slice(0, 3).map(c => ({ label: t('{name} : rôle et publications professionnelles', { name: c.name }), query: `${base} "${c.name.replace(/"/g, '')}" ${c.role || ''} ${w.person}`, subject: c.name })),
   ];
 }
 // Recherche concurrents : courte (le moteur noie une longue phrase), la catégorie plutôt que notre marque, sans chiffres
 // (« 45 minutes » ramène des vidéos), puis le marché et les mots qui ciblent des prestataires.
 const QUERY_MAX = 120;
-const FIGURES = /\b\d+(?:[.,]\d+)?\s*(?:minutes?|min|heures?|h|€|euros?|%|séances?|cours|personnes?|pers\.?)?(?=\s|$|[,.;:)])/gi;
-export function competitorQuery(product, geography = 'France') {
+const FIGURES = /\b\d+(?:[.,]\d+)?\s*(?:minutes?|min|heures?|hours?|horas?|h|€|euros?|\$|£|%|séances?|sessions?|sesiones?|cours|classes?|clases?|personnes?|people|personas?|pers\.?)?(?=\s|$|[,.;:)])/gi;
+export function competitorQuery(product, geography = 'France', code) {
   const name = String(product.name || '');
   const category = name.includes(' — ') ? name.split(' — ').slice(1).join(' ') : '';
   const core = (category || String(product.oneLiner || '').split(/[,;:.\n]/)[0] || name)
     .replace(FIGURES, ' ').replace(/[()«»"]/g, ' ').replace(/\s+/g, ' ').trim();
   const geo = String(geography || '').trim();
-  const words = [core, geo && !normalize(core).includes(normalize(geo)) ? geo : '', 'prestataires tarifs'].filter(Boolean).join(' ');
-  return words.length <= QUERY_MAX ? words : `${core.slice(0, QUERY_MAX - geo.length - 22).trim()} ${geo} prestataires tarifs`.replace(/\s+/g, ' ');
+  const tail = words(code).providers;
+  const query = [core, geo && !normalize(core).includes(normalize(geo)) ? geo : '', tail].filter(Boolean).join(' ');
+  return query.length <= QUERY_MAX ? query : `${core.slice(0, QUERY_MAX - geo.length - tail.length - 2).trim()} ${geo} ${tail}`.replace(/\s+/g, ' ');
 }
 
 // Classement des candidats : critères explicites et vérifiables, sans IA — chaque mot utile de la recherche,
 // le marché, un prix publié, une page de prestataire (pas une vidéo ni un réseau social).
 const normalize = (t) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-const STOPWORDS = new Set('a au aux avec ce ces dans de des du en et la le les leur leurs l d un une pour par sur ou'.split(' '));
-const SEARCH_WORDS = new Set('prestataire prestataires concurrent concurrents alternative alternatives tarif tarifs prix cout couts offre offres service services'.split(' '));
+const STOPWORDS = new Set(('a au aux avec ce ces dans de des du en et la le les leur leurs l d un une pour par sur ou'
+  + ' the and of for to in on with by an or' // en
+  + ' el los las del al y o con por para su sus unos unas').split(' ')); // es
+const SEARCH_WORDS = new Set(('prestataire prestataires concurrent concurrents alternative alternatives tarif tarifs prix cout couts offre offres service services'
+  + ' provider providers competitor competitors pricing price prices cost costs offer offers' // en
+  + ' proveedor proveedores competidor competidores alternativa alternativas precio precios coste costes costo costos oferta ofertas servicio servicios').split(' ')); // es
 const NOT_PROVIDER = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|tiktok\.com|instagram\.com|facebook\.com|linkedin\.com|pinterest\.[a-z]+|x\.com|twitter\.com)$/;
-const PRICE = /\d[\d\s.,]*\s?(€|eur\b|euros?\b)|(€|eur)\s?\d/i;
+const PRICE = /\d[\d\s.,]*\s?(€|£|\$|eur\b|euros?\b|usd\b|gbp\b|mxn\b|cop\b|ars\b|clp\b|dólares\b|pesos\b)|(€|£|\$|eur|usd|gbp|mxn|cop|ars|clp)\s?\d/i;
 const terms = (text) => [...new Set(normalize(text).split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOPWORDS.has(w) && !SEARCH_WORDS.has(w)))];
 const hasTerm = (text, term) => new RegExp(`\\b${term.length > 4 ? term.replace(/s$/, '') : term}`).test(text);
 const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } };
 
 /** Critères remplis / manqués pour un candidat ; score = nombre de critères remplis. */
-export function rankSource(source, { query = '', geography = '' } = {}) {
+export function rankSource(source, { query = '', geography = '', country: code } = {}) {
   const text = normalize(`${source.title || ''} ${source.text || ''}`);
   const words = terms(query);
   const geo = String(geography || '').trim();
   const checks = [
     ...words.map((w) => [w, hasTerm(text, w)]),
-    // marché « France » : un domaine .fr suffit (une page française écrit rarement « France »)
-    ...(geo && !words.includes(normalize(geo)) ? [[geo, hasTerm(text, normalize(geo)) || (normalize(geo) === 'france' && hostOf(source.source).endsWith('.fr'))]] : []),
-    ['prix publié', PRICE.test(source.text || '')],
-    ['page de prestataire', !NOT_PROVIDER.test(hostOf(source.source))],
+    // marché : le domaine national du pays suffit (une page française écrit rarement « France ») ; .fr reste reconnu pour « France »
+    ...(geo && !words.includes(normalize(geo)) ? [[geo, hasTerm(text, normalize(geo)) || (normalize(geo) === 'france' && hostOf(source.source).endsWith('.fr'))
+      || (!!code && country(code).tld.filter(d => d !== '.com').some(d => hostOf(source.source).endsWith(d)))]] : []),
+    [t('prix publié'), PRICE.test(source.text || '')],
+    [t('page de prestataire'), !NOT_PROVIDER.test(hostOf(source.source))],
   ];
   const hits = checks.filter(([, ok]) => ok).map(([label]) => label);
   return { hits, misses: checks.filter(([, ok]) => !ok).map(([label]) => label), score: hits.length, total: checks.length };
@@ -220,15 +231,16 @@ export function sanitizeComparison(result, sources) {
   const ids = new Set(activeSources(sources).map(sourceId));
   return { summary: String(result.summary || ''), candidates: (Array.isArray(result.candidates) ? result.candidates : []).filter(c => c && typeof c === 'object').slice(0, 6).map(c => ({
     name: String(c.name || ''), type: ['direct', 'indirect', 'alternative'].includes(c.type) ? c.type : 'alternative',
-    target: String(c.target || ''), offer: String(c.offer || ''), price: String(c.price || 'Non publié'), difference: String(c.difference || ''), question: String(c.question || ''),
+    target: String(c.target || ''), offer: String(c.offer || ''), price: String(c.price || t('Non publié')), difference: String(c.difference || ''), question: String(c.question || ''),
     source_ids: (Array.isArray(c.source_ids) ? c.source_ids : []).filter(id => ids.has(id)),
   })).filter(c => c.source_ids.length || c.type === 'alternative') };
 }
 // Grille de positionnement : 3 concurrents au plus, choisis par l'utilisateur (3 proposés par défaut).
 const POSITION_MAX = 3, CRITERIA_MAX = 5, SUGGESTIONS_MAX = 3;
-const MARKS = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=', '?': '?', nous: '+', eux: '-', 'égal': '=', egal: '=', inconnu: '?' };
+const MARKS = { '+': '+', '-': '-', '−': '-', '–': '-', '=': '=', '?': '?', nous: '+', eux: '-', 'égal': '=', egal: '=', inconnu: '?',
+  us: '+', them: '-', equal: '=', unknown: '?', nosotros: '+', ellos: '-', igual: '=', desconocido: '?' }; // si le modèle traduit le code
 const TYPE_ORDER = { direct: 0, indirect: 1, alternative: 2 };
-const UNDOCUMENTED = /^(?:$|-$|n\/a$|non publi|à vérifier|a verifier|inconnu|non document)/i;
+const UNDOCUMENTED = /^(?:$|-$|n\/a$|non publi|à vérifier|a verifier|inconnu|non document|not published|unpublished|unknown|to be checked|to verify|not documented|no publicado|desconocido|por verificar|a verificar|no documentado)/i;
 /** Candidats positionnables : nommés et appuyés sur une source incluse ; directs puis indirects, ordre d'origine sinon. */
 export function positionable(candidates, sources) {
   const ids = new Set(activeSources(sources).map(sourceId));
@@ -262,7 +274,7 @@ function clean(t) { return String(t).replace(/\r/g, '').replace(/[ \t]+\n/g, '\n
 
 // La liaison des citations est contrôlée dans l'application, pas laissée au modèle.
 export function groundBrief(result, sources, hasHistory = false) {
-  if (!result || typeof result !== 'object') throw new Error('Fiche IA invalide. Relancez la préparation.');
+  if (!result || typeof result !== 'object') throw new Error(t('Fiche IA invalide. Relancez la préparation.'));
   const objects = value => (Array.isArray(value) ? value : []).filter(v => v && typeof v === 'object');
   const strings = value => (Array.isArray(value) ? value : []).filter(v => typeof v === 'string').slice(0, 30);
   const ids = new Set([...activeSources(sources).map(sourceId), 'client', ...(hasHistory ? ['history'] : [])]);
@@ -270,10 +282,10 @@ export function groundBrief(result, sources, hasHistory = false) {
   const assumptions = strings(result.assumptions);
   const facts = objects(result.facts).slice(0, 30).flatMap(f => {
     const source_ids = refs(f);
-    if (!source_ids.length) { assumptions.push(`Non étayé : ${String(f.fact || '')}`); return []; }
+    if (!source_ids.length) { assumptions.push(t('Non étayé : {fact}', { fact: String(f.fact || '') })); return []; }
     return [{ fact: String(f.fact || ''), source_ids, date: String(f.date || '') }];
   });
   const signals = objects(result.signals).slice(0, 10).filter(s => refs(s).length).map(s => ({ ...s, source_ids: refs(s) }));
-  const participants = objects(result.participants).slice(0, 3).map(p => ({ ...p, source_ids: refs(p), documented_role: refs(p).length ? p.documented_role : 'Rôle à confirmer' }));
+  const participants = objects(result.participants).slice(0, 3).map(p => ({ ...p, source_ids: refs(p), documented_role: refs(p).length ? p.documented_role : t('Rôle à confirmer') }));
   return { ...result, facts, signals, participants, assumptions, questions_to_ask: strings(result.questions_to_ask), likely_problems: strings(result.likely_problems), competitive_context: strings(result.competitive_context), preparation: result.preparation && typeof result.preparation === 'object' ? { opening: String(result.preparation.opening || ''), email_subject: String(result.preparation.email_subject || ''), email_body: String(result.preparation.email_body || '') } : null };
 }
