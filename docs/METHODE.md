@@ -45,3 +45,17 @@ On ne repart jamais sans **une date** et **le nom du décideur**. Enregistrer qu
 
 ## Prix, conditions
 Prix après la valeur, ramené à l'unité qui parle au client. Plancher connu avant d'entrer ; leviers de négociation sans remise (périmètre, quantité, délai, paiement). Aucune promesse qu'on ne peut pas tenir.
+
+## En anglais et en espagnol
+
+L'interface existe en français (par défaut), anglais et espagnol. La méthode garde ses noms dans les trois langues : il n'existe pas d'acronyme anglais ou espagnol plus établi.
+
+| | Français | Español | English |
+|---|---|---|---|
+| SIMAC | Situation, Idée, Mécanisme, Avantages, Conclusion | **SIMAC** : Situación, Idea, Mecanismo, Ventajas, Conclusión (« método SIMAC ») | **SIMAC method** : Situation, Idea, Mechanism, Advantages, Conclusion. Pas d'équivalent anglais natif ; le plus proche est **FAB** (Features–Advantages–Benefits), qui couvre Idée → Avantages |
+| SONCAS-E | Sécurité, Orgueil, Nouveauté, Confort, Argent, Sympathie, Environnement | **SONCAS** : Seguridad, Orgullo, Novedad, Comodidad, Dinero, Simpatía ; E = Ecología (SONCASE) | **SONCAS** gardé : Security, Pride, Novelty, Comfort, Money, Sympathy, Environment. Proche des « six basic buying motives » anglo-saxons (gain, peur de perdre, confort, éviter la douleur, affection, fierté) |
+| CABP | Caractéristique, Avantage, Bénéfice, Preuve | CVBP : Característica, Ventaja, Beneficio, Prueba | FABP : Feature, Advantage, Benefit, Proof |
+
+Les codes internes (S O N C A Y E, scores, CSV) ne changent pas avec la langue. Les consignes de tâche des prompts restent en français ; le bloc méthode est rédigé dans la langue choisie et une consigne finale impose la langue de sortie, en gardant les valeurs énumérées (verdicts, résultats, `nous|eux|égal|inconnu`…) comme codes.
+
+Sources : [SIMAC en espagnol (Appvizer)](https://www.appvizer.es/revista/relacion-cliente/software-crm/como-convencer-a-un-cliente-utilizando-la-tecnica-de-venta-simac) · [SIMAC method en anglais (Leexi)](https://www.leexi.ai/en/sales-enablement/sales-techniques/simac-method/) · [FAB](https://amplemarket.com/glossary/features-advantages-and-benefits) · [SONCAS en espagnol (Skipcall)](https://skipcall.io/es/scripts/metodo-soncas) · [SONCAS (Wikipedia, EN)](https://en.wikipedia.org/wiki/SONCAS) · [Six basic buying motives (Selling Power)](https://sellingpower.com/8865/how-to-identify-the-six-basic-buying-motives)

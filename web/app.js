@@ -13,8 +13,10 @@ import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
 import { marketDefaults, researchDefaults, mountMarket, mountClientResearch, renderEvidence, citations, clientFingerprint } from './lib/research-ui.js';
+import { t, lang, locale, initI18n } from './lib/i18n.js';
 
-const LANG = 'fr';
+const LANG = lang();
+initI18n(); // HTML statique traduit et sélecteur de langue posé avant l'accueil et le premier rendu
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -38,7 +40,7 @@ function blank() {
 }
 const MAX_CONTACTS = 3;
 const MAX_ACTIONS = 3;
-const ACTION_STATUS = { todo: 'À lancer', doing: 'En cours', done: 'Réalisée' };
+const ACTION_STATUS = { todo: t('À lancer'), doing: t('En cours'), done: t('Réalisée') };
 function blankAction() { return { action: '', owner: 'me', due: '', output: '', status: 'todo' }; }
 /** Actions convenues renseignées, au plus 3 ; la première est le CTA principal (miroir nextAction/… pour le CSV). */
 const actions = () => (S.debrief.actions || []).filter((a) => a.action).slice(0, MAX_ACTIONS);
@@ -47,7 +49,7 @@ function blankContact(weight = 'influence') { return { name: '', role: '', weigh
 function blankPerson() { return { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {} }; }
 /** Interlocuteurs renseignés (nom ou rôle), au plus 3. */
 const contacts = () => (S.client.contacts || []).filter((c) => c.name || c.role).slice(0, MAX_CONTACTS);
-const contactLabel = (c, i) => c?.name || c?.role || `Personne ${i + 1}`;
+const contactLabel = (c, i) => c?.name || c?.role || t('Personne {n}', { n: i + 1 });
 const primary = () => S.client.contacts?.[0] || blankContact('decide');
 /** Vue compatible pour les prompts et la mémoire : contactName/contactRole = interlocuteur principal. */
 const clientView = () => ({ ...S.client, contacts: contacts(), contactName: primary().name, contactRole: primary().role });
@@ -78,18 +80,18 @@ function offerSlot() { return { product: S.product, offer: S.offer, market: S.ma
 /** Enregistre l'offre courante sous son nom (remplace si même nom). */
 function saveOffer(silent = false) {
   const name = (S.product.name || S.product.oneLiner || '').trim();
-  if (!name) { if (!silent) toast('Donnez un nom au produit / service avant d’enregistrer l’offre.'); return false; }
+  if (!name) { if (!silent) toast(t('Donnez un nom au produit / service avant d’enregistrer l’offre.')); return false; }
   const all = listOffers(); const rec = { id: S.offerId || newId(), name, savedAt: new Date().toISOString(), ...structuredClone(offerSlot()) };
   const i = all.findIndex((o) => o.id === rec.id || o.name.toLowerCase() === name.toLowerCase());
   if (i >= 0) { rec.id = all[i].id; all[i] = rec; } else all.unshift(rec);
   S.offerId = rec.id;
-  try { localStorage.setItem(OFFERS_KEY, JSON.stringify(all)); } catch { if (!silent) toast('Stockage plein : retirez des sources ou des offres.'); return false; }
-  persist(); if (!silent) toast(`Offre « ${name} » enregistrée.`); return true;
+  try { localStorage.setItem(OFFERS_KEY, JSON.stringify(all)); } catch { if (!silent) toast(t('Stockage plein : retirez des sources ou des offres.')); return false; }
+  persist(); if (!silent) toast(t('Offre « {name} » enregistrée.', { name })); return true;
 }
 function loadOffer(id) {
   const o = listOffers().find((x) => x.id === id); if (!o) return;
   Object.assign(S, { product: structuredClone(o.product), offer: structuredClone(o.offer), market: structuredClone(o.market || marketDefaults()), offerId: o.id });
-  invalidatePreparation(); persist(); renderers.offer(); toast(`Offre « ${o.name} » chargée.`);
+  invalidatePreparation(); persist(); renderers.offer(); toast(t('Offre « {name} » chargée.', { name: o.name }));
 }
 function deleteOffer(id) {
   localStorage.setItem(OFFERS_KEY, JSON.stringify(listOffers().filter((o) => o.id !== id)));
@@ -101,31 +103,31 @@ function clearOffer() {
   invalidatePreparation(); persist(); renderers.offer();
 }
 function newOffer() {
-  if (!confirm('Nouvelle offre ? L’offre en cours est d’abord enregistrée dans « Mes offres », puis la fiche, ses sources et la recherche marché sont vidées.')) return;
+  if (!confirm(t('Nouvelle offre ? L’offre en cours est d’abord enregistrée dans « Mes offres », puis la fiche, ses sources et la recherche marché sont vidées.'))) return;
   saveOffer(true); clearOffer();
 }
 /** Tout le RDV en cours repart à zéro (offre, client, persona, SIMAC, suivi) ; Mes offres et l'historique ne bougent pas. */
 function resetOffer() {
-  if (!confirm('Tout remettre à blanc ? Offre, client, persona, SIMAC et suivi en cours sont effacés — sans enregistrement. (« Mes offres » et l’historique ne bougent pas.)')) return;
-  S = blank(); persist(); go('offer'); toast('Tout est remis à blanc.');
+  if (!confirm(t('Tout remettre à blanc ? Offre, client, persona, SIMAC et suivi en cours sont effacés — sans enregistrement. (« Mes offres » et l’historique ne bougent pas.)'))) return;
+  S = blank(); persist(); go('offer'); toast(t('Tout est remis à blanc.'));
 }
 function renderOfferBar() {
   const el = $('#offer-bar'); if (!el) return;
   const all = listOffers();
   el.innerHTML = `
-    <label>Mes offres <small>— conservées dans ce navigateur ; un nouveau rendez-vous garde l’offre en cours</small></label>
+    <label>${t('Mes offres')} <small>— ${t('conservées dans ce navigateur ; un nouveau rendez-vous garde l’offre en cours')}</small></label>
     <div class="actions" style="margin:4px 0 0">
-      <select id="offer-pick"><option value="">${all.length ? '— choisir une offre enregistrée —' : '— aucune offre enregistrée —'}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} (${esc(o.savedAt.slice(0, 10))})</option>`).join('')}</select>
-      <button class="btn ghost small" id="offer-save">Enregistrer l’offre</button>
-      <button class="btn ghost small" id="offer-new">Nouvelle offre</button>
-      <button class="btn ghost small" id="offer-reset" title="Tout effacer (offre, client, persona, SIMAC, suivi), sans enregistrer">Remettre à blanc</button>
-      ${S.offerId && all.some((o) => o.id === S.offerId) ? '<button class="btn danger small" id="offer-del" title="Retirer de Mes offres">×</button>' : ''}
+      <select id="offer-pick"><option value="">${all.length ? t('— choisir une offre enregistrée —') : t('— aucune offre enregistrée —')}</option>${all.map((o) => `<option value="${o.id}" ${o.id === S.offerId ? 'selected' : ''}>${esc(o.name)} (${esc(o.savedAt.slice(0, 10))})</option>`).join('')}</select>
+      <button class="btn ghost small" id="offer-save">${t('Enregistrer l’offre')}</button>
+      <button class="btn ghost small" id="offer-new">${t('Nouvelle offre')}</button>
+      <button class="btn ghost small" id="offer-reset" title="${t('Tout effacer (offre, client, persona, SIMAC, suivi), sans enregistrer')}">${t('Remettre à blanc')}</button>
+      ${S.offerId && all.some((o) => o.id === S.offerId) ? `<button class="btn danger small" id="offer-del" title="${t('Retirer de Mes offres')}">×</button>` : ''}
     </div>`;
   $('#offer-pick').onchange = (e) => { if (e.target.value) loadOffer(e.target.value); };
   $('#offer-save').onclick = () => { saveOffer(); renderOfferBar(); };
   $('#offer-new').onclick = newOffer;
   $('#offer-reset').onclick = resetOffer;
-  $('#offer-del')?.addEventListener('click', () => { if (confirm('Retirer cette offre de Mes offres ? (la fiche en cours reste affichée)')) deleteOffer(S.offerId); });
+  $('#offer-del')?.addEventListener('click', () => { if (confirm(t('Retirer cette offre de Mes offres ? (la fiche en cours reste affichée)'))) deleteOffer(S.offerId); });
 }
 function invalidatePreparation() {
   S.brief = null; S.simac = null; S.followup = null;
@@ -153,8 +155,8 @@ function mountResearch() {
 // ----------------------------------------------------------------------------- UI utils
 let toastTimer;
 function toast(msg, ms = 2600) {
-  const t = $('#toast'); t.textContent = msg; t.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), ms);
+  const el = $('#toast'); el.textContent = msg; el.hidden = false;
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => (el.hidden = true), ms);
 }
 async function busy(btn, fn) {
   const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>${old}`;
@@ -164,13 +166,13 @@ async function busy(btn, fn) {
 }
 function friendlyError(e) {
   const m = String(e?.message || e);
-  if (m === 'NO_API_KEY') return 'Ajoutez une clé API gratuite dans Réglages (ou choisissez le mode démo).';
-  if (m.startsWith('LLM_HTTP_401') || m.startsWith('LLM_HTTP_403')) return 'Clé API refusée. Vérifiez-la dans Réglages.';
-  if (m.startsWith('LLM_HTTP_429')) return 'Quota gratuit atteint : patientez une minute ou changez de fournisseur.';
-  if (m.startsWith('LLM_HTTP_404') && /model/i.test(m)) return 'Modèle introuvable chez ce fournisseur : dans Réglages, cliquez « Lister les modèles » et choisissez-en un.';
-  if (m.includes('Failed to fetch')) return 'Réseau ou CORS bloqué. Pour Ollama : lancez-le avec OLLAMA_ORIGINS="*".';
-  if (m.startsWith('LLM_TRUNCATED')) return 'Réponse IA coupée : trop longue. Retirez une source ou relancez.';
-  if (e instanceof SyntaxError) return `Réponse IA illisible (JSON). Relancez, ou changez de modèle.${e.raw ? ' Début : « ' + e.raw.slice(0, 120) + ' »' : ''}`;
+  if (m === 'NO_API_KEY') return t('Ajoutez une clé API gratuite dans Réglages (ou choisissez le mode démo).');
+  if (m.startsWith('LLM_HTTP_401') || m.startsWith('LLM_HTTP_403')) return t('Clé API refusée. Vérifiez-la dans Réglages.');
+  if (m.startsWith('LLM_HTTP_429')) return t('Quota gratuit atteint : patientez une minute ou changez de fournisseur.');
+  if (m.startsWith('LLM_HTTP_404') && /model/i.test(m)) return t('Modèle introuvable chez ce fournisseur : dans Réglages, cliquez « Lister les modèles » et choisissez-en un.');
+  if (m.includes('Failed to fetch')) return t('Réseau ou CORS bloqué. Pour Ollama : lancez-le avec OLLAMA_ORIGINS="*".');
+  if (m.startsWith('LLM_TRUNCATED')) return t('Réponse IA coupée : trop longue. Retirez une source ou relancez.');
+  if (e instanceof SyntaxError) return t('Réponse IA illisible (JSON). Relancez, ou changez de modèle.') + (e.raw ? ' ' + t('Début : « {text} »', { text: e.raw.slice(0, 120) }) : '');
   return m.slice(0, 200);
 }
 function bindInputs(root, obj, prefix) {
@@ -218,90 +220,91 @@ function markDone() {
   };
   $$('#steps button').forEach((b) => b.classList.toggle('done', !!done[b.dataset.step]));
   const cfg = resolve();
-  $('#provider-badge').textContent = cfg.provider === 'mock' ? 'Mode démo (sans IA)' : `${PROVIDERS[cfg.provider]?.label.split(' (')[0]}, ${cfg.model}`;
+  $('#provider-badge').textContent = cfg.provider === 'mock' ? t('Mode démo (sans IA)') : `${PROVIDERS[cfg.provider]?.label.split(' (')[0]}, ${cfg.model}`;
 }
 $('#steps').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) go(b.dataset.step); });
 $('#btn-new').addEventListener('click', () => {
-  if (!confirm('Nouveau rendez-vous ? L’offre est conservée (et enregistrée dans « Mes offres »), le reste est réinitialisé (pensez à enregistrer le RDV dans Suivi).')) return;
+  if (!confirm(t('Nouveau rendez-vous ? L’offre est conservée (et enregistrée dans « Mes offres »), le reste est réinitialisé (pensez à enregistrer le RDV dans Suivi).'))) return;
   saveOffer(true);
   const product = S.product, offer = S.offer, market = S.market, offerId = S.offerId; S = blank(); Object.assign(S, { product, offer, market, offerId }); persist(); go('client');
 });
 
 // ----------------------------------------------------------------------------- 1. OFFRE
 const renderers = {};
-const FIELD_LABELS = { name: 'Produit / service', oneLiner: 'En une phrase', targets: 'Cibles', problem: 'Problème de chaque cible', who: 'Qui parle', nextStep: 'Étape suivante voulue', mechanism: 'Mécanisme', advantages: 'Avantages', proofs: 'Preuves', price: 'Prix', floor: 'Plancher', delays: 'Délais et conditions', objections: 'Objections attendues', constraints: 'Contraintes' };
-const MATURITY = { 1: 'Encore une idée à travailler', 2: 'Ébauche', 3: 'Offre définie', 4: 'Prête à tester', 5: 'Prête à la présentation' };
+const FIELD_LABELS = { name: t('Produit / service'), oneLiner: t('En une phrase'), targets: t('Cibles'), problem: t('Problème de chaque cible'), who: t('Qui parle'), nextStep: t('Étape suivante voulue'), mechanism: t('Mécanisme'), advantages: t('Avantages'), proofs: t('Preuves'), price: t('Prix'), floor: t('Plancher'), delays: t('Délais et conditions'), objections: t('Objections attendues'), constraints: t('Contraintes') };
+const MATURITY = { 1: t('Encore une idée à travailler'), 2: t('Ébauche'), 3: t('Offre définie'), 4: t('Prête à tester'), 5: t('Prête à la présentation') };
+// Codes de verdict : restent en français (l'IA les renvoie tels quels) ; affichés via t().
 const VERDICT = { 1: 'travailler l’offre', 2: 'travailler l’offre', 3: 'prêt pour des réunions à blanc', 4: 'prêt pour la vente', 5: 'prêt pour la vente' };
 function verdictBanner() {
   const M = S.offer?.maturity;
-  if (!M) return '<div class="card warn"><b>Maturité de l’offre non évaluée.</b> L’IA n’invente rien : ce que la fiche ne contient pas n’apparaîtra pas. Lancez « Analyser la maturité » à l’étape 1 pour connaître l’avis de l’outil.</div>';
+  if (!M) return `<div class="card warn"><b>${t('Maturité de l’offre non évaluée.')}</b> ${t('L’IA n’invente rien : ce que la fiche ne contient pas n’apparaîtra pas. Lancez « Analyser la maturité » à l’étape 1 pour connaître l’avis de l’outil.')}</div>`;
   const v = M.verdict || VERDICT[M.score];
-  if (/vente/.test(v)) return '';
-  const hint = /travailler/.test(v) ? 'Des trous dans la fiche empêchent d’argumenter sans inventer — complétez l’offre avant un vrai rendez-vous.' : 'Utilisez ce rendez-vous comme un entraînement ; complétez les manques signalés avant de vendre.';
-  return `<div class="card${M.score < 3 ? ' warn' : ''}"><b>Avis de l’outil : ${esc(v)}</b> (${M.score}/5). ${hint}</div>`;
+  if (/vente|venta|vender|sell|sale/i.test(v)) return '';
+  const hint = /travailler|trabajar|work/i.test(v) ? t('Des trous dans la fiche empêchent d’argumenter sans inventer — complétez l’offre avant un vrai rendez-vous.') : t('Utilisez ce rendez-vous comme un entraînement ; complétez les manques signalés avant de vendre.');
+  return `<div class="card${M.score < 3 ? ' warn' : ''}"><b>${t('Avis de l’outil : {verdict}', { verdict: esc(t(v)) })}</b> (${M.score}/5). ${hint}</div>`;
 }
 
 renderers.offer = () => {
   const O = S.offer;
   $('#main').innerHTML = `
-    <h1>1 · Votre offre</h1>
-    <p class="lead">Décrivez votre produit ou service avec vos mots ; l’IA remplit la fiche, pose les questions qui manquent et mesure la maturité de l’offre. Ne rien inventer — ce qui manque est un trou à combler.</p>
+    <h1>${t('1 · Votre offre')}</h1>
+    <p class="lead">${t('Décrivez votre produit ou service avec vos mots ; l’IA remplit la fiche, pose les questions qui manquent et mesure la maturité de l’offre. Ne rien inventer — ce qui manque est un trou à combler.')}</p>
     <div class="card soft" id="offer-bar"></div>
 
     <div class="card">
-      <h2>Décrire</h2>
+      <h2>${t('Décrire')}</h2>
       <div class="grid">
-        ${field('offer.description', 'Texte libre', { hint: 'ce que vous vendez, à qui, comment, à quel prix — comme vous le diriez à un ami', type: 'textarea', full: true, placeholder: 'Ex. : J’accompagne des artisans pendant 3 mois pour qu’ils signent plus de devis. On commence par…' })}
-        ${field('offer.website', 'Site web', { hint: 'lu automatiquement', placeholder: 'exemple.fr' })}
-        ${field('offer.linkedin', 'Page LinkedIn / Instagram / autre', { hint: 'URL ; si la lecture échoue, collez le texte ci-dessous', placeholder: 'linkedin.com/in/… ou instagram.com/…' })}
-        ${field('offer.profileText', 'Texte collé', { hint: 'profil LinkedIn, bio Instagram, plaquette, mail… (LinkedIn et Instagram bloquent la lecture automatique)', type: 'textarea', full: true })}
+        ${field('offer.description', t('Texte libre'), { hint: t('ce que vous vendez, à qui, comment, à quel prix — comme vous le diriez à un ami'), type: 'textarea', full: true, placeholder: t('Ex. : J’accompagne des artisans pendant 3 mois pour qu’ils signent plus de devis. On commence par…') })}
+        ${field('offer.website', t('Site web'), { hint: t('lu automatiquement'), placeholder: t('exemple.fr') })}
+        ${field('offer.linkedin', t('Page LinkedIn / Instagram / autre'), { hint: t('URL ; si la lecture échoue, collez le texte ci-dessous'), placeholder: t('linkedin.com/in/… ou instagram.com/…') })}
+        ${field('offer.profileText', t('Texte collé'), { hint: t('profil LinkedIn, bio Instagram, plaquette, mail… (LinkedIn et Instagram bloquent la lecture automatique)'), type: 'textarea', full: true })}
       </div>
       <div class="actions">
-        <button class="btn ghost" id="offer-fetch">Lire les pages</button>
-        <label class="btn ghost" style="margin:0">Joindre plaquette / mail / image <input type="file" id="offer-files" accept="${ACCEPT}" multiple hidden></label>
-        <span class="note" id="offer-src">${O.sources.length} source(s)</span>
+        <button class="btn ghost" id="offer-fetch">${t('Lire les pages')}</button>
+        <label class="btn ghost" style="margin:0">${t('Joindre plaquette / mail / image')} <input type="file" id="offer-files" accept="${ACCEPT}" multiple hidden></label>
+        <span class="note" id="offer-src">${t('{n} source(s)', { n: O.sources.length })}</span>
       </div>
       <div id="offer-sources"></div>
-      <div class="actions"><button class="btn" id="offer-extract">Analyser et remplir la fiche avec l’IA</button></div>
+      <div class="actions"><button class="btn" id="offer-extract">${t('Analyser et remplir la fiche avec l’IA')}</button></div>
       <div id="offer-notes" class="note"></div>
     </div>
 
-    <h2>Fiche produit</h2>
+    <h2>${t('Fiche produit')}</h2>
     <div id="offer-gaps" class="gaps"></div>
     <div class="grid">
-      ${field('product.name', 'Produit / service')}
-      ${field('product.oneLiner', 'En une phrase, sans jargon', { placeholder: 'Ex. : un accompagnement de 3 mois pour structurer la prospection' })}
-      ${field('product.targets', 'Cibles', { hint: 'qui achète / qui utilise / qui décide', type: 'textarea' })}
-      ${field('product.problem', 'Problème de chaque cible', { hint: 'avec ses mots', type: 'textarea' })}
-      ${field('product.who', 'Qui parle', { hint: 'vous / la marque en une phrase' })}
-      ${field('product.nextStep', 'Étape suivante voulue', { hint: 'le « petit oui » : essai, RDV, devis…' })}
-      ${field('product.mechanism', 'Mécanisme', { hint: '3 à 5 étapes : qui fait quoi, quand, comment', type: 'textarea' })}
-      ${field('product.advantages', 'Avantages', { hint: '≥ 3, tangibles et intangibles', type: 'textarea' })}
-      ${field('product.proofs', 'Preuves', { hint: 'chiffres, références, témoignages', type: 'textarea' })}
-      ${field('product.objections', 'Objections attendues', { hint: '5 à 10', type: 'textarea' })}
-      ${field('product.price', 'Prix', { hint: 'et unité qui parle au client' })}
-      ${field('product.floor', 'Plancher', { hint: 'limite basse, gratuités max' })}
-      ${field('product.delays', 'Délais et conditions')}
-      ${field('product.constraints', 'Contraintes', { hint: 'réglementation, ton, décisions prises' })}
+      ${field('product.name', t('Produit / service'))}
+      ${field('product.oneLiner', t('En une phrase, sans jargon'), { placeholder: t('Ex. : un accompagnement de 3 mois pour structurer la prospection') })}
+      ${field('product.targets', t('Cibles'), { hint: t('qui achète / qui utilise / qui décide'), type: 'textarea' })}
+      ${field('product.problem', t('Problème de chaque cible'), { hint: t('avec ses mots'), type: 'textarea' })}
+      ${field('product.who', t('Qui parle'), { hint: t('vous / la marque en une phrase') })}
+      ${field('product.nextStep', t('Étape suivante voulue'), { hint: t('le « petit oui » : essai, RDV, devis…') })}
+      ${field('product.mechanism', t('Mécanisme'), { hint: t('3 à 5 étapes : qui fait quoi, quand, comment'), type: 'textarea' })}
+      ${field('product.advantages', t('Avantages'), { hint: t('≥ 3, tangibles et intangibles'), type: 'textarea' })}
+      ${field('product.proofs', t('Preuves'), { hint: t('chiffres, références, témoignages'), type: 'textarea' })}
+      ${field('product.objections', t('Objections attendues'), { hint: t('5 à 10'), type: 'textarea' })}
+      ${field('product.price', t('Prix'), { hint: t('et unité qui parle au client') })}
+      ${field('product.floor', t('Plancher'), { hint: t('limite basse, gratuités max') })}
+      ${field('product.delays', t('Délais et conditions'))}
+      ${field('product.constraints', t('Contraintes'), { hint: t('réglementation, ton, décisions prises') })}
     </div>
 
     <div id="market-research"></div>
 
     <div class="card" id="offer-chat-card">
-      <h2>Compléter par questions</h2>
-      <p class="note">L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.</p>
+      <h2>${t('Compléter par questions')}</h2>
+      <p class="note">${t('L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.')}</p>
       <div id="offer-chat"></div>
     </div>
 
     <div class="card">
-      <h2>Maturité de l’offre</h2>
-      <div class="actions" style="margin-top:0"><button class="btn ghost" id="offer-maturity">Analyser la maturité (1 à 5)</button></div>
+      <h2>${t('Maturité de l’offre')}</h2>
+      <div class="actions" style="margin-top:0"><button class="btn ghost" id="offer-maturity">${t('Analyser la maturité (1 à 5)')}</button></div>
       <div id="offer-maturity-out"></div>
     </div>
 
-    <div class="actions"><button class="btn" id="next">Passer à l’étape Client</button>
-      <button class="btn ghost small" id="export-offer">Exporter la fiche (JSON)</button>
-      <label class="btn ghost small" style="margin:0">Importer <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
+    <div class="actions"><button class="btn" id="next">${t('Passer à l’étape Client')}</button>
+      <button class="btn ghost small" id="export-offer">${t('Exporter la fiche (JSON)')}</button>
+      <label class="btn ghost small" style="margin:0">${t('Importer')} <input type="file" id="import-offer" accept=".json" hidden></label></div>`;
   bindInputs($('#main'), S.product, 'product');
   bindInputs($('#main'), O, 'offer');
   renderOfferBar();
@@ -314,19 +317,19 @@ renderers.offer = () => {
 
   $('#offer-fetch').onclick = (e) => busy(e.target, async () => {
     const urls = [O.website, O.linkedin].filter(Boolean);
-    if (!urls.length) return toast('Indiquez au moins une URL.');
+    if (!urls.length) return toast(t('Indiquez au moins une URL.'));
     const jinaKey = loadSettings().jinaKey || '';
     let n = 0;
     for (const u of urls) {
       try { const src = await readUrl(u, { jinaKey }); const fresh = !O.sources.some((x) => x.source === src.source); if (fresh && !roomFor(O.sources)) break; O.sources = O.sources.filter((x) => x.source !== src.source); O.sources.push(src); n++; }
-      catch (err) { toast(/linkedin|instagram/i.test(u) ? 'Ce site bloque la lecture automatique : collez le texte du profil dans « Texte collé ».' : friendlyError(err), 6000); }
+      catch (err) { toast(/linkedin|instagram/i.test(u) ? t('Ce site bloque la lecture automatique : collez le texte du profil dans « Texte collé ».') : friendlyError(err), 6000); }
     }
-    persist(); if ($('#offer-src')) $('#offer-src').textContent = `${O.sources.length} source(s)`; renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
-    if (n) toast(`${n} page(s) lue(s).`);
+    persist(); if ($('#offer-src')) $('#offer-src').textContent = t('{n} source(s)', { n: O.sources.length }); renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
+    if (n) toast(t('{n} page(s) lue(s).', { n }));
   });
 
   $('#offer-extract').onclick = (e) => busy(e.target, async () => {
-    if (!O.description.trim() && !O.sources.length && !O.profileText.trim()) return toast('Décrivez votre offre ou ajoutez une source.');
+    if (!O.description.trim() && !O.sources.length && !O.profileText.trim()) return toast(t('Décrivez votre offre ou ajoutez une source.'));
     const all = [...O.sources]; if (O.profileText.trim()) all.push(notesSource(O.profileText, 'profil'));
     const r = await chatJSON(offerExtractMessages({ lang: LANG, description: O.description, sources: mergeSources(all), current: S.product }));
     const f = r.fields || {}; let filled = 0, kept = 0;
@@ -334,20 +337,20 @@ renderers.offer = () => {
       const v = String(f[k] || '').trim(); if (!v) continue;
       if (!String(S.product[k] || '').trim()) { S.product[k] = v; filled++; } else if (S.product[k] !== v) kept++;
     }
-    if (kept && confirm(`${kept} champ(s) déjà remplis ont une nouvelle proposition. Les remplacer ? (Annuler = garder vos valeurs)`)) {
+    if (kept && confirm(t('{n} champ(s) déjà remplis ont une nouvelle proposition. Les remplacer ? (Annuler = garder vos valeurs)', { n: kept }))) {
       for (const k of Object.keys(FIELD_LABELS)) { const v = String(f[k] || '').trim(); if (v) S.product[k] = v; }
       filled += kept;
     }
     O.maturity = null; S.market.comparison = null; invalidatePreparation(); persist(); markDone();
     if (S.step !== 'offer') return;
     renderers.offer();
-    const notes = [r.notes, (r.missing || []).length ? 'Manque : ' + r.missing.map((k) => FIELD_LABELS[k] || k).join(', ') + ' → utilisez « Compléter par questions ».' : ''].filter(Boolean).join(' ');
+    const notes = [r.notes, (r.missing || []).length ? t('Manque : {fields} → utilisez « Compléter par questions ».', { fields: r.missing.map((k) => FIELD_LABELS[k] || k).join(', ') }) : ''].filter(Boolean).join(' ');
     $('#offer-notes').textContent = notes;
-    toast(`${filled} champ(s) rempli(s).`);
+    toast(t('{n} champ(s) rempli(s).', { n: filled }));
   });
 
   $('#offer-maturity').onclick = (e) => busy(e.target, async () => {
-    if (!S.product.oneLiner && !S.product.name) return toast('Remplissez au moins le nom et la phrase.');
+    if (!S.product.oneLiner && !S.product.name) return toast(t('Remplissez au moins le nom et la phrase.'));
     const r = await chatJSON(offerMaturityMessages({ lang: LANG, current: S.product }));
     O.maturity = { ...r, score: Math.min(5, Math.max(1, Number(r.score) || 1)) };
     O.blockers = blockersFrom(O.maturity); // survivent aux réponses suivantes : seule une nouvelle maturité les lève
@@ -361,8 +364,8 @@ renderers.offer = () => {
     const f = e.target.files[0]; if (!f) return;
     try { const data = JSON.parse(await f.text()); const product = data.product || data;
       S.product = Object.fromEntries(Object.keys(FIELD_LABELS).map(k => [k, String(product[k] || '')]));
-      S.market = restoreMarket(data.market); invalidatePreparation(); persist(); renderers.offer(); toast('Fiche importée.'); }
-    catch { toast('Fichier illisible.'); }
+      S.market = restoreMarket(data.market); invalidatePreparation(); persist(); renderers.offer(); toast(t('Fiche importée.')); }
+    catch { toast(t('Fichier illisible.')); }
   };
 };
 
@@ -370,23 +373,23 @@ renderers.offer = () => {
 function roomFor(list, adding = 1) {
   const max = CONFIG.limits?.sourcesPerStep ?? 4;
   if (list.length + adding <= max) return true;
-  toast(`Version gratuite : ${max} sources par étape (vous en avez ${list.length}). Retirez-en une, ou choisissez les plus utiles — c’est ce qui garde les réponses complètes.`, 7000);
+  toast(t('Version gratuite : {max} sources par étape (vous en avez {n}). Retirez-en une, ou choisissez les plus utiles — c’est ce qui garde les réponses complètes.', { max, n: list.length }), 7000);
   return false;
 }
 async function addFiles(files, list, done) {
   let n = 0;
   for (const f of files) {
     if (!list.some((x) => x.source === f.name) && !roomFor(list)) break;
-    try { const src = await extractText(f, (msg) => toast(msg, 20000)); const i = list.findIndex((x) => x.source === src.source); if (i >= 0) list[i] = src; else list.push(src); n++; if (src.ocr) toast(`${f.name} : texte reconnu optiquement — relisez-le avant d’analyser.`, 6000); }
+    try { const src = await extractText(f, (msg) => toast(msg, 20000)); const i = list.findIndex((x) => x.source === src.source); if (i >= 0) list[i] = src; else list.push(src); n++; if (src.ocr) toast(t('{name} : texte reconnu optiquement — relisez-le avant d’analyser.', { name: f.name }), 6000); }
     catch (err) { toast(friendlyError(err), 6000); }
   }
-  if (n) toast(`${n} document(s) lu(s).`);
+  if (n) toast(t('{n} document(s) lu(s).', { n }));
   done();
 }
 function renderSourceList(el, list, onChange) {
   if (!el) return;
-  el.innerHTML = list.map((s, i) => `<div class="card" style="margin:8px 0;padding:10px 14px"><b>${esc(s.kind)}</b> — ${esc(s.title || s.source)}${s.truncated ? ' <small class="muted">(tronqué)</small>' : ''}
-    <button class="btn ghost small" style="float:right" data-rm="${i}">retirer</button><div class="note" style="margin-top:4px">${esc(s.text.slice(0, 200))}…</div></div>`).join('');
+  el.innerHTML = list.map((s, i) => `<div class="card" style="margin:8px 0;padding:10px 14px"><b>${esc(s.kind)}</b> — ${esc(s.title || s.source)}${s.truncated ? ` <small class="muted">${t('(tronqué)')}</small>` : ''}
+    <button class="btn ghost small" style="float:right" data-rm="${i}">${t('retirer')}</button><div class="note" style="margin-top:4px">${esc(s.text.slice(0, 200))}…</div></div>`).join('');
   $$('[data-rm]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rm, 1); onChange(); }));
 }
 
@@ -403,10 +406,10 @@ function renderGaps({ el, obj, keys, labels, chatCard, prefix, filled }) {
     const n = keys.length - missing.length;
     el.className = 'gaps ' + (essential.length ? 'warn' : 'ok');
     el.innerHTML = essential.length
-      ? `<b>${n} / ${keys.length} champs remplis.</b> Il manque pour vendre : ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}${isFilled(k) ? ' (à renforcer)' : ''}</span>`).join(' ')}
-         <button class="btn small gaps-go">Compléter par questions</button>`
-      : `<b>${n} / ${keys.length} champs remplis.</b> L’essentiel y est${missing.length ? ` — reste facultatif : ${missing.map((k) => labels[k] || k).join(', ')}` : ''}.`;
-    if (recheck.length) el.innerHTML += ` <span class="note">Répondu depuis la dernière maturité : ${esc(recheck.map((k) => labels[k] || k).join(', '))} — relancez « Analyser la maturité » pour confirmer.</span>`;
+      ? `<b>${t('{n} / {total} champs remplis.', { n, total: keys.length })}</b> ${t('Il manque pour vendre :')} ${essential.map((k) => `<span class="gap">${esc(labels[k] || k)}${isFilled(k) ? ' ' + t('(à renforcer)') : ''}</span>`).join(' ')}
+         <button class="btn small gaps-go">${t('Compléter par questions')}</button>`
+      : `<b>${t('{n} / {total} champs remplis.', { n, total: keys.length })}</b> ${missing.length ? t('L’essentiel y est — reste facultatif : {fields}.', { fields: esc(missing.map((k) => labels[k] || k).join(', ')) }) : t('L’essentiel y est.')}`;
+    if (recheck.length) el.innerHTML += ` <span class="note">${t('Répondu depuis la dernière maturité : {fields} — relancez « Analyser la maturité » pour confirmer.', { fields: esc(recheck.map((k) => labels[k] || k).join(', ')) })}</span>`;
     const essentialKeys = prefix === 'product' ? keys.slice(0, OFFER_ESSENTIAL) : keys;
     $$('[data-bind]', $('#main')).forEach((inp) => { const k = inp.dataset.bind.split('.')[1]; if (inp.dataset.bind.startsWith(prefix + '.') && keys.includes(k)) inp.classList.toggle('missing', essentialKeys.includes(k) && !isFilled(k)); });
     $('.gaps-go', el)?.addEventListener('click', () => { const card = $(chatCard); card?.scrollIntoView({ block: 'center', behavior: 'smooth' }); $('.chat-start', card)?.click(); });
@@ -426,21 +429,21 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   const last = state.chat[state.chat.length - 1];
   const waiting = last && last.role === 'ai' && state.pendingField;
   el.innerHTML = `
-    <div class="chat-log">${log || '<div class="note">Aucune question pour l’instant.</div>'}</div>
-    ${waiting ? `<div class="chat-input"><textarea class="chat-answer" rows="2" placeholder="Votre réponse…"></textarea>
-      <button class="btn chat-send">Répondre</button><button class="btn ghost small chat-skip" title="Je ne sais pas / plus tard">Passer</button></div>` : ''}
-    ${asked >= hintAt && gapCount ? `<div class="card warn" style="margin:8px 0"><b>${asked} questions et il manque encore ${gapCount} élément(s) essentiel(s).</b> C’est le signe d’une offre pas encore mûre : continuez si les réponses viennent, sinon travaillez-la hors de l’outil (prix, preuves, objections) et revenez — la maturité ne s’atteint pas en répondant vite.</div>` : ''}
+    <div class="chat-log">${log || `<div class="note">${t('Aucune question pour l’instant.')}</div>`}</div>
+    ${waiting ? `<div class="chat-input"><textarea class="chat-answer" rows="2" placeholder="${t('Votre réponse…')}"></textarea>
+      <button class="btn chat-send">${t('Répondre')}</button><button class="btn ghost small chat-skip" title="${t('Je ne sais pas / plus tard')}">${t('Passer')}</button></div>` : ''}
+    ${asked >= hintAt && gapCount ? `<div class="card warn" style="margin:8px 0"><b>${t('{asked} questions et il manque encore {n} élément(s) essentiel(s).', { asked, n: gapCount })}</b> ${t('C’est le signe d’une offre pas encore mûre : continuez si les réponses viennent, sinon travaillez-la hors de l’outil (prix, preuves, objections) et revenez — la maturité ne s’atteint pas en répondant vite.')}</div>` : ''}
     <div class="actions" style="margin-bottom:0">
-      <button class="btn ghost chat-start">${state.chat.length ? 'Question suivante' : 'Poser la première question'}</button>
-      <span class="note">${asked} question${asked > 1 ? 's' : ''} posée${asked > 1 ? 's' : ''}</span>
-      ${state.chat.length ? '<button class="btn ghost small chat-reset">Nouvelle série</button>' : ''}
+      <button class="btn ghost chat-start">${state.chat.length ? t('Question suivante') : t('Poser la première question')}</button>
+      <span class="note">${asked > 1 ? t('{n} questions posées', { n: asked }) : t('{n} question posée', { n: asked })}</span>
+      ${state.chat.length ? `<button class="btn ghost small chat-reset">${t('Nouvelle série')}</button>` : ''}
     </div>`;
-  const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? 'IA' : 'Vous'} : ${m.text}`).join('\n');
+  const transcript = () => state.chat.map((m) => `${m.role === 'ai' ? t('IA') : t('Vous')} : ${m.text}`).join('\n');
   const finish = (text) => { state.pendingField = ''; state.chat.push({ role: 'ai', text }); };
   const ask = async (btn, lastField, lastAnswer) => busy(btn, async () => {
     const r = await chatJSON(build({ lang: LANG, current: target, transcript: transcript(), lastField, lastAnswer, skipped: state.skipped, asked: state.chat.filter((m) => m.field).map((m) => m.field), blockers: state.blockers || [] }));
     if (lastField && r.field_value) { target[lastField] = r.field_value; onFilled?.(lastField); }
-    if (r.done || !r.question) finish('La fiche est complète sur l’essentiel.');
+    if (r.done || !r.question) finish(t('La fiche est complète sur l’essentiel.'));
     else { state.pendingField = r.next_field || ''; state.chat.push({ role: 'ai', text: r.question, field: r.next_field }); }
     persist(); markDone();
     if (S.step === step) { renderers[step](); el.closest('.card')?.scrollIntoView({ block: 'center' }); }
@@ -454,7 +457,7 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   });
   $('.chat-skip', el)?.addEventListener('click', (e) => {
     const f = state.pendingField; if (f && !state.skipped.includes(f)) state.skipped.push(f);
-    state.chat.push({ role: 'user', text: '(passé)' }); state.pendingField = '';
+    state.chat.push({ role: 'user', text: t('(passé)') }); state.pendingField = '';
     ask(e.target, '', '');
   });
 }
@@ -465,63 +468,63 @@ function renderMaturity() {
   el.innerHTML = `
     <div class="maturity">
       <div class="gauge">${[1, 2, 3, 4, 5].map((i) => `<span class="${i <= M.score ? 'on' : ''}"></span>`).join('')}</div>
-      <div><b>${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</b> <span class="verdict v${M.score}">${esc(M.verdict || VERDICT[M.score])}</span><div class="note">${esc(M.summary)}</div></div>
+      <div><b>${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</b> <span class="verdict v${M.score}">${esc(t(M.verdict || VERDICT[M.score]))}</span><div class="note">${esc(M.summary)}</div></div>
     </div>
     <div class="grid" style="margin-top:12px">
-      <div><h3>Points forts</h3><ul class="plain">${(M.strengths || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
-      <div><h3>Ce qui bloque la vente</h3><ul class="plain">${(M.gaps || []).map((g) => `<li><b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} <i>→ ${esc(g.fix)}</i></li>`).join('')}</ul></div>
+      <div><h3>${t('Points forts')}</h3><ul class="plain">${(M.strengths || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
+      <div><h3>${t('Ce qui bloque la vente')}</h3><ul class="plain">${(M.gaps || []).map((g) => `<li><b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} <i>→ ${esc(g.fix)}</i></li>`).join('')}</ul></div>
     </div>
-    <div class="card soft" style="margin-bottom:0"><b>À faire avant le prochain rendez-vous :</b> ${esc(M.next_step)}</div>`;
+    <div class="card soft" style="margin-bottom:0"><b>${t('À faire avant le prochain rendez-vous :')}</b> ${esc(M.next_step)}</div>`;
 }
 
 // ----------------------------------------------------------------------------- 2. CLIENT
-const CLIENT_LABELS = { company: 'Entreprise / établissement', sector: 'Secteur', website: 'Site web', contacts: 'Interlocuteurs', meetingFormat: 'Format du rendez-vous', decisionProcess: 'Processus de décision', notes: 'Notes' };
+const CLIENT_LABELS = { company: t('Entreprise / établissement'), sector: t('Secteur'), website: t('Site web'), contacts: t('Interlocuteurs'), meetingFormat: t('Format du rendez-vous'), decisionProcess: t('Processus de décision'), notes: t('Notes') };
 
 renderers.client = () => {
   const C = S.clientChat;
   $('#main').innerHTML = `
-    <h1>2 · Se renseigner sur le client</h1>
-    <p class="lead">Qui je vais voir, dans quel cadre, quel est son problème, pourquoi sa décision compte. Décrivez librement ; l’IA remplit la fiche, pose les questions qui manquent, lit les sources et prépare la fiche client.</p>
+    <h1>${t('2 · Se renseigner sur le client')}</h1>
+    <p class="lead">${t('Qui je vais voir, dans quel cadre, quel est son problème, pourquoi sa décision compte. Décrivez librement ; l’IA remplit la fiche, pose les questions qui manquent, lit les sources et prépare la fiche client.')}</p>
 
     <div class="card">
-      <h2>Décrire</h2>
-      ${field('clientChat.description', 'Texte libre', { hint: 'l’interlocuteur, l’établissement, le rendez-vous (mail, visio, sur place, salon…), ce que vous savez déjà', type: 'textarea', full: true, placeholder: 'Ex. : Rendez-vous jeudi sur place avec la directrice d’un collège privé du 15e, 30 min. Elle veut un projet innovant pour la 3e mais le budget est serré…' })}
+      <h2>${t('Décrire')}</h2>
+      ${field('clientChat.description', t('Texte libre'), { hint: t('l’interlocuteur, l’établissement, le rendez-vous (mail, visio, sur place, salon…), ce que vous savez déjà'), type: 'textarea', full: true, placeholder: t('Ex. : Rendez-vous jeudi sur place avec la directrice d’un collège privé du 15e, 30 min. Elle veut un projet innovant pour la 3e mais le budget est serré…') })}
       <div class="actions">
-        <label class="btn ghost" style="margin:0">Joindre un mail / document <input type="file" id="client-files" accept="${ACCEPT}" multiple hidden></label>
-        <button class="btn" id="client-extract">Analyser et remplir la fiche client avec l’IA</button><span class="note" id="client-notes"></span></div>
+        <label class="btn ghost" style="margin:0">${t('Joindre un mail / document')} <input type="file" id="client-files" accept="${ACCEPT}" multiple hidden></label>
+        <button class="btn" id="client-extract">${t('Analyser et remplir la fiche client avec l’IA')}</button><span class="note" id="client-notes"></span></div>
     </div>
 
-    <h2>Fiche client</h2>
+    <h2>${t('Fiche client')}</h2>
     <div id="client-gaps" class="gaps"></div>
     <div class="grid">
-      ${field('client.company', 'Entreprise / établissement')}
-      ${field('client.sector', 'Secteur / activité')}
-      ${field('client.location', 'Commune / pays', { placeholder: 'Paris, France' })}
-      <div><label>Je prépare</label><select data-bind="client.preparationMode"><option value="meeting">Un rendez-vous</option><option value="email">Un email (premier destinataire ci-dessous)</option></select></div>
-      <div class="full"><label>Interlocuteurs / destinataires <small>— jusqu’à ${MAX_CONTACTS} ; au-delà, un rendez-vous se prépare autrement (une personne relais, puis un second rendez-vous)</small></label>
+      ${field('client.company', t('Entreprise / établissement'))}
+      ${field('client.sector', t('Secteur / activité'))}
+      ${field('client.location', t('Commune / pays'), { placeholder: t('Paris, France') })}
+      <div><label>${t('Je prépare')}</label><select data-bind="client.preparationMode"><option value="meeting">${t('Un rendez-vous')}</option><option value="email">${t('Un email (premier destinataire ci-dessous)')}</option></select></div>
+      <div class="full"><label>${t('Interlocuteurs / destinataires')} <small>— ${t('jusqu’à {max} ; au-delà, un rendez-vous se prépare autrement (une personne relais, puis un second rendez-vous)', { max: MAX_CONTACTS })}</small></label>
         <div id="contacts"></div></div>
-      ${field('client.meetingFormat', 'Format du rendez-vous', { hint: 'mail, visio, sur place, salon ; date, durée', full: true })}
-      ${field('client.website', 'Site web', { placeholder: 'exemple.fr' })}
-      ${field('client.linkedinUrl', 'Autre URL utile', { hint: 'page équipe, article, annonce…' })}
-      ${field('client.notes', 'Notes collées', { hint: 'profil LinkedIn, mail reçu, ce que vous savez déjà', type: 'textarea', full: true })}
-      ${field('client.decisionProcess', 'Processus de décision connu', { hint: 'qui d’autre, quand, budget', full: true })}
+      ${field('client.meetingFormat', t('Format du rendez-vous'), { hint: t('mail, visio, sur place, salon ; date, durée'), full: true })}
+      ${field('client.website', t('Site web'), { placeholder: t('exemple.fr') })}
+      ${field('client.linkedinUrl', t('Autre URL utile'), { hint: t('page équipe, article, annonce…') })}
+      ${field('client.notes', t('Notes collées'), { hint: t('profil LinkedIn, mail reçu, ce que vous savez déjà'), type: 'textarea', full: true })}
+      ${field('client.decisionProcess', t('Processus de décision connu'), { hint: t('qui d’autre, quand, budget'), full: true })}
     </div>
 
     <div class="card">
-      <h2>Compléter par questions</h2>
-      <p class="note">L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.</p>
+      <h2>${t('Compléter par questions')}</h2>
+      <p class="note">${t('L’IA pose une question à la fois sur ce qui manque ; votre réponse remplit le champ correspondant.')}</p>
       <div id="client-chat"></div>
     </div>
 
     <div id="client-research"></div>
-    <h2>Sources et fiche client</h2>
-    <p class="note">Seules les sources cochées sont utilisées. Vérifiez leur pertinence pour ce client et chaque interlocuteur.</p>
+    <h2>${t('Sources et fiche client')}</h2>
+    <p class="note">${t('Seules les sources cochées sont utilisées. Vérifiez leur pertinence pour ce client et chaque interlocuteur.')}</p>
     <div class="actions">
-      <button class="btn ghost" id="fetch">Lire les pages</button>
-      <span class="note" id="src-count">${S.sources.length} source(s) collectée(s)</span>
+      <button class="btn ghost" id="fetch">${t('Lire les pages')}</button>
+      <span class="note" id="src-count">${t('{n} source(s) collectée(s)', { n: S.sources.length })}</span>
     </div>
     <div id="sources"></div>
-    <div class="actions"><button class="btn" id="brief">Générer la fiche client</button></div>
+    <div class="actions"><button class="btn" id="brief">${t('Générer la fiche client')}</button></div>
     <div id="brief-out"></div>`;
   bindInputs($('#main'), S.client, 'client');
   bindInputs($('#main'), C, 'clientChat');
@@ -534,7 +537,7 @@ renderers.client = () => {
   $('#client-files').onchange = (e) => addFiles(e.target.files, S.sources, () => { invalidatePreparation(); persist(); renderSources(); });
 
   $('#client-extract').onclick = (e) => busy(e.target, async () => {
-    if (!C.description.trim()) return toast('Décrivez d’abord l’interlocuteur et le rendez-vous.');
+    if (!C.description.trim()) return toast(t('Décrivez d’abord l’interlocuteur et le rendez-vous.'));
     const docs = activeSources(S.sources).filter((x) => x.kind === 'document').map((x) => `--- ${x.source}\n${x.text}`).join('\n\n');
     const previousCompany = S.client.company;
     const r = await chatJSON(clientExtractMessages({ lang: LANG, description: [C.description, docs].filter(Boolean).join('\n\nDOCUMENTS JOINTS :\n'), current: S.client }));
@@ -554,12 +557,12 @@ renderers.client = () => {
     if (previousCompany !== S.client.company) invalidateClientResearch(); else invalidatePreparation();
     persist(); markDone(); if (S.step !== 'client') return;
     renderers.client();
-    $('#client-notes').textContent = (r.missing || []).length ? 'Manque : ' + r.missing.map((k) => CLIENT_LABELS[k] || k).join(', ') + ' → « Compléter par questions ».' : '';
-    toast(`${filled} champ(s) rempli(s).`);
+    $('#client-notes').textContent = (r.missing || []).length ? t('Manque : {fields} → « Compléter par questions ».', { fields: r.missing.map((k) => CLIENT_LABELS[k] || k).join(', ') }) : '';
+    toast(t('{n} champ(s) rempli(s).', { n: filled }));
   });
   $('#fetch').onclick = (e) => busy(e.target, async () => {
     const urls = [S.client.website, S.client.linkedinUrl].filter(Boolean);
-    if (!urls.length) return toast('Indiquez au moins une URL.');
+    if (!urls.length) return toast(t('Indiquez au moins une URL.'));
     const state = S, fingerprint = clientFingerprint(S);
     const jinaKey = loadSettings().jinaKey || '';
     for (const u of urls) {
@@ -574,7 +577,7 @@ renderers.client = () => {
     invalidatePreparation(); persist(); renderSources();
   });
   $('#brief').onclick = (e) => busy(e.target, async () => {
-    if (!S.client.company && !primary().name) return toast('Indiquez au moins l’entreprise.');
+    if (!S.client.company && !primary().name) return toast(t('Indiquez au moins l’entreprise.'));
     const all = [...S.sources];
     if (S.client.notes) all.push(notesSource(S.client.notes));
     const state = S, history = historyFor();
@@ -605,12 +608,12 @@ function renderContacts() {
   el.innerHTML = list.map((c, i) => `
     <div class="contact-row" data-i="${i}">
       <span class="contact-n">${i + 1}</span>
-      <input data-ck="name" placeholder="${i === 0 ? 'Nom, ou fonction si inconnu' : 'Nom ou fonction'}" value="${esc(c.name)}">
-      <input data-ck="role" placeholder="Fonction / rôle dans la décision" value="${esc(c.role)}">
+      <input data-ck="name" placeholder="${i === 0 ? t('Nom, ou fonction si inconnu') : t('Nom ou fonction')}" value="${esc(c.name)}">
+      <input data-ck="role" placeholder="${t('Fonction / rôle dans la décision')}" value="${esc(c.role)}">
       <select data-ck="weight">${Object.entries(WEIGHTS).map(([k, v]) => `<option value="${k}" ${c.weight === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      ${list.length > 1 ? `<button class="btn ghost small" data-rm-contact="${i}" title="Retirer">×</button>` : '<span></span>'}
+      ${list.length > 1 ? `<button class="btn ghost small" data-rm-contact="${i}" title="${t('Retirer')}">×</button>` : '<span></span>'}
     </div>`).join('') +
-    (list.length < MAX_CONTACTS ? `<button class="btn ghost small" id="add-contact">+ Ajouter une personne (${list.length}/${MAX_CONTACTS})</button>` : `<span class="note">${MAX_CONTACTS} personnes : c’est le maximum pour un rendez-vous préparé finement.</span>`);
+    (list.length < MAX_CONTACTS ? `<button class="btn ghost small" id="add-contact">${t('+ Ajouter une personne ({n}/{max})', { n: list.length, max: MAX_CONTACTS })}</button>` : `<span class="note">${t('{max} personnes : c’est le maximum pour un rendez-vous préparé finement.', { max: MAX_CONTACTS })}</span>`);
   $$('.contact-row', el).forEach((row) => {
     const c = list[+row.dataset.i];
     $$('[data-ck]', row).forEach((inp) => inp.addEventListener('input', () => {
@@ -635,34 +638,34 @@ function renderContacts() {
 }
 function renderSources() {
   const el = $('#sources'); if (!el) return;
-  $('#src-count').textContent = `${activeSources(S.sources).length} / ${S.sources.length} source(s) incluse(s)`;
+  $('#src-count').textContent = t('{n} / {total} source(s) incluse(s)', { n: activeSources(S.sources).length, total: S.sources.length });
   renderEvidence(el, S.sources, () => { invalidatePreparation(); persist(); renderSources(); });
 }
 function renderBrief() {
   const el = $('#brief-out'); if (!el) return;
   const b = S.brief; if (!b) { el.innerHTML = ''; return; }
-  const evidence = [...S.sources, notesSource(S.client.notes || ''), { id: 'client', source: 'Saisie utilisateur', kind: 'notes', text: 'Client' }, { id: 'history', source: 'Historique local (à reconfirmer)', kind: 'history', text: 'Historique' }];
+  const evidence = [...S.sources, notesSource(S.client.notes || ''), { id: 'client', source: t('Saisie utilisateur'), kind: 'notes', text: t('Client') }, { id: 'history', source: t('Historique local (à reconfirmer)'), kind: 'history', text: t('Historique') }];
   const li = (arr) => (Array.isArray(arr) ? arr : []).map(x => `<li>${typeof x === 'string' ? esc(x) : `${esc(x.fact)} ${x.date ? esc(x.date) : ''} — ${citations(x.source_ids, evidence)}`}</li>`).join('');
   el.innerHTML = `
     <div class="card">
-      <h2>Fiche client</h2>
-      <p><b>Entreprise.</b> ${esc(b.company_summary)}</p>
-      <p><b>${contacts().length > 1 ? 'Interlocuteurs' : 'Interlocuteur·rice'}.</b> ${esc(b.contact_summary)}</p>
-      <p><b>Enjeu.</b> ${esc(b.stakes)}</p>
-      <h3>Problèmes possibles à vérifier</h3><ul class="plain">${li(b.likely_problems)}</ul>
-      <div class="grid"><div><h3>Faits (sourcés)</h3><ul class="plain">${li(b.facts)}</ul></div>
-      <div><h3>Hypothèses à vérifier</h3><ul class="plain">${li(b.assumptions)}</ul></div></div>
-      ${(b.participants || []).map(p => `<div class="card soft"><h3>${esc(p.name)}</h3><p>${esc(p.documented_role)} — ${esc(p.identity_check)}</p><p>À explorer : ${esc(p.hypothesis)}</p><p><b>Question :</b> ${esc(p.question)}</p><p class="note">${citations(p.source_ids, evidence)}</p></div>`).join('')}
-      ${(b.signals || []).map(s => `<p><b>${esc(s.fact)}</b><br>${esc(s.relevance)}<br>Question : ${esc(s.question)}<br>${citations(s.source_ids, evidence)}</p>`).join('')}
-      ${(b.competitive_context || []).length ? `<h3>Comparaisons à préparer</h3><ul>${li(b.competitive_context)}</ul>` : ''}
-      ${b.preparation ? `<h3>${S.client.preparationMode === 'email' ? 'Email de prise de contact' : 'Ouverture du rendez-vous'}</h3><p>${esc(b.preparation.opening)}</p>${S.client.preparationMode === 'email' ? `<label>Objet<input id="prep-email-subject" value="${esc(b.preparation.email_subject)}"></label><label>Email à relire<textarea id="prep-email-body">${esc(b.preparation.email_body)}</textarea></label><button class="btn ghost small" id="copy-prep-email">Copier l’email</button>` : ''}` : ''}
-      <h3>Questions de découverte</h3><ol class="steps-list">${li(b.questions_to_ask)}</ol>
+      <h2>${t('Fiche client')}</h2>
+      <p><b>${t('Entreprise.')}</b> ${esc(b.company_summary)}</p>
+      <p><b>${contacts().length > 1 ? t('Interlocuteurs.') : t('Interlocuteur·rice.')}</b> ${esc(b.contact_summary)}</p>
+      <p><b>${t('Enjeu.')}</b> ${esc(b.stakes)}</p>
+      <h3>${t('Problèmes possibles à vérifier')}</h3><ul class="plain">${li(b.likely_problems)}</ul>
+      <div class="grid"><div><h3>${t('Faits (sourcés)')}</h3><ul class="plain">${li(b.facts)}</ul></div>
+      <div><h3>${t('Hypothèses à vérifier')}</h3><ul class="plain">${li(b.assumptions)}</ul></div></div>
+      ${(b.participants || []).map(p => `<div class="card soft"><h3>${esc(p.name)}</h3><p>${esc(p.documented_role)} — ${esc(p.identity_check)}</p><p>${t('À explorer :')} ${esc(p.hypothesis)}</p><p><b>${t('Question :')}</b> ${esc(p.question)}</p><p class="note">${citations(p.source_ids, evidence)}</p></div>`).join('')}
+      ${(b.signals || []).map(s => `<p><b>${esc(s.fact)}</b><br>${esc(s.relevance)}<br>${t('Question :')} ${esc(s.question)}<br>${citations(s.source_ids, evidence)}</p>`).join('')}
+      ${(b.competitive_context || []).length ? `<h3>${t('Comparaisons à préparer')}</h3><ul>${li(b.competitive_context)}</ul>` : ''}
+      ${b.preparation ? `<h3>${S.client.preparationMode === 'email' ? t('Email de prise de contact') : t('Ouverture du rendez-vous')}</h3><p>${esc(b.preparation.opening)}</p>${S.client.preparationMode === 'email' ? `<label>${t('Objet')}<input id="prep-email-subject" value="${esc(b.preparation.email_subject)}"></label><label>${t('Email à relire')}<textarea id="prep-email-body">${esc(b.preparation.email_body)}</textarea></label><button class="btn ghost small" id="copy-prep-email">${t('Copier l’email')}</button>` : ''}` : ''}
+      <h3>${t('Questions de découverte')}</h3><ol class="steps-list">${li(b.questions_to_ask)}</ol>
     </div>
-    <div class="actions"><button class="btn" id="to-persona">Passer à l’étape Persona</button></div>`;
+    <div class="actions"><button class="btn" id="to-persona">${t('Passer à l’étape Persona')}</button></div>`;
   $('#to-persona').onclick = () => go('persona');
   $('#prep-email-subject')?.addEventListener('input', e => { b.preparation.email_subject = e.target.value; persist(); });
   $('#prep-email-body')?.addEventListener('input', e => { b.preparation.email_body = e.target.value; persist(); });
-  $('#copy-prep-email')?.addEventListener('click', e => busy(e.currentTarget, async () => { await navigator.clipboard.writeText(`${b.preparation.email_subject}\n\n${b.preparation.email_body}`); toast('Email copié.'); }));
+  $('#copy-prep-email')?.addEventListener('click', e => busy(e.currentTarget, async () => { await navigator.clipboard.writeText(`${b.preparation.email_subject}\n\n${b.preparation.email_body}`); toast(t('Email copié.')); }));
 }
 
 // ----------------------------------------------------------------------------- 3. PERSONA SONCAS
@@ -670,30 +673,30 @@ const person = () => S.persona.people[S.persona.current] || S.persona.people[0];
 renderers.persona = () => {
   const P = S.persona; syncPeople(); const cs = S.client.contacts; const multi = cs.length > 1;
   $('#main').innerHTML = `
-    <h1>3 · Persona SONCAS et message principal</h1>
-    <p class="lead">Les motivations d’achat à explorer, notées de 1 à 3${multi ? ', pour chacune des personnes présentes' : ''}. L’IA propose d’après la fiche client ; vous corrigez. ${multi ? 'Un seul message principal pour le rendez-vous, calé sur la personne qui décide.' : 'Le message principal se construit sur les 3 motivations les plus fortes.'}</p>
+    <h1>${t('3 · Persona SONCAS et message principal')}</h1>
+    <p class="lead">${multi ? t('Les motivations d’achat à explorer, notées de 1 à 3, pour chacune des personnes présentes.') : t('Les motivations d’achat à explorer, notées de 1 à 3.')} ${t('L’IA propose d’après la fiche client ; vous corrigez.')} ${multi ? t('Un seul message principal pour le rendez-vous, calé sur la personne qui décide.') : t('Le message principal se construit sur les 3 motivations les plus fortes.')}</p>
     ${verdictBanner()}
     <div class="actions">
-      <button class="btn" id="ai">Proposer avec l’IA</button>
-      ${person().aiScores ? '<span class="note">Proposition IA reçue — ajustez les scores si besoin.</span>' : '<span class="note">Sans IA : notez à la main, puis rédigez le message.</span>'}
+      <button class="btn" id="ai">${t('Proposer avec l’IA')}</button>
+      ${person().aiScores ? `<span class="note">${t('Proposition IA reçue — ajustez les scores si besoin.')}</span>` : `<span class="note">${t('Sans IA : notez à la main, puis rédigez le message.')}</span>`}
     </div>
     ${multi ? `<div class="tabs" id="people-tabs">${cs.map((c, i) => `<button class="${i === P.current ? 'on' : ''}" data-p="${i}"><span>${esc(contactLabel(c, i))} <small>(${WEIGHTS[c.weight] || ''})</small></span>${c.role ? `<em>${esc(c.role)}</em>` : ''}</button>`).join('')}</div>` : ''}
     <div class="persona-grid">
       <div class="card radar-card" id="radar"></div>
       <div class="soncas" id="soncas"></div>
     </div>
-    ${(P.tensions || []).length ? `<div class="card warn" style="margin-top:16px"><h3>Tensions entre interlocuteurs</h3><ul class="plain">${P.tensions.map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
+    ${(P.tensions || []).length ? `<div class="card warn" style="margin-top:16px"><h3>${t('Tensions entre interlocuteurs')}</h3><ul class="plain">${P.tensions.map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>` : ''}
     <div class="card soft" style="margin-top:16px">
-      <h3>Message principal${multi ? ` <span class="muted">(pour ${esc(contactLabel(cs.find((c) => c.weight === 'decide') || cs[0], 0))}, qui décide)</span>` : ''} <span class="muted">(top 3 : <span id="top3"></span>)</span></h3>
-      <textarea data-bind="persona.main_message" class="main-message" placeholder="1 à 2 phrases, bâties sur les 3 motivations les plus fortes${multi ? ' de la personne qui décide, sans contredire les autres' : ''}"></textarea>
+      <h3>${t('Message principal')}${multi ? ` <span class="muted">${t('(pour {name}, qui décide)', { name: esc(contactLabel(cs.find((c) => c.weight === 'decide') || cs[0], 0)) })}</span>` : ''} <span class="muted">(${t('top 3 :')} <span id="top3"></span>)</span></h3>
+      <textarea data-bind="persona.main_message" class="main-message" placeholder="${multi ? t('1 à 2 phrases, bâties sur les 3 motivations les plus fortes de la personne qui décide, sans contredire les autres') : t('1 à 2 phrases, bâties sur les 3 motivations les plus fortes')}"></textarea>
     </div>
-    ${(P.gaps || []).length ? `<div class="card"><h3>Ce qui manque à la fiche offre pour ce client</h3><ul class="plain">${P.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">Complétez l’offre (étape 1) puis relancez : rien de ceci ne sera inventé.</p></div>` : ''}
-    <div class="actions"><button class="btn" id="next">Passer à l’étape SIMAC</button></div>`;
+    ${(P.gaps || []).length ? `<div class="card"><h3>${t('Ce qui manque à la fiche offre pour ce client')}</h3><ul class="plain">${P.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">${t('Complétez l’offre (étape 1) puis relancez : rien de ceci ne sera inventé.')}</p></div>` : ''}
+    <div class="actions"><button class="btn" id="next">${t('Passer à l’étape SIMAC')}</button></div>`;
   bindInputs($('#main'), P, 'persona');
   renderSoncas();
   $$('#people-tabs button').forEach((b) => (b.onclick = () => { P.current = +b.dataset.p; persist(); renderers.persona(); }));
   $('#ai').onclick = (e) => busy(e.target, async () => {
-    if (!S.brief) return toast('Générez d’abord la fiche client (étape 2).');
+    if (!S.brief) return toast(t('Générez d’abord la fiche client (étape 2).'));
     const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, history: historyFor() }));
     const people = Array.isArray(r.people) ? r.people : [{ scores: r.scores, rationale: r.rationale, arguments: r.arguments }];
     S.client.contacts.forEach((c, i) => {
@@ -712,8 +715,8 @@ function soncasRadar(scores, aiScores) {
   const pt = (i, v) => { const a = -Math.PI / 2 + (2 * Math.PI * i) / n; const r = (R * v) / 3; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; };
   const ring = (v) => SONCAS.map((_, i) => pt(i, v).join(',')).join(' ');
   const poly = (sc) => SONCAS.map((d, i) => pt(i, sc[d.code] || 0).join(',')).join(' ');
-  const labels = SONCAS.map((d, i) => { const [x, y] = pt(i, 3.55); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${d.label}</text>`; }).join('');
-  return `<svg class="radar" viewBox="0 0 300 236" role="img" aria-label="Profil SONCAS">
+  const labels = SONCAS.map((d, i) => { const [x, y] = pt(i, 3.55); return `<text x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${label(d.code)}</text>`; }).join('');
+  return `<svg class="radar" viewBox="0 0 300 236" role="img" aria-label="${t('Profil SONCAS')}">
     ${[1, 2, 3].map((v) => `<polygon points="${ring(v)}" class="ring"/>`).join('')}
     ${SONCAS.map((_, i) => { const [x, y] = pt(i, 3); return `<line x1="${cx}" y1="${cy}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" class="axis"/>`; }).join('')}
     ${aiScores ? `<polygon points="${poly(aiScores)}" class="ai"/>` : ''}
@@ -721,7 +724,7 @@ function soncasRadar(scores, aiScores) {
     ${SONCAS.map((d, i) => { const [x, y] = pt(i, scores[d.code] || 0); return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3.5" class="dot"/>`; }).join('')}
     ${labels}
   </svg>
-  <div class="note radar-legend"><span class="sw me"></span> vous ${aiScores ? '<span class="sw ai"></span> proposition IA' : ''}</div>`;
+  <div class="note radar-legend"><span class="sw me"></span> ${t('vous')} ${aiScores ? `<span class="sw ai"></span> ${t('proposition IA')}` : ''}</div>`;
 }
 
 /** Au plus trois dimensions à 3 : au-delà, les dernières dans l'ordre S-O-N-C-A-S-E repassent à 2. */
@@ -736,9 +739,9 @@ function renderSoncas() {
   if ($('#radar')) $('#radar').innerHTML = soncasRadar(P.scores, P.aiScores);
   $('#soncas').innerHTML = SONCAS.map((d) => `
     <div class="dim ${t3.includes(d.code) ? 'top' : ''}">
-      <div><b>${d.label}</b><div class="hint">${d.hint}</div></div>
+      <div><b>${label(d.code)}</b><div class="hint">${d.hint}</div></div>
       <div class="score" data-code="${d.code}">${[1, 2, 3].map((v) => `<button class="${P.scores[d.code] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}
-        ${P.aiScores && P.aiScores[d.code] !== P.scores[d.code] ? `<small class="muted" style="align-self:center">IA : ${P.aiScores[d.code]}</small>` : ''}</div>
+        ${P.aiScores && P.aiScores[d.code] !== P.scores[d.code] ? `<small class="muted" style="align-self:center">${t('IA : {n}', { n: P.aiScores[d.code] })}</small>` : ''}</div>
       <div>${P.rationale?.[d.code] ? `<div class="note">${esc(P.rationale[d.code])}</div>` : ''}
         ${(P.arguments?.[d.code] || []).length ? `<ul class="args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
     </div>`).join('');
@@ -746,7 +749,7 @@ function renderSoncas() {
     const code = b.closest('.score').dataset.code; const v = +b.dataset.v;
     if (v === 3) {
       const threes = SONCAS.map((d) => d.code).filter((c) => c !== code && P.scores[c] === 3);
-      if (threes.length >= 3) { const demoted = threes[threes.length - 1]; P.scores[demoted] = 2; toast(`Trois motivations fortes maximum : « ${label(demoted)} » repasse à 2.`); }
+      if (threes.length >= 3) { const demoted = threes[threes.length - 1]; P.scores[demoted] = 2; toast(t('Trois motivations fortes maximum : « {name} » repasse à 2.', { name: label(demoted) })); }
     }
     P.scores[code] = v; persist(); renderSoncas();
   }));
@@ -755,19 +758,19 @@ function renderSoncas() {
 // ----------------------------------------------------------------------------- 4. SIMAC
 renderers.simac = () => {
   $('#main').innerHTML = `
-    <h1>4 · Déroulé SIMAC</h1>
-    <p class="lead">Situation → Idée → Mécanisme (prix à la fin) → Avantages (chacun reformule un besoin) → Conclusion (une question, deux options, l’étape suivante). Tout est modifiable : c’est votre script.</p>
+    <h1>${t('4 · Déroulé SIMAC')}</h1>
+    <p class="lead">${t('Situation → Idée → Mécanisme (prix à la fin) → Avantages (chacun reformule un besoin) → Conclusion (une question, deux options, l’étape suivante). Tout est modifiable : c’est votre script.')}</p>
     ${verdictBanner()}
     <div class="grid">
-      ${field('objective.primary', 'Objectif du rendez-vous', { placeholder: 'Ex. : accord pour un essai sur 3 RDV' })}
-      ${field('objective.fallback', 'Objectif de repli', { placeholder: 'Ex. : RDV avec le décideur daté' })}
+      ${field('objective.primary', t('Objectif du rendez-vous'), { placeholder: t('Ex. : accord pour un essai sur 3 RDV') })}
+      ${field('objective.fallback', t('Objectif de repli'), { placeholder: t('Ex. : RDV avec le décideur daté') })}
     </div>
-    <div class="actions"><button class="btn" id="ai">Rédiger le SIMAC avec l’IA</button></div>
+    <div class="actions"><button class="btn" id="ai">${t('Rédiger le SIMAC avec l’IA')}</button></div>
     <div id="simac-out"></div>`;
   bindInputs($('#main'), S.objective, 'objective');
   renderSimac();
   $('#ai').onclick = (e) => busy(e.target, async () => {
-    if (!S.brief) return toast('Générez d’abord la fiche client (étape 2).');
+    if (!S.brief) return toast(t('Générez d’abord la fiche client (étape 2).'));
     syncPeople();
     const people = S.client.contacts.map((c, i) => { const P = S.persona.people[i]; const t3 = top3(P.scores);
       return { name: contactLabel(c, i), role: c.role, weight: c.weight, scores: P.scores, top3: t3.map(label), arguments: Object.fromEntries(t3.map((k) => [label(k), (P.arguments?.[k] || []).slice(0, 2)])) }; });
@@ -778,71 +781,71 @@ renderers.simac = () => {
 };
 function renderSimac() {
   const el = $('#simac-out'); const M = S.simac;
-  if (!M) { el.innerHTML = '<p class="note">Aucun déroulé pour l’instant. Sans IA, vous pouvez créer un canevas vide.</p><button class="btn ghost small" id="blank-simac">Canevas vide</button>';
+  if (!M) { el.innerHTML = `<p class="note">${t('Aucun déroulé pour l’instant. Sans IA, vous pouvez créer un canevas vide.')}</p><button class="btn ghost small" id="blank-simac">${t('Canevas vide')}</button>`;
     $('#blank-simac').onclick = () => { S.simac = { opening: '', situation: '', idea: '', mechanism: ['', '', ''], advantages: ['', '', ''], conclusion: '', objections: [], mistakes_watch: [] }; persist(); renderSimac(); }; return; }
   const ta = (k, v, rows = 2) => `<textarea data-k="${k}" rows="${rows}">${esc(v)}</textarea>`;
-  const list = (k, arr) => `<textarea data-k="${k}" data-list rows="${Math.max(3, (arr || []).length + 1)}">${esc((arr || []).join('\n'))}</textarea><div class="note">Une ligne par élément.</div>`;
+  const list = (k, arr) => `<textarea data-k="${k}" data-list rows="${Math.max(3, (arr || []).length + 1)}">${esc((arr || []).join('\n'))}</textarea><div class="note">${t('Une ligne par élément.')}</div>`;
   el.innerHTML = `
     <div class="card">
-      <div class="simac-block"><div class="k">Ouverture (20 premières secondes)</div>${ta('opening', M.opening)}</div>
-      <div class="simac-block"><div class="k">Situation</div>${ta('situation', M.situation)}</div>
-      <div class="simac-block"><div class="k">Idée</div>${ta('idea', M.idea)}</div>
-      <div class="simac-block"><div class="k">Mécanisme — prix en dernier</div>${list('mechanism', M.mechanism)}</div>
-      <div class="simac-block"><div class="k">Avantages — chacun reformule un besoin${contacts().length > 1 ? ', avec un « Pour X : … » par interlocuteur' : ''}</div>${list('advantages', M.advantages)}</div>
-      <div class="simac-block"><div class="k">Conclusion — question, deux options, étape suivante</div>${ta('conclusion', M.conclusion)}</div>
+      <div class="simac-block"><div class="k">${t('Ouverture (20 premières secondes)')}</div>${ta('opening', M.opening)}</div>
+      <div class="simac-block"><div class="k">${t('Situation')}</div>${ta('situation', M.situation)}</div>
+      <div class="simac-block"><div class="k">${t('Idée')}</div>${ta('idea', M.idea)}</div>
+      <div class="simac-block"><div class="k">${t('Mécanisme — prix en dernier')}</div>${list('mechanism', M.mechanism)}</div>
+      <div class="simac-block"><div class="k">${contacts().length > 1 ? t('Avantages — chacun reformule un besoin, avec un « Pour X : … » par interlocuteur') : t('Avantages — chacun reformule un besoin')}</div>${list('advantages', M.advantages)}</div>
+      <div class="simac-block"><div class="k">${t('Conclusion — question, deux options, étape suivante')}</div>${ta('conclusion', M.conclusion)}</div>
     </div>
     <div class="card">
-      <h2>Objections probables</h2>
-      <table><thead><tr>${contacts().length > 1 ? '<th style="width:14%">Qui</th>' : ''}<th style="width:33%">Objection</th><th>Accueillir → creuser → répondre → relancer</th></tr></thead>
+      <h2>${t('Objections probables')}</h2>
+      <table><thead><tr>${contacts().length > 1 ? `<th style="width:14%">${t('Qui')}</th>` : ''}<th style="width:33%">${t('Objection')}</th><th>${t('Accueillir → creuser → répondre → relancer')}</th></tr></thead>
       <tbody>${(M.objections || []).map((o) => `<tr>${contacts().length > 1 ? `<td><small>${esc(o.who || '')}</small></td>` : ''}<td>${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('') || `<tr><td colspan="${contacts().length > 1 ? 3 : 2}" class="note">—</td></tr>`}</tbody></table>
-      ${(M.mistakes_watch || []).length ? `<h3>Erreurs à surveiller dans ce RDV</h3><ul class="plain">${M.mistakes_watch.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
+      ${(M.mistakes_watch || []).length ? `<h3>${t('Erreurs à surveiller dans ce RDV')}</h3><ul class="plain">${M.mistakes_watch.map((m) => `<li>${esc(m)}</li>`).join('')}</ul>` : ''}
     </div>
-    ${(M.gaps || []).length ? `<div class="card"><h3>Ce que la fiche offre ne permet pas de dire</h3><ul class="plain">${M.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">Rien n’a été inventé pour combler ces points : complétez l’offre (étape 1) et relancez.</p></div>` : ''}
-    <div class="card">Avant d’entrer, connaissez votre plancher et listez les leviers qui ne sont pas des remises. Ne repartez jamais sans <b>une date</b> et <b>le nom du décideur</b>.</div>
+    ${(M.gaps || []).length ? `<div class="card"><h3>${t('Ce que la fiche offre ne permet pas de dire')}</h3><ul class="plain">${M.gaps.map((g) => `<li>${esc(g)}</li>`).join('')}</ul><p class="note">${t('Rien n’a été inventé pour combler ces points : complétez l’offre (étape 1) et relancez.')}</p></div>` : ''}
+    <div class="card">${t('Avant d’entrer, connaissez votre plancher et listez les leviers qui ne sont pas des remises. Ne repartez jamais sans <b>une date</b> et <b>le nom du décideur</b>.')}</div>
     <div class="actions">
-      <button class="btn ghost" id="print">Imprimer / PDF</button>
-      <button class="btn ghost" id="copy">Copier le script</button>
-      <button class="btn" id="next">Passer au suivi du rendez-vous</button>
+      <button class="btn ghost" id="print">${t('Imprimer / PDF')}</button>
+      <button class="btn ghost" id="copy">${t('Copier le script')}</button>
+      <button class="btn" id="next">${t('Passer au suivi du rendez-vous')}</button>
     </div>`;
-  $$('textarea[data-k]', el).forEach((t) => t.addEventListener('input', () => {
-    M[t.dataset.k] = t.hasAttribute('data-list') ? t.value.split('\n').map((x) => x.trim()).filter(Boolean) : t.value; persist();
+  $$('textarea[data-k]', el).forEach((area) => area.addEventListener('input', () => {
+    M[area.dataset.k] = area.hasAttribute('data-list') ? area.value.split('\n').map((x) => x.trim()).filter(Boolean) : area.value; persist();
   }));
   $('#print').onclick = () => window.print();
-  $('#copy').onclick = () => navigator.clipboard.writeText(simacText()).then(() => toast('Script copié.'));
+  $('#copy').onclick = () => navigator.clipboard.writeText(simacText()).then(() => toast(t('Script copié.')));
   $('#next').onclick = () => go('followup');
 }
 function simacText() {
   const M = S.simac || {};
-  return [`RDV ${S.client.company} — ${contacts().map((c, i) => `${contactLabel(c, i)} (${c.role || WEIGHTS[c.weight] || ''})`).join(', ')} — ${S.date}`, `Objectif : ${S.objective.primary} (repli : ${S.objective.fallback})`,
-    `Message principal : ${S.persona.main_message}`, ...((S.persona.tensions || []).length ? [`Tensions : ${S.persona.tensions.join(' / ')}`] : []), '', `OUVERTURE\n${M.opening || ''}`, `SITUATION\n${M.situation || ''}`, `IDÉE\n${M.idea || ''}`,
-    `MÉCANISME\n${(M.mechanism || []).map((x, i) => `${i + 1}. ${x}`).join('\n')}`, `AVANTAGES\n${(M.advantages || []).map((x) => `- ${x}`).join('\n')}`,
-    `CONCLUSION\n${M.conclusion || ''}`, '', 'OBJECTIONS', ...(M.objections || []).map((o) => `- ${o.who ? `[${o.who}] ` : ''}${o.objection}\n  → ${o.response}`)].join('\n');
+  return [`${t('RDV')} ${S.client.company} — ${contacts().map((c, i) => `${contactLabel(c, i)} (${c.role || WEIGHTS[c.weight] || ''})`).join(', ')} — ${S.date}`, t('Objectif : {primary} (repli : {fallback})', { primary: S.objective.primary, fallback: S.objective.fallback }),
+    t('Message principal : {message}', { message: S.persona.main_message }), ...((S.persona.tensions || []).length ? [t('Tensions : {list}', { list: S.persona.tensions.join(' / ') })] : []), '', `${t('OUVERTURE')}\n${M.opening || ''}`, `${t('SITUATION')}\n${M.situation || ''}`, `${t('IDÉE')}\n${M.idea || ''}`,
+    `${t('MÉCANISME')}\n${(M.mechanism || []).map((x, i) => `${i + 1}. ${x}`).join('\n')}`, `${t('AVANTAGES')}\n${(M.advantages || []).map((x) => `- ${x}`).join('\n')}`,
+    `${t('CONCLUSION')}\n${M.conclusion || ''}`, '', t('OBJECTIONS'), ...(M.objections || []).map((o) => `- ${o.who ? `[${o.who}] ` : ''}${o.objection}\n  → ${o.response}`)].join('\n');
 }
 
 // ----------------------------------------------------------------------------- 5. SUIVI
 renderers.followup = () => {
   const D = S.debrief;
   $('#main').innerHTML = `
-    <h1>5 · Suivi rapide — centré sur l’appel à l’action</h1>
-    <p class="lead">Juste après le rendez-vous : ce qui s’est passé, et surtout l’action convenue (quoi, qui, quand, livrable). Racontez-le librement, l’IA remplit ; puis elle rédige le mail de suivi et vous enregistrez le RDV dans la mémoire.</p>
+    <h1>${t('5 · Suivi rapide — centré sur l’appel à l’action')}</h1>
+    <p class="lead">${t('Juste après le rendez-vous : ce qui s’est passé, et surtout l’action convenue (quoi, qui, quand, livrable). Racontez-le librement, l’IA remplit ; puis elle rédige le mail de suivi et vous enregistrez le RDV dans la mémoire.')}</p>
     <div class="card">
-      <h2>Raconter</h2>
-      ${field('debrief.description', 'Texte libre', { hint: 'comment ça s’est passé, ce qu’il a dit, ce qui a été convenu et pour quand', type: 'textarea', full: true, placeholder: 'Ex. : Bon accueil, il veut l’avis de sa prof d’histoire avant de décider. Budget déjà engagé cette année. On s’est mis d’accord : je présente 30 min à la prof et à la documentaliste mardi prochain, j’envoie le dossier avant.' })}
-      <div class="actions"><button class="btn" id="debrief-extract">Analyser et remplir le débrief avec l’IA</button><span class="note" id="debrief-notes"></span></div>
+      <h2>${t('Raconter')}</h2>
+      ${field('debrief.description', t('Texte libre'), { hint: t('comment ça s’est passé, ce qu’il a dit, ce qui a été convenu et pour quand'), type: 'textarea', full: true, placeholder: t('Ex. : Bon accueil, il veut l’avis de sa prof d’histoire avant de décider. Budget déjà engagé cette année. On s’est mis d’accord : je présente 30 min à la prof et à la documentaliste mardi prochain, j’envoie le dossier avant.') })}
+      <div class="actions"><button class="btn" id="debrief-extract">${t('Analyser et remplir le débrief avec l’IA')}</button><span class="note" id="debrief-notes"></span></div>
     </div>
     <div class="grid">
-      <div><label>Résultat</label><select data-bind="debrief.outcome">
-        <option value="">—</option><option>Vente conclue</option><option>Essai / pilote accepté</option><option>Proposition à envoyer</option>
-        <option>RDV décideur à fixer</option><option>Réflexion / relance datée</option><option>Pas de suite</option></select></div>
-      ${field('debrief.decisionMaker', 'Décideur (nom)')}
-      ${field('debrief.objectionsHeard', 'Objections entendues', { type: 'textarea', full: true })}
-      <div class="full"><label>Actions convenues <small>— jusqu’à ${MAX_ACTIONS} ; la première est l’appel à l’action principal, le mail est construit autour</small></label>
+      <div><label>${t('Résultat')}</label><select data-bind="debrief.outcome">
+        <option value="">—</option><option value="Vente conclue">${t('Vente conclue')}</option><option value="Essai / pilote accepté">${t('Essai / pilote accepté')}</option><option value="Proposition à envoyer">${t('Proposition à envoyer')}</option>
+        <option value="RDV décideur à fixer">${t('RDV décideur à fixer')}</option><option value="Réflexion / relance datée">${t('Réflexion / relance datée')}</option><option value="Pas de suite">${t('Pas de suite')}</option></select></div>
+      ${field('debrief.decisionMaker', t('Décideur (nom)'))}
+      ${field('debrief.objectionsHeard', t('Objections entendues'), { type: 'textarea', full: true })}
+      <div class="full"><label>${t('Actions convenues')} <small>— ${t('jusqu’à {max} ; la première est l’appel à l’action principal, le mail est construit autour', { max: MAX_ACTIONS })}</small></label>
         <div id="actions-list"></div></div>
-      ${field('debrief.notes', 'Notes / faits nouveaux', { type: 'textarea', full: true })}
+      ${field('debrief.notes', t('Notes / faits nouveaux'), { type: 'textarea', full: true })}
     </div>
     <div class="actions">
-      <button class="btn ghost" id="ai">Rédiger le mail de suivi avec l’IA</button>
-      <button class="btn" id="save">Enregistrer le RDV dans la mémoire</button>
+      <button class="btn ghost" id="ai">${t('Rédiger le mail de suivi avec l’IA')}</button>
+      <button class="btn" id="save">${t('Enregistrer le RDV dans la mémoire')}</button>
     </div>
     <div id="fu-out"></div>`;
   bindInputs($('#main'), D, 'debrief');
@@ -850,16 +853,16 @@ renderers.followup = () => {
   renderFollowup();
   $('#ai').onclick = (e) => busy(e.target, async () => {
     syncPrimaryAction();
-    if (!D.nextAction) return toast('Indiquez au moins une action convenue : le mail est construit autour.');
+    if (!D.nextAction) return toast(t('Indiquez au moins une action convenue : le mail est construit autour.'));
     const fu = await chatJSON(followupMessages({ lang: LANG, product: S.product, client: clientView(), simac: S.simac || {}, debrief: { ...D, actions: actions().map((a) => ({ ...a, status: ACTION_STATUS[a.status] })) } }));
     S.followup = fu;
     const na = fu.next_action || {};
     if (D.actions[0] && !D.actions[0].due && na.due) D.actions[0].due = na.due;
     syncPrimaryAction(); persist(); markDone(); if (S.step === 'followup') { renderActions(); renderFollowup(); }
   });
-  $('#save').onclick = () => { saveMeeting(toRecord()); toast('Rendez-vous enregistré. Exportez le CSV depuis Historique.'); markDone(); };
+  $('#save').onclick = () => { saveMeeting(toRecord()); toast(t('Rendez-vous enregistré. Exportez le CSV depuis Historique.')); markDone(); };
   $('#debrief-extract').onclick = (e) => busy(e.target, async () => {
-    if (!D.description.trim()) return toast('Racontez d’abord le rendez-vous.');
+    if (!D.description.trim()) return toast(t('Racontez d’abord le rendez-vous.'));
     const r = await chatJSON(debriefExtractMessages({ lang: LANG, description: D.description, current: D, today: localDay() }));
     const f = r.fields || {}; let filled = 0;
     for (const k of ['outcome', 'objectionsHeard', 'decisionMaker', 'notes']) {
@@ -876,8 +879,8 @@ renderers.followup = () => {
     }
     syncPrimaryAction(); persist(); markDone(); if (S.step !== 'followup') return;
     renderers.followup();
-    $('#debrief-notes').textContent = (r.missing || []).length ? 'Manque : ' + r.missing.join(', ') + ' — complétez à la main avant le mail.' : '';
-    toast(`${filled} champ(s) rempli(s).`);
+    $('#debrief-notes').textContent = (r.missing || []).length ? t('Manque : {fields} — complétez à la main avant le mail.', { fields: r.missing.join(', ') }) : '';
+    toast(t('{n} champ(s) rempli(s).', { n: filled }));
   });
 };
 function renderActions() {
@@ -886,14 +889,14 @@ function renderActions() {
   el.innerHTML = list.map((a, i) => `
     <div class="action-row" data-i="${i}">
       <span class="contact-n">${i + 1}</span>
-      <input data-ak="action" placeholder="${i === 0 ? 'Action convenue — le CTA (ex. : envoyer la proposition)' : 'Autre action convenue'}" value="${esc(a.action)}">
-      <select data-ak="owner"><option value="me" ${a.owner !== 'client' ? 'selected' : ''}>Moi</option><option value="client" ${a.owner === 'client' ? 'selected' : ''}>Le client</option></select>
-      <input type="date" data-ak="due" value="${esc(a.due)}" title="Échéance">
-      <input data-ak="output" placeholder="Livrable attendu" value="${esc(a.output)}">
+      <input data-ak="action" placeholder="${i === 0 ? t('Action convenue — le CTA (ex. : envoyer la proposition)') : t('Autre action convenue')}" value="${esc(a.action)}">
+      <select data-ak="owner"><option value="me" ${a.owner !== 'client' ? 'selected' : ''}>${t('Moi')}</option><option value="client" ${a.owner === 'client' ? 'selected' : ''}>${t('Le client')}</option></select>
+      <input type="date" data-ak="due" value="${esc(a.due)}" title="${t('Échéance')}">
+      <input data-ak="output" placeholder="${t('Livrable attendu')}" value="${esc(a.output)}">
       <select data-ak="status" class="st-${a.status || 'todo'}">${Object.entries(ACTION_STATUS).map(([k, v]) => `<option value="${k}" ${(a.status || 'todo') === k ? 'selected' : ''}>${v}</option>`).join('')}</select>
-      ${list.length > 1 ? `<button class="btn ghost small" data-rm-action="${i}" title="Retirer">×</button>` : '<span></span>'}
+      ${list.length > 1 ? `<button class="btn ghost small" data-rm-action="${i}" title="${t('Retirer')}">×</button>` : '<span></span>'}
     </div>`).join('') +
-    (list.length < MAX_ACTIONS ? `<button class="btn ghost small" id="add-action">+ Ajouter une action (${list.length}/${MAX_ACTIONS})</button>` : `<span class="note">${MAX_ACTIONS} actions : au-delà, un rendez-vous n’a plus d’appel à l’action, il a une liste de tâches.</span>`);
+    (list.length < MAX_ACTIONS ? `<button class="btn ghost small" id="add-action">${t('+ Ajouter une action ({n}/{max})', { n: list.length, max: MAX_ACTIONS })}</button>` : `<span class="note">${t('{max} actions : au-delà, un rendez-vous n’a plus d’appel à l’action, il a une liste de tâches.', { max: MAX_ACTIONS })}</span>`);
   $$('.action-row', el).forEach((row) => { const a = list[+row.dataset.i];
     $$('[data-ak]', row).forEach((inp) => inp.addEventListener('input', () => { a[inp.dataset.ak] = inp.value; if (inp.dataset.ak === 'status') inp.className = 'st-' + inp.value; syncPrimaryAction(); persist(); })); });
   $$('[data-rm-action]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rmAction, 1); syncPrimaryAction(); persist(); renderActions(); }));
@@ -902,14 +905,14 @@ function renderActions() {
 function renderFollowup() {
   const el = $('#fu-out'); const F = S.followup; if (!F) { el.innerHTML = ''; return; }
   el.innerHTML = `
-    <div class="card"><h2>Mail de suivi</h2>
-      <p><b>Objet :</b> ${esc(F.email_subject)}</p>
+    <div class="card"><h2>${t('Mail de suivi')}</h2>
+      <p><b>${t('Objet :')}</b> ${esc(F.email_subject)}</p>
       <pre class="email" id="email">${esc(F.email_body)}</pre>
-      <div class="actions"><button class="btn ghost small" id="copy-mail">Copier</button>
-        <a class="btn ghost small" href="mailto:?subject=${encodeURIComponent(F.email_subject || '')}&body=${encodeURIComponent(F.email_body || '')}">Ouvrir dans ma messagerie</a></div>
-      ${(F.lessons || []).length ? `<h3>Leçons pour la prochaine fois</h3><ul class="plain">${F.lessons.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
+      <div class="actions"><button class="btn ghost small" id="copy-mail">${t('Copier')}</button>
+        <a class="btn ghost small" href="mailto:?subject=${encodeURIComponent(F.email_subject || '')}&body=${encodeURIComponent(F.email_body || '')}">${t('Ouvrir dans ma messagerie')}</a></div>
+      ${(F.lessons || []).length ? `<h3>${t('Leçons pour la prochaine fois')}</h3><ul class="plain">${F.lessons.map((l) => `<li>${esc(l)}</li>`).join('')}</ul>` : ''}
     </div>`;
-  $('#copy-mail').onclick = () => navigator.clipboard.writeText(`${F.email_subject}\n\n${F.email_body}`).then(() => toast('Mail copié.'));
+  $('#copy-mail').onclick = () => navigator.clipboard.writeText(`${F.email_subject}\n\n${F.email_body}`).then(() => toast(t('Mail copié.')));
 }
 function toRecord() {
   syncPeople();
@@ -939,25 +942,25 @@ function toRecord() {
 renderers.history = () => {
   const all = listMeetings();
   $('#main').innerHTML = `
-    <h1>Historique — la mémoire de vos rendez-vous</h1>
-    <p class="lead">Chaque RDV enregistré nourrit les prochains : l’IA relit les rendez-vous proches (même client, secteur, offre) avant de rédiger. Le CSV exporté est cette base ; réimportez-le sur un autre poste ou dans un autre outil.</p>
+    <h1>${t('Historique — la mémoire de vos rendez-vous')}</h1>
+    <p class="lead">${t('Chaque RDV enregistré nourrit les prochains : l’IA relit les rendez-vous proches (même client, secteur, offre) avant de rédiger. Le CSV exporté est cette base ; réimportez-le sur un autre poste ou dans un autre outil.')}</p>
     <div class="actions">
-      <button class="btn" id="export" ${all.length ? '' : 'disabled'}>Exporter CSV (${all.length})</button>
-      <label class="btn ghost" style="margin:0">Importer CSV <input type="file" id="import" accept=".csv,text/csv" hidden></label>
-      <button class="btn ghost small" id="template">Modèle CSV vide</button>
+      <button class="btn" id="export" ${all.length ? '' : 'disabled'}>${t('Exporter CSV ({n})', { n: all.length })}</button>
+      <label class="btn ghost" style="margin:0">${t('Importer CSV')} <input type="file" id="import" accept=".csv,text/csv" hidden></label>
+      <button class="btn ghost small" id="template">${t('Modèle CSV vide')}</button>
     </div>
     <div class="card">
-      <table><thead><tr><th>Date</th><th>Entreprise / contact</th><th>Offre</th><th>Top SONCAS</th><th>Résultat</th><th>Suite</th><th></th></tr></thead>
+      <table><thead><tr><th>${t('Date')}</th><th>${t('Entreprise / contact')}</th><th>${t('Offre')}</th><th>${t('Top SONCAS')}</th><th>${t('Résultat')}</th><th>${t('Suite')}</th><th></th></tr></thead>
       <tbody>${all.map((m) => `<tr><td>${esc(m.date)}</td><td><b>${esc(m.company)}</b><br><small>${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0] || c[1]).map((c) => esc(`${c[0]}${c[1] ? ' — ' + c[1] : ''}`)).join('<br>')}</small></td>
-        <td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td>
-        <td>${[[m.next_action, m.next_owner, m.next_due, m.next_status], [m.action2, m.action2_owner, m.action2_due, m.action2_status], [m.action3, m.action3_owner, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `<span class="st-dot st-${esc(a[3] || 'todo')}" title="${esc(ACTION_STATUS[a[3]] || 'À lancer')}"></span>${esc(a[0])}<br><small>${esc(a[1] === 'me' ? 'moi' : a[1] || '')}${a[2] ? `, ${esc(a[2])}` : ''}</small>`).join('<br>')}</td>
-        <td><button class="btn ghost small" data-load="${m.id}">Ouvrir</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
-        || '<tr><td colspan="7" class="note">Aucun rendez-vous enregistré.</td></tr>'}</tbody></table>
+        <td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome ? t(m.outcome) : '')}</td>
+        <td>${[[m.next_action, m.next_owner, m.next_due, m.next_status], [m.action2, m.action2_owner, m.action2_due, m.action2_status], [m.action3, m.action3_owner, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `<span class="st-dot st-${esc(a[3] || 'todo')}" title="${esc(ACTION_STATUS[a[3]] || t('À lancer'))}"></span>${esc(a[0])}<br><small>${esc(a[1] === 'me' ? t('moi') : a[1] === 'client' ? t('le client') : a[1] || '')}${a[2] ? `, ${esc(a[2])}` : ''}</small>`).join('<br>')}</td>
+        <td><button class="btn ghost small" data-load="${m.id}">${t('Ouvrir')}</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
+        || `<tr><td colspan="7" class="note">${t('Aucun rendez-vous enregistré.')}</td></tr>`}</tbody></table>
     </div>`;
   $('#export').onclick = () => download(`simac-rdv-${localDay()}.csv`, exportCSV());
   $('#template').onclick = () => download('simac-modele.csv', exportCSV([]));
-  $('#import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const n = importCSV(await f.text()); toast(`${n} rendez-vous importé(s).`); renderers.history(); };
-  $$('[data-del]').forEach((b) => (b.onclick = () => { if (confirm('Supprimer ce rendez-vous ?')) { deleteMeeting(b.dataset.del); renderers.history(); } }));
+  $('#import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const n = importCSV(await f.text()); toast(t('{n} rendez-vous importé(s).', { n })); renderers.history(); };
+  $$('[data-del]').forEach((b) => (b.onclick = () => { if (confirm(t('Supprimer ce rendez-vous ?'))) { deleteMeeting(b.dataset.del); renderers.history(); } }));
   $$('[data-load]').forEach((b) => (b.onclick = () => {
     const m = all.find((x) => x.id === b.dataset.load); if (!m) return;
     const product = S.product, offer = S.offer, market = S.market, offerId = S.offerId; S = blank(); Object.assign(S, { product, offer, market, offerId }); S.id = m.id; S.date = m.date;
@@ -976,7 +979,7 @@ renderers.history = () => {
     if (m.action3) acts.push({ action: m.action3, owner: m.action3_owner || 'me', due: m.action3_due || '', output: m.action3_output || '', status: ACTION_STATUS[m.action3_status] ? m.action3_status : 'todo' });
     Object.assign(S.debrief, { outcome: m.outcome, objectionsHeard: m.objections_heard, decisionMaker: m.decision_maker, nextAction: m.next_action, nextOwner: m.next_owner || 'me', nextDue: m.next_due, nextOutput: m.next_output, notes: m.notes, actions: acts });
     restoreResearch(m.research_json);
-    persist(); go('client'); toast('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).');
+    persist(); go('client'); toast(t('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).'));
   }));
 };
 
@@ -984,57 +987,57 @@ renderers.history = () => {
 renderers.settings = () => {
   const s = loadSettings();
   $('#main').innerHTML = `
-    <h1>Réglages — IA gratuite, au choix</h1>
-    <p class="lead">Aucun serveur : votre clé reste dans ce navigateur et n’est envoyée qu’au fournisseur choisi. Tous ceux listés ont une offre gratuite, ou tournent sur votre machine.</p>
-    <div class="card warn">Une clé gratuite sert à tester et à traiter des données publiques (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> pour traiter l’IA localement. Les recherches web et officielles contactent toujours leurs fournisseurs.</div>
+    <h1>${t('Réglages — IA gratuite, au choix')}</h1>
+    <p class="lead">${t('Aucun serveur : votre clé reste dans ce navigateur et n’est envoyée qu’au fournisseur choisi. Tous ceux listés ont une offre gratuite, ou tournent sur votre machine.')}</p>
+    <div class="card warn">${t('Une clé gratuite sert à tester et à traiter des données publiques (sites web, plaquettes, informations d’entreprise publiques). Avec une offre gratuite, le fournisseur peut réutiliser ce que vous envoyez : nous déconseillons d’y mettre des données non publiques — mails reçus, devis, notes internes, coordonnées personnelles. Pour ces données, collez ici une clé d’une <b>offre payante souscrite chez votre fournisseur d’IA</b> (pas chez AVApmo : l’outil reste gratuit) dont les conditions excluent l’usage de vos données — l’outil fonctionne à l’identique — ou choisissez <b>Ollama</b> pour traiter l’IA localement. Les recherches web et officielles contactent toujours leurs fournisseurs.')}</div>
     <div class="card"><div class="grid">
-      <div><label>Fournisseur</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
-      <div><label>Clé API <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
-      <div><label>Modèle <small>— vide = défaut</small></label><input id="model" list="model-list" value="${esc(s.model)}" placeholder="${esc(PROVIDERS[s.provider]?.model || '')}"><datalist id="model-list"></datalist>
-        <button class="btn ghost small" id="models" style="margin-top:6px">Lister les modèles</button> <small class="muted" id="models-note">les noms changent souvent : vérifiez ici en cas d'erreur « modèle introuvable »</small></div>
-      <div><label>URL de base <small>— vide = défaut</small></label><input id="baseUrl" value="${esc(s.baseUrl)}" placeholder="${esc(PROVIDERS[s.provider]?.baseUrl || '')}"></div>
-      <div class="full"><label>Clé Jina (requise pour la recherche web) <small>— lecture de pages sans clé à faible volume ; recherche avec clé et crédits sur <a href="https://jina.ai/reader" target="_blank" rel="noopener" aria-label="jina.ai (nouvel onglet)">jina.ai</a></small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
+      <div><label>${t('Fournisseur')}</label><select id="provider">${Object.entries(PROVIDERS).map(([k, p]) => `<option value="${k}" ${s.provider === k ? 'selected' : ''}>${p.label}</option>`).join('')}</select></div>
+      <div><label>${t('Clé API')} <small id="keyhelp"></small></label><input id="apiKey" type="password" value="${esc(s.apiKey)}" autocomplete="off"></div>
+      <div><label>${t('Modèle')} <small>— ${t('vide = défaut')}</small></label><input id="model" list="model-list" value="${esc(s.model)}" placeholder="${esc(PROVIDERS[s.provider]?.model || '')}"><datalist id="model-list"></datalist>
+        <button class="btn ghost small" id="models" style="margin-top:6px">${t('Lister les modèles')}</button> <small class="muted" id="models-note">${t('les noms changent souvent : vérifiez ici en cas d\'erreur « modèle introuvable »')}</small></div>
+      <div><label>${t('URL de base')} <small>— ${t('vide = défaut')}</small></label><input id="baseUrl" value="${esc(s.baseUrl)}" placeholder="${esc(PROVIDERS[s.provider]?.baseUrl || '')}"></div>
+      <div class="full"><label>${t('Clé Jina (requise pour la recherche web)')} <small>— ${t('lecture de pages sans clé à faible volume ; recherche avec clé et crédits sur')} <a href="https://jina.ai/reader" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: 'jina.ai' })}">jina.ai</a></small></label><input id="jinaKey" type="password" value="${esc(s.jinaKey || '')}" autocomplete="off"></div>
     </div>
-    <div class="actions"><button class="btn" id="save">Enregistrer</button><button class="btn ghost" id="test">Tester</button></div></div>
+    <div class="actions"><button class="btn" id="save">${t('Enregistrer')}</button><button class="btn ghost" id="test">${t('Tester')}</button></div></div>
     <div class="card">
-      <h2>Comment obtenir une clé gratuite</h2>
+      <h2>${t('Comment obtenir une clé gratuite')}</h2>
       <ul class="plain">
-        <li><b>Groq</b> — rapide, Llama 3.3 70B, quota gratuit généreux : <a href="https://console.groq.com/keys" target="_blank" rel="noopener" aria-label="console.groq.com/keys (nouvel onglet)">console.groq.com/keys</a></li>
-        <li><b>Google Gemini</b> — Gemini Flash, gratuit : <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" aria-label="aistudio.google.com/apikey (nouvel onglet)">aistudio.google.com/apikey</a></li>
-        <li><b>Mistral</b> — plan « Experiment » gratuit, modèles français : <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener" aria-label="console.mistral.ai (nouvel onglet)">console.mistral.ai</a></li>
-        <li><b>OpenRouter</b> — modèles suffixés <code>:free</code> : <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" aria-label="openrouter.ai/keys (nouvel onglet)">openrouter.ai/keys</a></li>
-        <li><b>Claude (Anthropic)</b> — payant, à l’usage (quelques centimes par rendez-vous), données non utilisées pour l’entraînement : <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" aria-label="console.anthropic.com (nouvel onglet)">console.anthropic.com</a> — le choix « Travailler » ci-dessous.</li>
-        <li><b>Ollama</b> — 100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.</li>
-        <li><b>Mode démo</b> — génération IA sans réseau ; les boutons de recherche contactent les sources publiques.</li>
+        <li><b>Groq</b> — ${t('rapide, Llama 3.3 70B, quota gratuit généreux :')} <a href="https://console.groq.com/keys" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: 'console.groq.com/keys' })}">console.groq.com/keys</a></li>
+        <li><b>Google Gemini</b> — ${t('Gemini Flash, gratuit :')} <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: 'aistudio.google.com/apikey' })}">aistudio.google.com/apikey</a></li>
+        <li><b>Mistral</b> — ${t('plan « Experiment » gratuit, modèles français :')} <a href="https://console.mistral.ai/api-keys" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: 'console.mistral.ai' })}">console.mistral.ai</a></li>
+        <li><b>OpenRouter</b> — ${t('modèles suffixés <code>:free</code> :')} <a href="https://openrouter.ai/keys" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: 'openrouter.ai/keys' })}">openrouter.ai/keys</a></li>
+        <li><b>Claude (Anthropic)</b> — ${t('payant, à l’usage (quelques centimes par rendez-vous), données non utilisées pour l’entraînement :')} <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener" aria-label="${t('{site} (nouvel onglet)', { site: 'console.anthropic.com' })}">console.anthropic.com</a> — ${t('le choix « Travailler » ci-dessous.')}</li>
+        <li><b>Ollama</b> — ${t('100 % local, sans clé. Lancez <code>OLLAMA_ORIGINS="*" ollama serve</code> puis <code>ollama pull llama3.1</code>.')}</li>
+        <li><b>${t('Mode démo')}</b> — ${t('génération IA sans réseau ; les boutons de recherche contactent les sources publiques.')}</li>
       </ul>
-      <h3>Limites de la version gratuite</h3>
-      <p class="note">${CONFIG.limits.sourcesPerStep} sources par étape, ${CONFIG.limits.charsPerSource.toLocaleString('fr-FR')} caractères conservés par source, ${CONFIG.limits.totalChars.toLocaleString('fr-FR')} caractères envoyés à l’IA par analyse, pour que les réponses restent complètes.</p>
+      <h3>${t('Limites de la version gratuite')}</h3>
+      <p class="note">${t('{sources} sources par étape, {chars} caractères conservés par source, {total} caractères envoyés à l’IA par analyse, pour que les réponses restent complètes.', { sources: CONFIG.limits.sourcesPerStep, chars: CONFIG.limits.charsPerSource.toLocaleString(locale()), total: CONFIG.limits.totalChars.toLocaleString(locale()) })}</p>
       <div class="card soft" id="managed-interest"></div>
-      <h3>Données sensibles : trois niveaux</h3>
+      <h3>${t('Données sensibles : trois niveaux')}</h3>
       <ul class="plain">
-        <li><b>Tester</b> — clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.</li>
-        <li><b>Travailler</b> — clé d’une offre payante <b>chez le fournisseur d’IA</b> (Claude, ou l’offre payante de Groq, Gemini, Mistral, OpenRouter : même champ, même usage ; vous payez le fournisseur, jamais AVApmo) ; vérifiez dans ses conditions que vos données ne servent pas à entraîner ses modèles.</li>
-        <li><b>Confidentiel</b> — Ollama en local : le modèle tourne sur votre machine ; les recherches web et officielles restent des appels externes, uniquement à votre demande.</li>
+        <li><b>${t('Tester')}</b> — ${t('clé gratuite : données fictives ou <b>publiques</b> (site web, plaquette, fiche d’entreprise, profil public), utilisables en l’état. Déconseillé pour tout ce qui n’est pas public.')}</li>
+        <li><b>${t('Travailler')}</b> — ${t('clé d’une offre payante <b>chez le fournisseur d’IA</b> (Claude, ou l’offre payante de Groq, Gemini, Mistral, OpenRouter : même champ, même usage ; vous payez le fournisseur, jamais AVApmo) ; vérifiez dans ses conditions que vos données ne servent pas à entraîner ses modèles.')}</li>
+        <li><b>${t('Confidentiel')}</b> — ${t('Ollama en local : le modèle tourne sur votre machine ; les recherches web et officielles restent des appels externes, uniquement à votre demande.')}</li>
       </ul>
-      <p class="note">Les quotas gratuits évoluent ; en cas d’erreur 429, changez de fournisseur. Vos données de rendez-vous restent dans ce navigateur (voir Historique pour l’export CSV).</p>
+      <p class="note">${t('Les quotas gratuits évoluent ; en cas d’erreur 429, changez de fournisseur. Vos données de rendez-vous restent dans ce navigateur (voir Historique pour l’export CSV).')}</p>
     </div>`;
-  const keyhelp = () => { const p = PROVIDERS[$('#provider').value]; $('#keyhelp').innerHTML = p.needsKey ? `— <a href="${p.keyUrl}" target="_blank" rel="noopener" aria-label="Obtenir une clé (nouvel onglet)">obtenir</a>` : '— non requise'; $('#model').placeholder = p.model; $('#baseUrl').placeholder = p.baseUrl; };
+  const keyhelp = () => { const p = PROVIDERS[$('#provider').value]; $('#keyhelp').innerHTML = p.needsKey ? `— <a href="${p.keyUrl}" target="_blank" rel="noopener" aria-label="${t('Obtenir une clé (nouvel onglet)')}">${t('obtenir')}</a>` : `— ${t('non requise')}`; $('#model').placeholder = p.model; $('#baseUrl').placeholder = p.baseUrl; };
   keyhelp(); $('#provider').onchange = keyhelp;
   renderManagedInterest();
   const read = () => ({ provider: $('#provider').value, apiKey: $('#apiKey').value.trim(), model: $('#model').value.trim(), baseUrl: $('#baseUrl').value.trim(), jinaKey: $('#jinaKey').value.trim() });
-  $('#save').onclick = () => { saveSettings(read()); markDone(); toast('Réglages enregistrés.'); };
+  $('#save').onclick = () => { saveSettings(read()); markDone(); toast(t('Réglages enregistrés.')); };
   $('#models').onclick = (e) => busy(e.target, async () => {
     saveSettings(read());
     const ids = await listModels();
     $('#model-list').innerHTML = ids.map((id) => `<option value="${esc(id)}">`).join('');
-    $('#models-note').textContent = ids.length ? `${ids.length} modèle(s) : ${ids.slice(0, 8).join(', ')}${ids.length > 8 ? '…' : ''} — cliquez dans le champ Modèle pour choisir.` : 'Aucun modèle renvoyé.';
+    $('#models-note').textContent = ids.length ? t('{n} modèle(s) : {list} — cliquez dans le champ Modèle pour choisir.', { n: ids.length, list: ids.slice(0, 8).join(', ') + (ids.length > 8 ? '…' : '') }) : t('Aucun modèle renvoyé.');
     const cur = $('#model').value.trim() || PROVIDERS[$('#provider').value]?.model;
-    if (ids.length && !ids.includes(cur)) { $('#model').value = ids.find((i) => /haiku|gpt-oss-120b|llama.*70b|gemini.*flash|mistral-small|:free/i.test(i)) || ids[0]; toast(`Modèle « ${cur} » absent : « ${$('#model').value} » sélectionné. Enregistrez.`, 5000); }
+    if (ids.length && !ids.includes(cur)) { $('#model').value = ids.find((i) => /haiku|gpt-oss-120b|llama.*70b|gemini.*flash|mistral-small|:free/i.test(i)) || ids[0]; toast(t('Modèle « {missing} » absent : « {picked} » sélectionné. Enregistrez.', { missing: cur, picked: $('#model').value }), 5000); }
   });
   $('#test').onclick = (e) => busy(e.target, async () => {
     saveSettings(read()); markDone();
     const r = await chatJSON([{ role: 'system', content: 'TASK:ping LANG:fr Réponds uniquement en JSON.' }, { role: 'user', content: 'Réponds {"ok":true}' }]);
-    toast(r && (r.ok || r.text) ? 'Connexion OK ✔' : 'Réponse inattendue : ' + JSON.stringify(r).slice(0, 80));
+    toast(r && (r.ok || r.text) ? t('Connexion OK ✔') : t('Réponse inattendue : {text}', { text: JSON.stringify(r).slice(0, 80) }));
   });
 };
 
@@ -1046,17 +1049,17 @@ function renderManagedInterest() {
   const el = $('#managed-interest'); if (!el) return;
   let done = null; try { done = JSON.parse(localStorage.getItem(INTEREST_KEY) || 'null'); } catch {}
   const email = getConsent()?.email || '';
-  const subject = encodeURIComponent('SIMAC Prep — version gérée : ça m’intéresse');
-  const body = encodeURIComponent(`Bonjour,\n\nUne version de SIMAC Prep où les clés et les appels IA sont pris en charge (sans plafonds, sans clé à gérer) m’intéresserait.\n\nMon usage : [quelques mots : combien de rendez-vous par mois, quel type de clients]\n\n${email ? `Adresse : ${email}\n` : ''}`);
+  const subject = encodeURIComponent(t('SIMAC Prep — version gérée : ça m’intéresse'));
+  const body = encodeURIComponent(t('Bonjour,\n\nUne version de SIMAC Prep où les clés et les appels IA sont pris en charge (sans plafonds, sans clé à gérer) m’intéresserait.\n\nMon usage : [quelques mots : combien de rendez-vous par mois, quel type de clients]\n\n') + (email ? t('Adresse : {email}', { email }) + '\n' : ''));
   el.innerHTML = done
-    ? `<span class="note">Merci, votre intérêt pour une version gérée est noté${done.at ? ` (${done.at.slice(0, 10)})` : ''}. Elle existera si la demande est là, et nous vous écrirons.</span>`
-    : `<b>Une version gérée vous intéresserait ?</b> <span class="note">Les clés et les appels IA y seraient pris en charge, avec des plafonds plus larges. Elle n’existe pas encore et nous la construirons si la demande est là.</span>
-       <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="mailto:${CONFIG.contact}?subject=${subject}&body=${body}">Écrire pour dire que ça m’intéresse</a></div>`;
+    ? `<span class="note">${done.at ? t('Merci, votre intérêt pour une version gérée est noté ({date}). Elle existera si la demande est là, et nous vous écrirons.', { date: done.at.slice(0, 10) }) : t('Merci, votre intérêt pour une version gérée est noté. Elle existera si la demande est là, et nous vous écrirons.')}</span>`
+    : `<b>${t('Une version gérée vous intéresserait ?')}</b> <span class="note">${t('Les clés et les appels IA y seraient pris en charge, avec des plafonds plus larges. Elle n’existe pas encore et nous la construirons si la demande est là.')}</span>
+       <div class="actions" style="margin:8px 0 0"><a class="btn ghost small" id="interest-yes" href="mailto:${CONFIG.contact}?subject=${subject}&body=${body}">${t('Écrire pour dire que ça m’intéresse')}</a></div>`;
   $('#interest-yes')?.addEventListener('click', () => { try { localStorage.setItem(INTEREST_KEY, JSON.stringify({ at: new Date().toISOString() })); } catch {} setTimeout(renderManagedInterest, 500); });
 }
 
 // ----------------------------------------------------------------------------- impression / PDF
-const STEP_TITLES = { offer: 'Offre', client: 'Client', persona: 'Persona SONCAS', simac: 'Déroulé SIMAC', followup: 'Suivi', history: 'Historique', settings: 'Réglages' };
+const STEP_TITLES = { offer: t('Offre'), client: t('Client'), persona: t('Persona SONCAS'), simac: t('Déroulé SIMAC'), followup: t('Suivi'), history: t('Historique'), settings: t('Réglages') };
 const STEP_SLUG = { offer: 'offre', client: 'client', persona: 'persona', simac: 'simac', followup: 'suivi', history: 'historique', settings: 'reglages' };
 $('#btn-print').onclick = () => window.print();
 
@@ -1071,57 +1074,57 @@ const P = {
 const printViews = {
   offer() {
     const M = S.offer?.maturity; const m = S.market?.comparison;
-    return `<h1>Offre — ${esc(S.product.name || '')}</h1>
+    return `<h1>${t('Offre')} — ${esc(S.product.name || '')}</h1>
       <div class="pgrid">${OFFER_KEY_ORDER.map((k) => P.row(FIELD_LABELS[k] || k, S.product[k])).join('')}</div>
-      ${M ? `<h2>Maturité : ${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</h2><p>Avis de l’outil : ${esc(M.verdict || VERDICT[M.score])}.</p><p>${esc(M.summary || '')}</p>
-        <div class="pgrid"><div><b>Points forts</b>${P.ul(M.strengths)}</div><div><b>Ce qui bloque la vente</b>${P.ul(M.gaps, (g) => `<b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} → ${esc(g.fix)}`)}</div></div>
-        ${M.next_step ? `<p><b>À faire avant le prochain rendez-vous :</b> ${esc(M.next_step)}</p>` : ''}` : ''}
-      ${m && (m.summary || m.alternatives) ? `<h2>Concurrents et alternatives (candidats à vérifier)</h2><p>${esc(m.summary || '')}</p>${P.ul(m.alternatives || m.items, (a) => `<b>${esc(a.name || '')}</b> — ${esc(a.positioning || a.summary || '')}`)}` : ''}`;
+      ${M ? `<h2>${t('Maturité : {score} / 5', { score: M.score })} — ${esc(M.label || MATURITY[M.score])}</h2><p>${t('Avis de l’outil : {verdict}', { verdict: esc(t(M.verdict || VERDICT[M.score])) })}.</p><p>${esc(M.summary || '')}</p>
+        <div class="pgrid"><div><b>${t('Points forts')}</b>${P.ul(M.strengths)}</div><div><b>${t('Ce qui bloque la vente')}</b>${P.ul(M.gaps, (g) => `<b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} → ${esc(g.fix)}`)}</div></div>
+        ${M.next_step ? `<p><b>${t('À faire avant le prochain rendez-vous :')}</b> ${esc(M.next_step)}</p>` : ''}` : ''}
+      ${m && (m.summary || m.alternatives) ? `<h2>${t('Concurrents et alternatives (candidats à vérifier)')}</h2><p>${esc(m.summary || '')}</p>${P.ul(m.alternatives || m.items, (a) => `<b>${esc(a.name || '')}</b> — ${esc(a.positioning || a.summary || '')}`)}` : ''}`;
   },
   client() {
     const b = S.brief; const C = S.client;
-    return `<h1>Client — ${esc(C.company || '')}</h1>
-      <div class="pgrid">${P.row('Entreprise', C.company)}${P.row('Secteur', C.sector)}${P.row('Commune / pays', C.location)}${P.row('Format du rendez-vous', C.meetingFormat)}
-        ${P.row('Interlocuteurs', contacts().map((c, i) => `${contactLabel(c, i)} — ${c.role || ''} (${WEIGHTS[c.weight] || ''})`).join('\n'))}${P.row('Processus de décision', C.decisionProcess)}${P.row('Site web', C.website)}</div>
-      ${b ? `<h2>Fiche client</h2><p><b>Entreprise.</b> ${esc(b.company_summary || '')}</p><p><b>Interlocuteurs.</b> ${esc(b.contact_summary || '')}</p><p><b>Enjeu.</b> ${esc(b.stakes || '')}</p>
-        <div class="pgrid"><div><b>Problèmes possibles à vérifier</b>${P.ul(b.likely_problems)}</div><div><b>Faits (sourcés)</b>${P.ul(b.facts)}</div><div><b>Hypothèses à vérifier</b>${P.ul(b.assumptions)}</div><div><b>Questions de découverte</b>${P.ul(b.questions_to_ask)}</div></div>
-        ${(b.participants || []).map((p) => `<p><b>${esc(p.name)}</b> — ${esc(p.documented_role || '')}. À explorer : ${esc(p.hypothesis || '')}. <i>Question : ${esc(p.question || '')}</i></p>`).join('')}
-        ${b.preparation ? `<h3>${C.preparationMode === 'email' ? 'Email de prise de contact' : 'Ouverture du rendez-vous'}</h3><p>${P.text(b.preparation.opening)}</p>${C.preparationMode === 'email' ? `<p><b>Objet :</b> ${esc(b.preparation.email_subject || '')}</p><p>${P.text(b.preparation.email_body)}</p>` : ''}` : ''}` : '<p class="note">Fiche client non générée.</p>'}`;
+    return `<h1>${t('Client')} — ${esc(C.company || '')}</h1>
+      <div class="pgrid">${P.row(t('Entreprise'), C.company)}${P.row(t('Secteur'), C.sector)}${P.row(t('Commune / pays'), C.location)}${P.row(t('Format du rendez-vous'), C.meetingFormat)}
+        ${P.row(t('Interlocuteurs'), contacts().map((c, i) => `${contactLabel(c, i)} — ${c.role || ''} (${WEIGHTS[c.weight] || ''})`).join('\n'))}${P.row(t('Processus de décision'), C.decisionProcess)}${P.row(t('Site web'), C.website)}</div>
+      ${b ? `<h2>${t('Fiche client')}</h2><p><b>${t('Entreprise.')}</b> ${esc(b.company_summary || '')}</p><p><b>${t('Interlocuteurs.')}</b> ${esc(b.contact_summary || '')}</p><p><b>${t('Enjeu.')}</b> ${esc(b.stakes || '')}</p>
+        <div class="pgrid"><div><b>${t('Problèmes possibles à vérifier')}</b>${P.ul(b.likely_problems)}</div><div><b>${t('Faits (sourcés)')}</b>${P.ul(b.facts)}</div><div><b>${t('Hypothèses à vérifier')}</b>${P.ul(b.assumptions)}</div><div><b>${t('Questions de découverte')}</b>${P.ul(b.questions_to_ask)}</div></div>
+        ${(b.participants || []).map((p) => `<p><b>${esc(p.name)}</b> — ${esc(p.documented_role || '')}. ${t('À explorer :')} ${esc(p.hypothesis || '')}. <i>${t('Question :')} ${esc(p.question || '')}</i></p>`).join('')}
+        ${b.preparation ? `<h3>${C.preparationMode === 'email' ? t('Email de prise de contact') : t('Ouverture du rendez-vous')}</h3><p>${P.text(b.preparation.opening)}</p>${C.preparationMode === 'email' ? `<p><b>${t('Objet :')}</b> ${esc(b.preparation.email_subject || '')}</p><p>${P.text(b.preparation.email_body)}</p>` : ''}` : ''}` : `<p class="note">${t('Fiche client non générée.')}</p>`}`;
   },
   persona() {
     syncPeople();
     const blocks = S.client.contacts.map((c, i) => { const pp = S.persona.people[i]; const t3 = top3(pp.scores);
-      return `<h2>${esc(contactLabel(c, i))} <small>(${[c.role, WEIGHTS[c.weight]].filter(Boolean).map(esc).join(', ')})</small> — top 3 : ${t3.map(label).join(', ')}</h2>
-        <table class="ptable"><thead><tr><th>Motivation</th><th>Score</th><th>Pourquoi</th><th>Arguments</th></tr></thead><tbody>
-        ${SONCAS.map((d) => `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${d.label}</td><td>${pp.scores[d.code]}</td><td>${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(pp.arguments?.[d.code])}</td></tr>`).join('')}</tbody></table>`; }).join('');
-    return `<h1>Persona SONCAS — ${esc(S.client.company || '')}</h1>${blocks}
-      ${(S.persona.tensions || []).length ? `<h3>Tensions entre interlocuteurs</h3>${P.ul(S.persona.tensions)}` : ''}
-      <div class="pbox"><b>Message principal</b><br>${P.text(S.persona.main_message)}</div>`;
+      return `<h2>${esc(contactLabel(c, i))} <small>(${[c.role, WEIGHTS[c.weight]].filter(Boolean).map(esc).join(', ')})</small> — ${t('top 3 :')} ${t3.map(label).join(', ')}</h2>
+        <table class="ptable"><thead><tr><th>${t('Motivation')}</th><th>${t('Score')}</th><th>${t('Pourquoi')}</th><th>${t('Arguments')}</th></tr></thead><tbody>
+        ${SONCAS.map((d) => `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${label(d.code)}</td><td>${pp.scores[d.code]}</td><td>${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(pp.arguments?.[d.code])}</td></tr>`).join('')}</tbody></table>`; }).join('');
+    return `<h1>${t('Persona SONCAS')} — ${esc(S.client.company || '')}</h1>${blocks}
+      ${(S.persona.tensions || []).length ? `<h3>${t('Tensions entre interlocuteurs')}</h3>${P.ul(S.persona.tensions)}` : ''}
+      <div class="pbox"><b>${t('Message principal')}</b><br>${P.text(S.persona.main_message)}</div>`;
   },
   simac() {
     const M = S.simac || {}; const multi = contacts().length > 1;
-    return `<h1>Déroulé SIMAC — ${esc(S.client.company || '')} / ${esc(contacts().map((c, i) => contactLabel(c, i)).join(', '))}</h1>
-      <p><b>Objectif :</b> ${esc(S.objective.primary || '')}<br><b>Repli :</b> ${esc(S.objective.fallback || '')}</p>
-      <div class="pbox"><b>Message principal</b><br>${P.text(S.persona.main_message)}</div>
-      ${P.row('Ouverture (20 premières secondes)', M.opening)}${P.row('Situation', M.situation)}${P.row('Idée', M.idea)}
-      ${P.row('Mécanisme — prix en dernier', (M.mechanism || []).map((x, i) => `${i + 1}. ${x}`).join('\n'))}
-      ${P.row('Avantages — chacun reformule un besoin', (M.advantages || []).map((x) => `– ${x}`).join('\n'))}
-      ${P.row('Conclusion — question, deux options, étape suivante', M.conclusion)}
-      ${(M.objections || []).length ? `<h2>Objections probables</h2><table class="ptable"><thead><tr>${multi ? '<th>Qui</th>' : ''}<th>Objection</th><th>Accueillir → creuser → répondre → relancer</th></tr></thead><tbody>${M.objections.map((o) => `<tr>${multi ? `<td>${esc(o.who || '')}</td>` : ''}<td>${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('')}</tbody></table>` : ''}
-      ${(M.mistakes_watch || []).length ? `<h3>Erreurs à surveiller</h3>${P.ul(M.mistakes_watch)}` : ''}
-      <p class="note">Avant d’entrer, connaissez votre plancher et listez les leviers qui ne sont pas des remises. Ne repartez jamais sans une date et le nom du décideur.</p>`;
+    return `<h1>${t('Déroulé SIMAC')} — ${esc(S.client.company || '')} / ${esc(contacts().map((c, i) => contactLabel(c, i)).join(', '))}</h1>
+      <p><b>${t('Objectif :')}</b> ${esc(S.objective.primary || '')}<br><b>${t('Repli :')}</b> ${esc(S.objective.fallback || '')}</p>
+      <div class="pbox"><b>${t('Message principal')}</b><br>${P.text(S.persona.main_message)}</div>
+      ${P.row(t('Ouverture (20 premières secondes)'), M.opening)}${P.row(t('Situation'), M.situation)}${P.row(t('Idée'), M.idea)}
+      ${P.row(t('Mécanisme — prix en dernier'), (M.mechanism || []).map((x, i) => `${i + 1}. ${x}`).join('\n'))}
+      ${P.row(t('Avantages — chacun reformule un besoin'), (M.advantages || []).map((x) => `– ${x}`).join('\n'))}
+      ${P.row(t('Conclusion — question, deux options, étape suivante'), M.conclusion)}
+      ${(M.objections || []).length ? `<h2>${t('Objections probables')}</h2><table class="ptable"><thead><tr>${multi ? `<th>${t('Qui')}</th>` : ''}<th>${t('Objection')}</th><th>${t('Accueillir → creuser → répondre → relancer')}</th></tr></thead><tbody>${M.objections.map((o) => `<tr>${multi ? `<td>${esc(o.who || '')}</td>` : ''}<td>${esc(o.objection)}</td><td>${esc(o.response)}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${(M.mistakes_watch || []).length ? `<h3>${t('Erreurs à surveiller')}</h3>${P.ul(M.mistakes_watch)}` : ''}
+      <p class="note">${t('Avant d’entrer, connaissez votre plancher et listez les leviers qui ne sont pas des remises. Ne repartez jamais sans une date et le nom du décideur.')}</p>`;
   },
   followup() {
     const D = S.debrief; const F = S.followup;
-    return `<h1>Suivi — ${esc(S.client.company || '')}</h1>
-      <div class="pgrid">${P.row('Résultat', D.outcome)}${P.row('Décideur', D.decisionMaker)}${P.row('Objections entendues', D.objectionsHeard)}${P.row('Notes', D.notes)}</div>
-      ${actions().length ? `<h2>Actions convenues</h2><table class="ptable"><thead><tr><th>#</th><th>Action</th><th>Qui</th><th>Échéance</th><th>Livrable</th><th>Statut</th></tr></thead><tbody>${actions().map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.action)}</td><td>${a.owner === 'client' ? 'Le client' : 'Moi'}</td><td>${esc(a.due)}</td><td>${esc(a.output)}</td><td>${ACTION_STATUS[a.status] || 'À lancer'}</td></tr>`).join('')}</tbody></table>` : ''}
-      ${F ? `<h2>Mail de suivi</h2><p><b>Objet :</b> ${esc(F.email_subject || '')}</p><div class="pbox">${P.text(F.email_body)}</div>${(F.lessons || []).length ? `<h3>Leçons pour la prochaine fois</h3>${P.ul(F.lessons)}` : ''}` : ''}`;
+    return `<h1>${t('Suivi')} — ${esc(S.client.company || '')}</h1>
+      <div class="pgrid">${P.row(t('Résultat'), D.outcome ? t(D.outcome) : '')}${P.row(t('Décideur'), D.decisionMaker)}${P.row(t('Objections entendues'), D.objectionsHeard)}${P.row(t('Notes'), D.notes)}</div>
+      ${actions().length ? `<h2>${t('Actions convenues')}</h2><table class="ptable"><thead><tr><th>#</th><th>${t('Action')}</th><th>${t('Qui')}</th><th>${t('Échéance')}</th><th>${t('Livrable')}</th><th>${t('Statut')}</th></tr></thead><tbody>${actions().map((a, i) => `<tr><td>${i + 1}</td><td>${esc(a.action)}</td><td>${a.owner === 'client' ? t('Le client') : t('Moi')}</td><td>${esc(a.due)}</td><td>${esc(a.output)}</td><td>${ACTION_STATUS[a.status] || t('À lancer')}</td></tr>`).join('')}</tbody></table>` : ''}
+      ${F ? `<h2>${t('Mail de suivi')}</h2><p><b>${t('Objet :')}</b> ${esc(F.email_subject || '')}</p><div class="pbox">${P.text(F.email_body)}</div>${(F.lessons || []).length ? `<h3>${t('Leçons pour la prochaine fois')}</h3>${P.ul(F.lessons)}` : ''}` : ''}`;
   },
   history() {
     const all = listMeetings();
-    return `<h1>Historique — ${all.length} rendez-vous</h1><table class="ptable"><thead><tr><th>Date</th><th>Entreprise / contact</th><th>Offre</th><th>Top SONCAS</th><th>Résultat</th><th>Suite</th></tr></thead><tbody>
-      ${all.map((m) => `<tr><td>${esc(m.date)}</td><td>${esc(m.company)}<br><small>${esc(m.contact_name)}</small></td><td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome)}</td><td>${[[m.next_action, m.next_due, m.next_status], [m.action2, m.action2_due, m.action2_status], [m.action3, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `${esc(a[0])} — ${esc(a[1] || '')} (${ACTION_STATUS[a[2]] || 'À lancer'})`).join('<br>')}</td></tr>`).join('')}</tbody></table>`;
+    return `<h1>${t('Historique — {n} rendez-vous', { n: all.length })}</h1><table class="ptable"><thead><tr><th>${t('Date')}</th><th>${t('Entreprise / contact')}</th><th>${t('Offre')}</th><th>${t('Top SONCAS')}</th><th>${t('Résultat')}</th><th>${t('Suite')}</th></tr></thead><tbody>
+      ${all.map((m) => `<tr><td>${esc(m.date)}</td><td>${esc(m.company)}<br><small>${esc(m.contact_name)}</small></td><td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome ? t(m.outcome) : '')}</td><td>${[[m.next_action, m.next_due, m.next_status], [m.action2, m.action2_due, m.action2_status], [m.action3, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `${esc(a[0])} — ${esc(a[1] || '')} (${ACTION_STATUS[a[2]] || t('À lancer')})`).join('<br>')}</td></tr>`).join('')}</tbody></table>`;
   },
 };
 let savedTitle = document.title, printing = false;
@@ -1134,8 +1137,8 @@ window.addEventListener('beforeprint', () => {
   const v = document.createElement('div'); v.id = 'print-view';
   v.innerHTML = `<div class="print-head"><b>SIMAC Prep, ${esc(STEP_TITLES[step])}.</b> ${[S.product.name, who, S.date].filter(Boolean).map(esc).join(', ')}</div>
     ${printViews[step]()}
-    <div class="print-foot"><p class="print-credit">Ce document a été préparé avec <b>SIMAC Prep</b> (simac.avapmo.com), un outil AVApmo (adp.avapmo.com). Contact : ${esc(CONFIG.contact)}.</p>
-      <p>Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.</p></div>`;
+    <div class="print-foot"><p class="print-credit">${t('Ce document a été préparé avec <b>SIMAC Prep</b> (simac.avapmo.com), un outil AVApmo (adp.avapmo.com). Contact : {contact}.', { contact: esc(CONFIG.contact) })}</p>
+      <p>${t('Outil fourni « tel quel », sans garantie ni responsabilité sur les informations produites (y compris par l’IA) : à utiliser sous votre propre responsabilité.')}</p></div>`;
   document.body.appendChild(v);
 });
 window.addEventListener('afterprint', () => { $('#print-view')?.remove(); document.title = savedTitle; printing = false; });
@@ -1144,16 +1147,16 @@ window.addEventListener('afterprint', () => { $('#print-view')?.remove(); docume
 function showGate(readOnly = false) {
   const g = $('#gate'); g.hidden = false;
   $('#gate-form').hidden = readOnly; $('#gate-wait').hidden = true;
-  if (readOnly) { const close = document.createElement('button'); close.className = 'btn ghost'; close.textContent = 'Fermer'; close.onclick = () => (g.hidden = true); $('#gate-form').after(close); }
+  if (readOnly) { const close = document.createElement('button'); close.className = 'btn ghost'; close.textContent = t('Fermer'); close.onclick = () => (g.hidden = true); $('#gate-form').after(close); }
   $('#gate-email').required = !!CONFIG.emailRequired;
-  $('#gate-email').closest('label').querySelector('input').placeholder = CONFIG.emailRequired ? 'vous@entreprise.fr' : 'vous@entreprise.fr (facultatif)';
+  $('#gate-email').closest('label').querySelector('input').placeholder = CONFIG.emailRequired ? t('vous@entreprise.fr') : t('vous@entreprise.fr (facultatif)');
 }
 // Attente de confirmation : la page d'accueil reste fermée tant que le lien du mail n'a pas été ouvert ici.
 let resendTimer = null;
 function showWaiting(rec, sentAt = Date.now()) {
   $('#gate').hidden = false; $('#gate-form').hidden = true; $('#gate-wait').hidden = false;
   $('#gate-wait-email').textContent = rec.email;
-  $('#gate-wait-status').textContent = rec.sent ? '' : 'L’envoi n’a pas pu être vérifié (connexion ?) : utilisez « Renvoyer le mail » si rien n’arrive.';
+  $('#gate-wait-status').textContent = rec.sent ? '' : t('L’envoi n’a pas pu être vérifié (connexion ?) : utilisez « Renvoyer le mail » si rien n’arrive.');
   $('#gate-already-help').hidden = true;
   throttleResend(sentAt);
 }
@@ -1161,16 +1164,16 @@ function throttleResend(sentAt) {
   const btn = $('#gate-resend'); clearInterval(resendTimer);
   const tick = () => {
     const left = Math.ceil((sentAt + 60000 - Date.now()) / 1000);
-    if (left > 0) { btn.disabled = true; btn.textContent = `Renvoyer le mail (${left} s)`; }
-    else { btn.disabled = false; btn.textContent = 'Renvoyer le mail'; clearInterval(resendTimer); }
+    if (left > 0) { btn.disabled = true; btn.textContent = t('Renvoyer le mail ({n} s)', { n: left }); }
+    else { btn.disabled = false; btn.textContent = t('Renvoyer le mail'); clearInterval(resendTimer); }
   };
   tick(); resendTimer = setInterval(tick, 1000);
 }
 $('#gate-form').addEventListener('submit', async (e) => {
   e.preventDefault();
   const email = $('#gate-email').value.trim();
-  if (!$('#gate-accept').checked) return ($('#gate-error').textContent = 'Cochez la case pour accepter les conditions.');
-  if ((CONFIG.emailRequired || email) && !isEmail(email)) return ($('#gate-error').textContent = 'Adresse email invalide.');
+  if (!$('#gate-accept').checked) return ($('#gate-error').textContent = t('Cochez la case pour accepter les conditions.'));
+  if ((CONFIG.emailRequired || email) && !isEmail(email)) return ($('#gate-error').textContent = t('Adresse email invalide.'));
   $('#gate-error').textContent = '';
   const btn = $('#gate-form .btn'); btn.disabled = true;
   const rec = await accept({ email });
@@ -1180,7 +1183,7 @@ $('#gate-form').addEventListener('submit', async (e) => {
 $('#gate-resend').addEventListener('click', async () => {
   const btn = $('#gate-resend'); btn.disabled = true;
   const sent = await resend();
-  $('#gate-wait-status').textContent = sent ? 'Mail renvoyé.' : 'L’envoi n’a pas pu être vérifié (connexion ?). Réessayez dans un instant.';
+  $('#gate-wait-status').textContent = sent ? t('Mail renvoyé.') : t('L’envoi n’a pas pu être vérifié (connexion ?). Réessayez dans un instant.');
   throttleResend(Date.now());
 });
 $('#gate-change').addEventListener('click', () => {
@@ -1190,7 +1193,7 @@ $('#gate-change').addEventListener('click', () => {
 });
 // Lien de confirmation ouvert dans un autre onglet (webmail) : cet onglet s'ouvre dès que l'accès est enregistré.
 // (Pas quand l'accueil n'affiche que les conditions en lecture : formulaire et attente masqués.)
-function unlockIfConfirmed(message = 'Adresse confirmée — bienvenue.') {
+function unlockIfConfirmed(message = t('Adresse confirmée — bienvenue.')) {
   const gateShowsAccess = !$('#gate').hidden && (!$('#gate-wait').hidden || !$('#gate-form').hidden);
   if (!gateShowsAccess || !hasAccepted()) return false;
   clearInterval(resendTimer); $('#gate').hidden = true; toast(message, 4000); return true;
@@ -1207,7 +1210,7 @@ $('#show-terms').addEventListener('click', (e) => { e.preventDefault(); showGate
     params.delete('ok'); params.delete('confirmed');
     const q = params.toString();
     history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
-    toast(hadPending ? 'Adresse confirmée — bienvenue.' : 'Adresse confirmée sur ce navigateur.', 4000);
+    toast(hadPending ? t('Adresse confirmée — bienvenue.') : t('Adresse confirmée sur ce navigateur.'), 4000);
   }
   if (hasAccepted()) $('#gate').hidden = true;
   else if (isPending()) { const c = getConsent(); showWaiting(c, Date.parse(c.resentAt || c.at) || 0); }
