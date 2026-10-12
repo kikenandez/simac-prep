@@ -23,6 +23,12 @@
 
 Les API Recherche d’entreprises et BODACC ont répondu sans clé avec CORS ouvert lors des vérifications du 8 octobre 2026. Disponibilité, quotas et conditions des fournisseurs peuvent évoluer. Références : [Recherche d’entreprises](https://recherche-entreprises.api.gouv.fr/docs/), [BODACC](https://www.bodacc.fr/explore/dataset/annonces-commerciales/api/), [Jina](https://jina.ai/reader/), [Pappers](https://www.pappers.fr/mentions-legales).
 
+## Langues et pays
+
+- **Langue** (`lib/i18n.js`) : français par défaut, anglais, espagnol ; sélecteur dans la barre du haut et sur la page d'accueil, mémorisé (`simac.lang`), `?lang=en|es` dans l'URL. Le texte français est la clé : `t('Texte', { var })`. Dictionnaires dans `lib/i18n/` (`core.js` page statique, recherche et SONCAS ; `app.js` interface ; `lib.js` fournisseurs, fichiers, démo). Le HTML statique est traduit par `data-i18n` / `data-i18n-attr`. Changer de langue recharge la page. `tests/i18n.test.mjs` vérifie que chaque clé a sa traduction.
+- **Prompts** : bloc méthode en `fr` / `en` / `es`, consignes de tâche en français, consigne de langue de sortie en fin de message. Les valeurs que l'application compare (verdict, résultat, `nous|eux|égal|inconnu`, poids, responsable) restent des codes français ; l'interface les affiche traduits.
+- **Pays** (`lib/countries.js`, réglage `simac.country`, choisi dans les cartes Concurrents et Identifier l'entreprise) : France, Colombie, Mexique, Panama, Argentine, Chili, Uruguay, Pérou, Équateur, Venezuela, Guatemala, Salvador, Honduras, Nicaragua, Costa Rica, Espagne, États-Unis, Canada, Royaume-Uni, Belgique, International. Il fixe les mots des recherches web (« prestataires tarifs » / « proveedores precios » / « providers pricing »), le domaine national et la devise reconnus par le classement, les sites d'avis de l'angle « avis clients et réputation », et les registres proposés. Seule la France a des API officielles ouvertes sans clé et avec CORS (Annuaire des entreprises, BODACC) ; ailleurs, l'outil donne des liens à ouvrir (Companies House, BORME, OpenCorporates, SEC EDGAR, RUES, SIEM, Registro Público de Panamá, Corporations Canada, BCE/KBO, Trustpilot, BBB…) et lit la page que l'utilisateur choisit. Aucun site n'est collecté automatiquement.
+
 ## Mémoire et RAG léger
 - Un rendez-vous = une ligne plate (`COLUMNS` dans `store.js`), stockée dans `localStorage` (`simac.meetings`).
 - Le CSV exporté est exactement cette table ; l'import la recharge. C'est l'« amorce RAG » demandée : lisible par un humain, par un tableur, par un autre outil.
@@ -34,7 +40,6 @@ Les API Recherche d’entreprises et BODACC ont répondu sans clé avec CORS ouv
 - Quotas gratuits variables (429) → changer de fournisseur ; message explicite.
 - `localStorage` ≈ 5 Mo : les textes des sources augmentent le volume de chaque rendez-vous. Exporter régulièrement et supprimer les anciens rendez-vous devenus inutiles.
 - Pas de multi-utilisateur ni de synchronisation : le CSV est le mécanisme de partage.
-- Anglais : les prompts existent en `en` (`prompts.js`), l'interface est en français pour ce premier cas d'usage.
 
 ## Évolutions candidates
-Embeddings locaux (transformers.js) si l'historique dépasse quelques centaines de lignes · export PDF du script · import CSV d'un CRM · variante anglaise de l'interface · PWA hors ligne.
+Embeddings locaux (transformers.js) si l'historique dépasse quelques centaines de lignes · export PDF du script · import CSV d'un CRM · PWA hors ligne.

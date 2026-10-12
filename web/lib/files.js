@@ -7,6 +7,7 @@ const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.w
 const MAMMOTH = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js';
 const TESSERACT = 'https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.1.1/tesseract.min.js';
 import { CONFIG } from '../config.js';
+import { t } from './i18n.js';
 const MAX_CHARS = CONFIG.limits?.charsPerSource ?? 6000;
 const OCR_MAX_PAGES = 4; // un flyer, une plaquette courte ; au-delà, c'est long dans le navigateur
 
@@ -18,13 +19,13 @@ export async function extractText(file, onProgress = () => {}) {
   let text; let ocr = false;
   if (name.endsWith('.pdf') || file.type === 'application/pdf') {
     text = await fromPdf(file);
-    if (!clean(text)) { onProgress(`${file.name} : PDF sans texte — lecture optique en cours (quelques dizaines de secondes)…`); text = await ocrPdf(file); ocr = true; }
+    if (!clean(text)) { onProgress(t('{name} : PDF sans texte — lecture optique en cours (quelques dizaines de secondes)…', { name: file.name })); text = await ocrPdf(file); ocr = true; }
   } else if (/\.(png|jpe?g|webp)$/.test(name) || /^image\//.test(file.type)) {
-    onProgress(`${file.name} : lecture optique de l’image (quelques dizaines de secondes)…`); text = await ocrImage(file); ocr = true;
+    onProgress(t('{name} : lecture optique de l’image (quelques dizaines de secondes)…', { name: file.name })); text = await ocrImage(file); ocr = true;
   } else if (name.endsWith('.docx')) text = await fromDocx(file);
   else text = await file.text();
   text = clean(text);
-  if (!text) throw new Error(`Aucun texte lisible dans ${file.name}${ocr ? ' (image trop petite ou illisible)' : ''}.`);
+  if (!text) throw new Error(ocr ? t('Aucun texte lisible dans {name} (image trop petite ou illisible).', { name: file.name }) : t('Aucun texte lisible dans {name}.', { name: file.name }));
   return { source: file.name, kind: 'document', text: text.slice(0, MAX_CHARS), truncated: text.length > MAX_CHARS, ocr };
 }
 
@@ -47,7 +48,7 @@ async function fromPdf(file) {
 async function tesseract() {
   if (!window.Tesseract) {
     await new Promise((resolve, reject) => {
-      const sc = document.createElement('script'); sc.src = TESSERACT; sc.onload = resolve; sc.onerror = () => reject(new Error('Chargement de tesseract.js impossible.'));
+      const sc = document.createElement('script'); sc.src = TESSERACT; sc.onload = resolve; sc.onerror = () => reject(new Error(t('Chargement de tesseract.js impossible.')));
       document.head.appendChild(sc);
     });
   }
@@ -65,7 +66,7 @@ async function ocrCanvasList(canvases) {
 async function ocrImage(file) {
   const url = URL.createObjectURL(file);
   try {
-    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('Image illisible.')); i.src = url; });
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error(t('Image illisible.'))); i.src = url; });
     const scale = Math.min(2, Math.max(1, 1800 / Math.max(img.width, img.height)));
     const c = document.createElement('canvas'); c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
     c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
@@ -88,7 +89,7 @@ async function ocrPdf(file) {
 async function fromDocx(file) {
   if (!window.mammoth) {
     await new Promise((resolve, reject) => {
-      const sc = document.createElement('script'); sc.src = MAMMOTH; sc.onload = resolve; sc.onerror = () => reject(new Error('Chargement de mammoth impossible.'));
+      const sc = document.createElement('script'); sc.src = MAMMOTH; sc.onload = resolve; sc.onerror = () => reject(new Error(t('Chargement de mammoth impossible.')));
       document.head.appendChild(sc);
     });
   }
