@@ -153,7 +153,16 @@ pre.email { white-space: pre-wrap; font: inherit; background: var(--bg); border:
   #print-view .ptable { width: 100%; border-collapse: collapse; margin: 6px 0; } #print-view .ptable th, #print-view .ptable td { border: 1px solid #bbb; padding: 4px 6px; vertical-align: top; text-align: left; }
   #print-view .ptable tr.top td { background: #eee; }
   #print-view .note { color: #555; font-size: 10.5px; }
+  #print-view .print-section { break-before: page; } #print-view .print-section:first-of-type { break-before: auto; }
+  #print-view.print-sheet { font-size: 10.5px; } #print-view.print-sheet h1 { font-size: 16px; } #print-view.print-sheet .pgrid { gap: 4px 14px; }
+  #print-view.print-sheet ul { margin: 2px 0 4px; } #print-view.print-sheet .ptable th, #print-view.print-sheet .ptable td { padding: 3px 5px; }
+  #print-dialog { display: none; }
 }
+#print-dialog { border: 1px solid var(--line); border-radius: var(--radius); padding: 20px 24px; max-width: 560px; background: var(--panel); color: var(--ink); }
+#print-dialog::backdrop { background: rgba(0, 0, 0, .35); }
+#print-dialog h2 { margin-top: 0; }
+#print-dialog .check-list { margin: 8px 0; } #print-dialog .print-sections { margin-left: 24px; padding-left: 10px; border-left: 2px solid var(--line); }
+#print-dialog label.check small { color: var(--muted); font-weight: 400; }
 
 .footer { grid-column: 1 / -1; border-top: 1px solid var(--line); padding: 14px 28px; font-size: 13px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 6px 18px; align-items: center; background: var(--panel); }
 .footer a { color: var(--accent); font-weight: 600; }
