@@ -201,7 +201,7 @@ const SEARCH_WORDS = new Set(('prestataire prestataires concurrent concurrents a
   + ' provider providers competitor competitors pricing price prices cost costs offer offers' // en
   + ' proveedor proveedores competidor competidores alternativa alternativas precio precios coste costes costo costos oferta ofertas servicio servicios').split(' ')); // es
 const NOT_PROVIDER = /(^|\.)(youtube\.com|youtu\.be|vimeo\.com|dailymotion\.com|tiktok\.com|instagram\.com|facebook\.com|linkedin\.com|pinterest\.[a-z]+|x\.com|twitter\.com)$/;
-const PRICE = /\d[\d\s.,]*\s?(€|£|\$|eur\b|euros?\b|usd\b|gbp\b|mxn\b|cop\b|ars\b|clp\b|pen\b|crc\b|soles\b|colones\b|quetzales\b|dólares\b|pesos\b)|(€|£|\$|₡|S\/|eur|usd|gbp|mxn|cop|ars|clp|pen|crc)\s?\d/i;
+const PRICE = /\d[\d\s.,]*\s?(€|£|\$|eur\b|euros?\b|usd\b|gbp\b|mxn\b|cop\b|ars\b|clp\b|pen\b|crc\b|soles\b|colones\b|quetzales\b|dólares\b|pesos\b)|(€|£|\$|₡|S\/|\b(?:eur|usd|gbp|mxn|cop|ars|clp|pen|crc)\b)\s?\d/i;
 const terms = (text) => [...new Set(normalize(text).split(/[^a-z0-9]+/).filter((w) => w.length > 1 && !STOPWORDS.has(w) && !SEARCH_WORDS.has(w)))];
 const hasTerm = (text, term) => new RegExp(`\\b${term.length > 4 ? term.replace(/s$/, '') : term}`).test(text);
 const hostOf = (url) => { try { return new URL(url).hostname.toLowerCase(); } catch { return ''; } };
