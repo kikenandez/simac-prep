@@ -7,8 +7,8 @@
   "type": "module",
   "scripts": {
     "serve": "python3 -m http.server 8765 --directory web",
-    "test": "node --test tests/research.test.mjs tests/offer.test.mjs tests/consent.test.mjs tests/dates.test.mjs tests/i18n.test.mjs tests/agenda.test.mjs tests/safety.test.mjs tests/assistant.test.mjs && node tests/e2e.mjs && node tests/research-e2e.mjs && node tests/i18n-e2e.mjs && node tests/assistant-e2e.mjs",
-    "test:unit": "node --test tests/research.test.mjs tests/offer.test.mjs tests/consent.test.mjs tests/dates.test.mjs tests/i18n.test.mjs tests/agenda.test.mjs tests/safety.test.mjs tests/assistant.test.mjs"
+    "test": "node --test tests/research.test.mjs tests/offer.test.mjs tests/consent.test.mjs tests/dates.test.mjs tests/i18n.test.mjs tests/agenda.test.mjs tests/safety.test.mjs tests/assistant.test.mjs tests/localization.test.mjs && node tests/e2e.mjs && node tests/research-e2e.mjs && node tests/i18n-e2e.mjs && node tests/assistant-e2e.mjs",
+    "test:unit": "node --test tests/research.test.mjs tests/offer.test.mjs tests/consent.test.mjs tests/dates.test.mjs tests/i18n.test.mjs tests/agenda.test.mjs tests/safety.test.mjs tests/assistant.test.mjs tests/localization.test.mjs"
   },
   "devDependencies": {
     "playwright": "^1.64.0"

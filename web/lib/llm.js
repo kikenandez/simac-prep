@@ -2,6 +2,7 @@
 // Every provider listed here has a free tier (or runs locally). Keys live in the
 // browser (localStorage) and are sent only to the provider the user picked.
 import { t } from './i18n.js';
+import { fixOutput } from './glossary.js';
 
 export const PROVIDERS = {
   groq: {
@@ -169,7 +170,9 @@ export async function chat(messages, opts = {}) {
 /** Ask for JSON and parse it defensively (strips code fences, finds first {...}). */
 export async function chatJSON(messages, opts = {}) {
   const raw = await chat(messages, { ...opts, json: true });
-  return parseJSON(raw);
+  // Filet de sécurité : termes français connus recopiés dans une réponse en/es (LANG: du prompt système).
+  const lang = /\bLANG:(\w+)/.exec(messages?.[0]?.content || '')?.[1];
+  return fixOutput(parseJSON(raw), lang);
 }
 
 export function parseJSON(raw) {

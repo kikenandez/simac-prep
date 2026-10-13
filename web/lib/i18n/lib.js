@@ -19,4 +19,10 @@ export default {
   'Chargement de tesseract.js impossible.': { en: 'Could not load tesseract.js.', es: 'No se pudo cargar tesseract.js.' },
   'Image illisible.': { en: 'Unreadable image.', es: 'Imagen ilegible.' },
   'Chargement de mammoth impossible.': { en: 'Could not load mammoth.', es: 'No se pudo cargar mammoth.' },
+  // ---- fields.js : libellés des champs et types de source
+  'Dates': { en: 'Dates', es: 'Fechas' },
+  'Profil collé': { en: 'Pasted profile', es: 'Perfil pegado' },
+  'Document joint': { en: 'Attached document', es: 'Documento adjunto' },
+  'Recherche web': { en: 'Web search', es: 'Búsqueda web' },
+  'Registre': { en: 'Registry', es: 'Registro' },
 };

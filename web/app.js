@@ -15,7 +15,8 @@ import { mailLinks } from './lib/safety.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
-import { mountCountrySwitch } from './lib/countries.js';
+import { mountCountrySwitch, cityExample } from './lib/countries.js';
+import { offerLabels, clientLabels, debriefLabels, labelField, labelFields, sourceKind, sourceName } from './lib/fields.js';
 import { marketDefaults, researchDefaults, mountMarket, mountClientResearch, renderEvidence, citations, clientFingerprint } from './lib/research-ui.js';
 import { t, lang, locale, initI18n } from './lib/i18n.js';
 
@@ -203,9 +204,9 @@ function bindInputs(root, obj, prefix) {
     });
   });
 }
-const field = (bind, lbl, { hint = '', type = 'input', full = false, placeholder = '' } = {}) =>
+const field = (bind, lbl, { hint = '', type = 'input', full = false, placeholder = '', attrs = '' } = {}) =>
   `<div class="${full ? 'full' : ''}"><label>${lbl} ${hint ? `<small>— ${hint}</small>` : ''}</label>
-   ${type === 'textarea' ? `<textarea data-bind="${bind}" placeholder="${esc(placeholder)}"></textarea>` : `<input data-bind="${bind}" placeholder="${esc(placeholder)}">`}</div>`;
+   ${type === 'textarea' ? `<textarea data-bind="${bind}" placeholder="${esc(placeholder)}"></textarea>` : `<input data-bind="${bind}" placeholder="${esc(placeholder)}" ${attrs}>`}</div>`;
 
 // ----------------------------------------------------------------------------- navigation
 function go(step) {
@@ -237,7 +238,7 @@ $('#btn-new').addEventListener('click', () => {
 
 // ----------------------------------------------------------------------------- 1. OFFRE
 const renderers = {};
-const FIELD_LABELS = { name: t('Produit / service'), oneLiner: t('En une phrase'), targets: t('Cibles'), problem: t('Problème de chaque cible'), who: t('Qui parle'), nextStep: t('Étape suivante voulue'), mechanism: t('Mécanisme'), advantages: t('Avantages'), proofs: t('Preuves'), price: t('Prix'), floor: t('Plancher'), delays: t('Délais et conditions'), objections: t('Objections attendues'), constraints: t('Contraintes') };
+const FIELD_LABELS = offerLabels();
 const MATURITY = { 1: t('Encore une idée à travailler'), 2: t('Ébauche'), 3: t('Offre définie'), 4: t('Prête à tester'), 5: t('Prête à la présentation') };
 // Codes de verdict : restent en français (l'IA les renvoie tels quels) ; affichés via t().
 const VERDICT = { 1: 'travailler l’offre', 2: 'travailler l’offre', 3: 'prêt pour des réunions à blanc', 4: 'prêt pour la vente', 5: 'prêt pour la vente' };
@@ -350,7 +351,7 @@ renderers.offer = () => {
     O.maturity = null; S.market.comparison = null; invalidatePreparation(); persist(); markDone();
     if (S.step !== 'offer') return;
     renderers.offer();
-    const notes = [r.notes, (r.missing || []).length ? t('Manque : {fields} → utilisez « Compléter par questions ».', { fields: r.missing.map((k) => FIELD_LABELS[k] || k).join(', ') }) : ''].filter(Boolean).join(' ');
+    const notes = [r.notes, (r.missing || []).length ? t('Manque : {fields} → utilisez « Compléter par questions ».', { fields: labelFields(r.missing, FIELD_LABELS) }) : ''].filter(Boolean).join(' ');
     $('#offer-notes').textContent = notes;
     toast(t('{n} champ(s) rempli(s).', { n: filled }));
   });
@@ -394,7 +395,7 @@ async function addFiles(files, list, done) {
 }
 function renderSourceList(el, list, onChange) {
   if (!el) return;
-  el.innerHTML = list.map((s, i) => `<div class="card" style="margin:8px 0;padding:10px 14px"><b>${esc(s.kind)}</b> — ${esc(s.title || s.source)}${s.truncated ? ` <small class="muted">${t('(tronqué)')}</small>` : ''}
+  el.innerHTML = list.map((s, i) => `<div class="card" style="margin:8px 0;padding:10px 14px"><b>${esc(sourceKind(s.kind))}</b> — ${esc(sourceName(s))}${s.truncated ? ` <small class="muted">${t('(tronqué)')}</small>` : ''}
     <button class="btn ghost small" style="float:right" data-rm="${i}">${t('retirer')}</button><div class="note" style="margin-top:4px">${esc(s.text.slice(0, 200))}…</div></div>`).join('');
   $$('[data-rm]', el).forEach((b) => (b.onclick = () => { list.splice(+b.dataset.rm, 1); onChange(); }));
 }
@@ -474,17 +475,18 @@ function renderMaturity() {
   el.innerHTML = `
     <div class="maturity">
       <div class="gauge">${[1, 2, 3, 4, 5].map((i) => `<span class="${i <= M.score ? 'on' : ''}"></span>`).join('')}</div>
-      <div><b>${M.score} / 5 — ${esc(M.label || MATURITY[M.score])}</b> <span class="verdict v${M.score}">${esc(t(M.verdict || VERDICT[M.score]))}</span><div class="note">${esc(M.summary)}</div></div>
+      <div><b>${M.score} / 5 — ${esc(MATURITY[M.score] || M.label)}</b> <span class="verdict v${M.score}">${esc(t(M.verdict || VERDICT[M.score]))}</span><div class="note">${esc(M.summary)}</div></div>
     </div>
     <div class="grid" style="margin-top:12px">
       <div><h3>${t('Points forts')}</h3><ul class="plain">${(M.strengths || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
-      <div><h3>${t('Ce qui bloque la vente')}</h3><ul class="plain">${(M.gaps || []).map((g) => `<li><b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} <i>→ ${esc(g.fix)}</i></li>`).join('')}</ul></div>
+      <div><h3>${t('Ce qui bloque la vente')}</h3><ul class="plain">${(M.gaps || []).map((g) => `<li><b>${esc(labelField(g.field, FIELD_LABELS))}</b> — ${esc(g.why)} <i>→ ${esc(g.fix)}</i></li>`).join('')}</ul></div>
     </div>
     <div class="card soft" style="margin-bottom:0"><b>${t('À faire avant le prochain rendez-vous :')}</b> ${esc(M.next_step)}</div>`;
 }
 
 // ----------------------------------------------------------------------------- 2. CLIENT
-const CLIENT_LABELS = { company: t('Entreprise / établissement'), sector: t('Secteur'), website: t('Site web'), contacts: t('Interlocuteurs'), meetingFormat: t('Format du rendez-vous'), decisionProcess: t('Processus de décision'), notes: t('Notes') };
+const CLIENT_LABELS = clientLabels();
+const DEBRIEF_LABELS = debriefLabels();
 
 renderers.client = () => {
   const C = S.clientChat;
@@ -505,7 +507,7 @@ renderers.client = () => {
     <div class="grid">
       ${field('client.company', t('Entreprise / établissement'))}
       ${field('client.sector', t('Secteur / activité'))}
-      ${field('client.location', t('Commune / pays'), { placeholder: t('Paris, France') })}
+      ${field('client.location', t('Commune / pays'), { placeholder: cityExample(), attrs: 'data-city-example' })}
       <div><label>${t('Je prépare')}</label><select data-bind="client.preparationMode"><option value="meeting">${t('Un rendez-vous')}</option><option value="email">${t('Un email (premier destinataire ci-dessous)')}</option></select></div>
       <div class="full"><label>${t('Interlocuteurs / destinataires')} <small>— ${t('jusqu’à {max} ; au-delà, un rendez-vous se prépare autrement (une personne relais, puis un second rendez-vous)', { max: MAX_CONTACTS })}</small></label>
         <div id="contacts"></div></div>
@@ -563,7 +565,7 @@ renderers.client = () => {
     if (previousCompany !== S.client.company) invalidateClientResearch(); else invalidatePreparation();
     persist(); markDone(); if (S.step !== 'client') return;
     renderers.client();
-    $('#client-notes').textContent = (r.missing || []).length ? t('Manque : {fields} → « Compléter par questions ».', { fields: r.missing.map((k) => CLIENT_LABELS[k] || k).join(', ') }) : '';
+    $('#client-notes').textContent = (r.missing || []).length ? t('Manque : {fields} → « Compléter par questions ».', { fields: labelFields(r.missing, CLIENT_LABELS) }) : '';
     toast(t('{n} champ(s) rempli(s).', { n: filled }));
   });
   $('#fetch').onclick = (e) => busy(e.target, async () => {
@@ -886,7 +888,7 @@ renderers.followup = () => {
     }
     syncPrimaryAction(); persist(); markDone(); if (S.step !== 'followup') return;
     renderers.followup();
-    $('#debrief-notes').textContent = (r.missing || []).length ? t('Manque : {fields} — complétez à la main avant le mail.', { fields: r.missing.join(', ') }) : '';
+    $('#debrief-notes').textContent = (r.missing || []).length ? t('Manque : {fields} — complétez à la main avant le mail.', { fields: labelFields(r.missing, DEBRIEF_LABELS) }) : '';
     toast(t('{n} champ(s) rempli(s).', { n: filled }));
   });
 };
@@ -1274,8 +1276,8 @@ const printViews = {
     const M = S.offer?.maturity; const m = S.market?.comparison;
     return `<h1>${t('Offre')} — ${esc(S.product.name || '')}</h1>
       <div class="pgrid">${OFFER_KEY_ORDER.map((k) => P.row(FIELD_LABELS[k] || k, S.product[k])).join('')}</div>
-      ${M ? `<h2>${t('Maturité : {score} / 5', { score: M.score })} — ${esc(M.label || MATURITY[M.score])}</h2><p>${t('Avis de l’outil : {verdict}', { verdict: esc(t(M.verdict || VERDICT[M.score])) })}.</p><p>${esc(M.summary || '')}</p>
-        <div class="pgrid"><div><b>${t('Points forts')}</b>${P.ul(M.strengths)}</div><div><b>${t('Ce qui bloque la vente')}</b>${P.ul(M.gaps, (g) => `<b>${esc(FIELD_LABELS[g.field] || g.field)}</b> — ${esc(g.why)} → ${esc(g.fix)}`)}</div></div>
+      ${M ? `<h2>${t('Maturité : {score} / 5', { score: M.score })} — ${esc(MATURITY[M.score] || M.label)}</h2><p>${t('Avis de l’outil : {verdict}', { verdict: esc(t(M.verdict || VERDICT[M.score])) })}.</p><p>${esc(M.summary || '')}</p>
+        <div class="pgrid"><div><b>${t('Points forts')}</b>${P.ul(M.strengths)}</div><div><b>${t('Ce qui bloque la vente')}</b>${P.ul(M.gaps, (g) => `<b>${esc(labelField(g.field, FIELD_LABELS))}</b> — ${esc(g.why)} → ${esc(g.fix)}`)}</div></div>
         ${M.next_step ? `<p><b>${t('À faire avant le prochain rendez-vous :')}</b> ${esc(M.next_step)}</p>` : ''}` : ''}
       ${m && (m.summary || m.alternatives) ? `<h2>${t('Concurrents et alternatives (candidats à vérifier)')}</h2><p>${esc(m.summary || '')}</p>${P.ul(m.alternatives || m.items, (a) => `<b>${esc(a.name || '')}</b> — ${esc(a.positioning || a.summary || '')}`)}` : ''}`;
   },
@@ -1348,7 +1350,7 @@ function printFull({ sections, sources }) {
 }
 function printSources() {
   const groups = [[t('Offre'), S.offer?.sources || []], [t('Marché'), S.market?.sources || []], [t('Client'), S.sources || []]];
-  const rows = groups.flatMap(([g, list]) => activeSources(list).map((x) => `<tr><td>${esc(g)}</td><td>${esc(x.title || x.source)}</td><td>${/^https?:/.test(x.source) ? `<a href="${esc(x.source)}">${esc(x.source)}</a>` : esc(x.kind)}</td><td>${esc(localDay(x.retrievedAt) || '')}</td></tr>`));
+  const rows = groups.flatMap(([g, list]) => activeSources(list).map((x) => `<tr><td>${esc(g)}</td><td>${esc(sourceName(x))}</td><td>${/^https?:/.test(x.source) ? `<a href="${esc(x.source)}">${esc(x.source)}</a>` : esc(sourceKind(x.kind))}</td><td>${esc(localDay(x.retrievedAt) || '')}</td></tr>`));
   return rows.length ? `<table class="ptable"><thead><tr><th>${t('Étape')}</th><th>${t('Source')}</th><th>${t('Adresse / type')}</th><th>${t('Consultée le')}</th></tr></thead><tbody>${rows.join('')}</tbody></table>` : `<p class="note">${t('Aucune source conservée.')}</p>`;
 }
 let savedTitle = document.title, printing = false;

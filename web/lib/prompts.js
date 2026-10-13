@@ -1,5 +1,6 @@
 import { mergeSources } from './research.js';
 import { questionTodo } from './offer.js';
+import { glossaryRule } from './glossary.js';
 
 // lib/prompts.js — the sales method, encoded as prompts.
 // Source material: BGE "Conclure ses ventes" (SIMAC, CABP, SONCAS-E, objections),
@@ -40,6 +41,8 @@ const OUTPUT = {
   en: 'OUTPUT LANGUAGE: write every free-text value in English, even though some task instructions below are in French. Keep JSON keys, IDs, and the enumerated values listed in the schema (e.g. decide|influence|use, me|client, direct|indirect|alternative, nous|eux|égal|inconnu, and the French verdict and outcome labels) EXACTLY as written: they are codes. Write "Non publié" as "Not published" and "À vérifier" as "To be checked".',
   es: 'IDIOMA DE SALIDA: escribe todo el texto libre en español, aunque algunas instrucciones de la tarea estén en francés. Mantén las claves JSON, los IDs y los valores enumerados del esquema (p. ej. decide|influence|use, me|client, direct|indirect|alternative, nous|eux|égal|inconnu y las etiquetas francesas de veredicto y resultado) EXACTAMENTE como están: son códigos. Escribe "Non publié" como "No publicado" y "À vérifier" como "Por verificar".',
 };
+// Les consignes nomment les champs en français (« plancher », « rendez-vous »…) : le glossaire impose leur traduction.
+for (const l of ['en', 'es']) OUTPUT[l] += ' ' + glossaryRule(l);
 export const outputRule = (lang) => OUTPUT[lang] || '';
 const tail = (lang) => (OUTPUT[lang] ? `\n\n${OUTPUT[lang]}` : '');
 
