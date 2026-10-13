@@ -18,7 +18,7 @@ export const COLUMNS = [
   'next_action', 'next_owner', 'next_due', 'next_output', 'next_status',
   'action2', 'action2_owner', 'action2_due', 'action2_output', 'action2_status',
   'action3', 'action3_owner', 'action3_due', 'action3_output', 'action3_status',
-  'lessons', 'notes', 'research_json',
+  'lessons', 'notes', 'research_json', 'minutes_keys',
 ];
 
 export function listMeetings() {
@@ -28,6 +28,8 @@ export function listMeetings() {
 export function saveMeeting(rec) {
   const all = listMeetings();
   const i = all.findIndex((m) => m.id === rec.id);
+  // Les clés des comptes rendus déjà importés suivent le rendez-vous, même enregistré depuis le formulaire (qui ne les porte pas).
+  if (i >= 0 && !rec.minutes_keys && all[i].minutes_keys) rec = { ...rec, minutes_keys: all[i].minutes_keys };
   if (i >= 0) all[i] = rec; else all.unshift(rec);
   localStorage.setItem(KEY, JSON.stringify(all));
   return rec;

@@ -270,6 +270,7 @@ select.st-doing { border-color: var(--accent); } select.st-done { border-color: 
 .agenda-item { white-space: nowrap; }
 .due-card h2 small { font-weight: 400; color: var(--muted); font-size: 13px; margin-left: 8px; }
 .due-card tr.late td:first-child b { color: var(--warn); }
+tr.flash td { background: var(--accent-soft); }
 .due-card .due-status { padding: 5px 6px; font-size: 13px; width: auto; }
 .agenda-cell { white-space: nowrap; }
 .st-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: var(--muted); }
