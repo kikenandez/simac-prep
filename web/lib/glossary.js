@@ -30,10 +30,14 @@ const MASC_FEM = { el: 'la', del: 'de la', al: 'a la', un: 'una', los: 'las', un
 const FEM_MASC = Object.fromEntries(Object.entries(MASC_FEM).filter(([m]) => !['primero', 'cada'].includes(m)).map(([m, f]) => [f, m]));
 const DETS = [...new Set([...Object.keys(MASC_FEM), ...Object.keys(FEM_MASC)])].sort((a, b) => b.length - a.length).map((d) => d.replace(/ /g, '\\s+')).join('|');
 
+// … et le participe qui suit, avec un adverbe éventuel (« cibles bien distinguidas » → « públicos objetivo bien distinguidos »).
+const PART = '((?:\\s+(?:bien|muy|mal|poco|más|menos|ya))?\\s+[a-záéíóúñ]+(?:ad|id|st|ech|iert|it)[oa]s?(?![A-Za-zÀ-ÖØ-öø-ÿ0-9-]))?';
+const agreePart = (part, fem) => part.replace(/([oa])(s?)$/i, (m, v, pl) => (fem ? 'a' : 'o') + pl);
+
 // \b ignore les lettres accentuées : bornes de mot explicites (lettres, chiffres, trait d'union).
 const W = 'A-Za-zÀ-ÖØ-öø-ÿ0-9-';
 const rules = (lang) => GLOSSARY.filter((g) => g[lang]).flatMap((g) => g.fr.map((form, i) => ({
-  re: new RegExp(`(?<![${W}])${lang === 'es' ? `((?:(?:${DETS})\\s+){0,2})` : '()'}(${form.replace(/-/g, '\\-')})(?![${W}])`, 'gi'),
+  re: new RegExp(`(?<![${W}])${lang === 'es' ? `((?:(?:${DETS})\\s+){0,2})` : '()'}(${form.replace(/-/g, '\\-')})(?![${W}])${lang === 'es' ? PART : '()'}`, 'gi'),
   to: g[lang][i] ?? g[lang][0],
   fem: !!g.esFem,
 })));
@@ -49,7 +53,7 @@ const agree = (det, fem) => {
 /** Remplace les termes français connus dans un texte libre en/es. */
 export function fixTerms(text, lang) {
   if (!RULES[lang] || typeof text !== 'string') return text;
-  return RULES[lang].reduce((s, { re, to, fem }) => s.replace(re, (m, dets, word) => (dets || '').replace(DET_RE, (d) => agree(d, fem)) + keepCase(word, to)), text);
+  return RULES[lang].reduce((s, { re, to, fem }) => s.replace(re, (m, dets, word, part) => (dets || '').replace(DET_RE, (d) => agree(d, fem)) + keepCase(word, to) + (part ? agreePart(part, fem) : '')), text);
 }
 
 // Champs codés (valeurs énumérées, clés de champ, ID, dates) : jamais modifiés.
