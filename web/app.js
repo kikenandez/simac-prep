@@ -9,7 +9,8 @@ import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackSco
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { localDay } from './lib/dates.js';
-import { icsEvent, icsCalendar, googleCalendarUrl, dueBuckets, ACTION_COLUMNS } from './lib/agenda.js';
+import { icsEvent, icsCalendar, googleCalendarUrl, dueBuckets, ACTION_COLUMNS, actionsOf } from './lib/agenda.js';
+import { assistantExport, applyMinutes, minutesList } from './lib/assistant.js';
 import { mailLinks } from './lib/safety.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
@@ -996,10 +997,15 @@ renderers.history = () => {
       <label class="btn ghost" style="margin:0">${t('Importer CSV')} <input type="file" id="import" accept=".csv,text/csv" hidden></label>
       <button class="btn ghost small" id="template">${t('Modèle CSV vide')}</button>
     </div>
+    <div class="actions">
+      <button class="btn ghost small" id="export-assistant" ${all.length ? '' : 'disabled'}>${t('Exporter pour mon assistant (JSON)')}</button>
+      <label class="btn ghost small" style="margin:0">${t('Importer un compte rendu (JSON)')} <input type="file" id="import-minutes" accept=".json,application/json" hidden></label>
+      <span class="note">${t('Pour un assistant qui lit vos fichiers : rendez-vous, actions et relances en JSON ; le compte rendu revient avec les décisions et les actions.')}</span>
+    </div>
     <div id="due-list"></div>
     <div class="card">
       <table><thead><tr><th>${t('Date')}</th><th>${t('Entreprise / contact')}</th><th>${t('Offre')}</th><th>${t('Top SONCAS')}</th><th>${t('Résultat')}</th><th>${t('Suite')}</th><th></th></tr></thead>
-      <tbody>${all.map((m) => `<tr><td>${esc(m.date)}</td><td><b>${esc(m.company)}</b><br><small>${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0] || c[1]).map((c) => esc(`${c[0]}${c[1] ? ' — ' + c[1] : ''}`)).join('<br>')}</small></td>
+      <tbody>${all.map((m) => `<tr data-row="${esc(m.id)}"><td>${esc(m.date)}</td><td><b>${esc(m.company)}</b><br><small>${[[m.contact_name, m.contact_role], [m.contact2_name, m.contact2_role], [m.contact3_name, m.contact3_role]].filter((c) => c[0] || c[1]).map((c) => esc(`${c[0]}${c[1] ? ' — ' + c[1] : ''}`)).join('<br>')}</small></td>
         <td>${esc(m.product)}</td><td>${esc(m.top3)}</td><td>${esc(m.outcome ? t(m.outcome) : '')}</td>
         <td>${[[m.next_action, m.next_owner, m.next_due, m.next_status], [m.action2, m.action2_owner, m.action2_due, m.action2_status], [m.action3, m.action3_owner, m.action3_due, m.action3_status]].filter((a) => a[0]).map((a) => `<span class="st-dot st-${esc(a[3] || 'todo')}" title="${esc(ACTION_STATUS[a[3]] || t('À lancer'))}"></span>${esc(a[0])}<br><small>${esc(a[1] === 'me' ? t('moi') : a[1] === 'client' ? t('le client') : a[1] || '')}${a[2] ? `, ${esc(a[2])}` : ''}</small>`).join('<br>')}</td>
         <td><button class="btn ghost small" data-load="${m.id}">${t('Ouvrir')}</button> <button class="btn danger small" data-del="${m.id}">×</button></td></tr>`).join('')
@@ -1008,6 +1014,8 @@ renderers.history = () => {
   renderDueList(all); renderDueBadge();
   $('#export').onclick = () => download(`simac-rdv-${localDay()}.csv`, exportCSV());
   $('#template').onclick = () => download('simac-modele.csv', exportCSV([]));
+  $('#export-assistant').onclick = () => download(`simac-assistant-${localDay()}.json`, JSON.stringify(assistantExport(listMeetings(), { base: appBase(), today: localDay() }), null, 2), 'application/json');
+  $('#import-minutes').onchange = async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f) importMinutes(await f.text()); };
   $('#import').onchange = async (e) => { const f = e.target.files[0]; if (!f) return; const n = importCSV(await f.text()); toast(t('{n} rendez-vous importé(s).', { n })); renderers.history(); };
   $$('[data-del]').forEach((b) => (b.onclick = () => { if (confirm(t('Supprimer ce rendez-vous ?'))) { deleteMeeting(b.dataset.del); renderers.history(); } }));
   $$('[data-load]').forEach((b) => (b.onclick = () => {
@@ -1031,6 +1039,52 @@ renderers.history = () => {
     persist(); go('client'); toast(t('Rendez-vous rechargé (la fiche client et le SIMAC sont à regénérer).'));
   }));
 };
+
+// ----------------------------------------------------------------------------- échange avec l'assistant du dirigeant
+const appBase = () => location.origin + location.pathname;
+const MINUTES_ERRORS = {
+  invalid: t('fichier illisible'), format: t('ce n’est pas un compte rendu SIMAC (format simac-prep/minutes, version 1)'),
+  key: t('clé d’idempotence manquante'), meeting: t('rendez-vous introuvable dans ce navigateur'),
+};
+/** Applique un ou plusieurs comptes rendus JSON aux rendez-vous enregistrés (une fois par clé). */
+function importMinutes(text) {
+  let data; try { data = JSON.parse(text); } catch { return toast(t('Compte rendu refusé : {why}.', { why: MINUTES_ERRORS.invalid }), 5000); }
+  const list = minutesList(data);
+  if (!list.length) return toast(t('Compte rendu refusé : {why}.', { why: MINUTES_ERRORS.invalid }), 5000);
+  const labels = { header: t('Compte rendu de l’assistant'), summary: t('Résumé'), decisions: t('Décisions') };
+  let applied = 0, dup = 0, firstError = '', truncated = false;
+  for (const mn of list) {
+    const id = mn && typeof mn.meeting_id === 'string' ? mn.meeting_id : '';
+    // Le rendez-vous ouvert mais pas encore enregistré : on l'enregistre d'abord.
+    if (id && id === S.id && !listMeetings().some((m) => m.id === id)) saveMeeting(toRecord());
+    const r = applyMinutes(listMeetings().find((m) => m.id === id), mn, { today: localDay(), labels });
+    if (r.status === 'duplicate') { dup++; continue; }
+    if (r.status === 'error') { firstError ||= MINUTES_ERRORS[r.code] || MINUTES_ERRORS.invalid; continue; }
+    saveMeeting(r.record); applied++; truncated ||= r.warnings.includes('actions_truncated');
+    if (S.id === id) {
+      S.debrief.notes = r.record.notes;
+      const acts = actionsOf(r.record);
+      if (acts.length) { S.debrief.actions = acts.map(({ action, owner, due, output, status }) => ({ action, owner, due, output, status })); syncPrimaryAction(); }
+      persist();
+    }
+  }
+  const parts = [t('{n} compte(s) rendu(s) importé(s)', { n: applied })];
+  if (dup) parts.push(t('{n} déjà importé(s)', { n: dup }));
+  if (truncated) parts.push(t('3 actions gardées au plus'));
+  if (firstError) parts.push(t('refusé : {why}', { why: firstError }));
+  toast(parts.join(', ') + '.', 5000);
+  if (S.step === 'history') renderers.history(); else renderDueBadge();
+}
+/** Lien de retour depuis l'export (?rdv=<id>) : ouvre l'Historique sur ce rendez-vous. */
+function openLinkedMeeting() {
+  const params = new URLSearchParams(location.search); const id = params.get('rdv'); if (!id) return;
+  params.delete('rdv'); const q = params.toString();
+  history.replaceState(null, '', location.pathname + (q ? '?' + q : '') + location.hash);
+  go('history');
+  const row = $$('[data-row]').find((r) => r.dataset.row === id);
+  if (!row) return toast(t('Rendez-vous introuvable dans ce navigateur.'), 5000);
+  row.classList.add('flash'); row.scrollIntoView({ block: 'center' });
+}
 
 /** Relances à faire, en tête de l'Historique : en retard, puis cette semaine ; statut modifiable sur place, agenda. */
 function renderDueList(all) {
@@ -1391,6 +1445,7 @@ $('#show-terms').addEventListener('click', (e) => { e.preventDefault(); showGate
 
 // ----------------------------------------------------------------------------- démarrage
 go(S.step || 'offer');
+openLinkedMeeting();
 
 function restoreMarket(value) {
   const m = marketDefaults();
