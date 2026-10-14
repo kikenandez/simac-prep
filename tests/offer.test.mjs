@@ -4,22 +4,22 @@ import { OFFER_KEY_ORDER, blockersFrom, essentialGaps, questionTodo } from '../w
 import { debriefExtractMessages, offerQuestionMessages } from '../web/lib/prompts.js';
 
 // Fiche du parcours 1 (capoeira) après extraction : tout l'essentiel est rempli, sauf le prix.
-const capoeira = { oneLiner: 'Ateliers', targets: 'Écoles', problem: 'Énergie', who: 'Inès', nextStep: 'Appel', mechanism: 'Appel, séance', advantages: 'Motricité', proofs: 'CQP', objections: 'Tarif ?', delays: 'Séance découverte', name: '', price: '', floor: '', constraints: '' };
+const capoeira = { oneLiner: 'Ateliers', targets: 'Écoles', problem: 'Énergie', who: 'Inès', nextStep: 'Appel', mechanism: 'Appel, séance', advantages: 'Motricité', proofs: 'CQP', objections: 'Tarif ?', delays: 'Séance découverte', name: '', price: '', floor: '', regulation: '', constraints: '' };
 
 test('questions target empty fields first, never filled ones', () => {
   const todo = questionTodo({ current: capoeira });
-  assert.deepEqual(todo, ['price', 'name', 'floor', 'constraints']);
+  assert.deepEqual(todo, ['price', 'regulation', 'name', 'floor', 'constraints']);
   for (const k of todo) assert.equal(capoeira[k], '');
 });
 
 test('questions skip fields already asked or skipped, and add weak fields flagged by maturity', () => {
   const todo = questionTodo({ current: capoeira, asked: ['price'], skipped: ['name'], blockers: ['proofs', 'objections', 'price'] });
-  assert.deepEqual(todo, ['proofs', 'objections', 'floor', 'constraints']);
+  assert.deepEqual(todo, ['proofs', 'objections', 'regulation', 'floor', 'constraints']);
 });
 
 test('the question prompt lists only the fields to ask, and asks to stop when none is left', () => {
   const user = offerQuestionMessages({ lang: 'fr', current: capoeira, blockers: ['proofs'] })[1].content;
-  assert.match(user, /CHAMPS À DEMANDER[^\n]*proofs, price, name, floor, constraints/);
+  assert.match(user, /CHAMPS À DEMANDER[^\n]*proofs, price, regulation, name, floor, constraints/);
   const done = offerQuestionMessages({ lang: 'fr', current: Object.fromEntries(OFFER_KEY_ORDER.map((k) => [k, 'x'])) })[1].content;
   assert.match(done, /CHAMPS À DEMANDER[^\n]*aucun/);
 });
