@@ -3,13 +3,14 @@
 // sur le JSON reçu (le modèle recopie parfois « plancher » ou « rendez-vous » malgré la consigne).
 
 // Chaque terme : formes françaises [singulier, pluriel] → [singulier, pluriel] en/es.
+// `esSing` : un seul nom collectif en espagnol (« cibles » → « público objetivo », choix de Kike), le pluriel français passe au singulier.
 // Seuls des mots qui n'existent pas dans la langue cible ; `en: null` = rien à corriger en anglais.
 export const GLOSSARY = [
   { fr: ['plancher', 'planchers'], en: ['price floor', 'price floors'], es: ['precio mínimo', 'precios mínimos'] },
   { fr: ['rendez-vous'], en: ['meeting'], es: ['reunión'], esFem: true },
   { fr: ['débrief', 'débriefs'], en: ['debrief', 'debriefs'], es: ['resumen', 'resúmenes'] },
   { fr: ['debrief', 'debriefs'], en: null, es: ['resumen', 'resúmenes'] },
-  { fr: ['cible', 'cibles'], en: ['target', 'targets'], es: ['público objetivo', 'públicos objetivo'] },
+  { fr: ['cible', 'cibles'], en: ['target', 'targets'], es: ['público objetivo'], esSing: true },
   { fr: ['offre', 'offres'], en: ['offer', 'offers'], es: ['oferta', 'ofertas'], esFem: true },
   { fr: ['relance', 'relances'], en: ['follow-up', 'follow-ups'], es: ['seguimiento', 'seguimientos'] },
   { fr: ['devis'], en: ['quote'], es: ['presupuesto'] },
@@ -30,9 +31,10 @@ const MASC_FEM = { el: 'la', del: 'de la', al: 'a la', un: 'una', los: 'las', un
 const FEM_MASC = Object.fromEntries(Object.entries(MASC_FEM).filter(([m]) => !['primero', 'cada'].includes(m)).map(([m, f]) => [f, m]));
 const DETS = [...new Set([...Object.keys(MASC_FEM), ...Object.keys(FEM_MASC)])].sort((a, b) => b.length - a.length).map((d) => d.replace(/ /g, '\\s+')).join('|');
 
-// … et le participe qui suit, avec un adverbe éventuel (« cibles bien distinguidas » → « públicos objetivo bien distinguidos »).
+// … et le participe qui suit, avec un adverbe éventuel (« cibles bien distinguidas » → « público objetivo bien distinguido »).
 const PART = '((?:\\s+(?:bien|muy|mal|poco|más|menos|ya))?\\s+[a-záéíóúñ]+(?:ad|id|st|ech|iert|it)[oa]s?(?![A-Za-zÀ-ÖØ-öø-ÿ0-9-]))?';
-const agreePart = (part, fem) => part.replace(/([oa])(s?)$/i, (m, v, pl) => (fem ? 'a' : 'o') + pl);
+const agreePart = (part, fem, sing) => part.replace(/([oa])(s?)$/i, (m, v, pl) => (fem ? 'a' : 'o') + (sing ? '' : pl));
+const PLURAL_SING = { los: 'el', las: 'la', unos: 'un', unas: 'una', estos: 'este', estas: 'esta', esos: 'ese', esas: 'esa', próximos: 'próximo', próximas: 'próxima', nuevos: 'nuevo', nuevas: 'nueva', otros: 'otro', otras: 'otra', mismos: 'mismo', mismas: 'misma', últimos: 'último', últimas: 'última' };
 
 // \b ignore les lettres accentuées : bornes de mot explicites (lettres, chiffres, trait d'union).
 const W = 'A-Za-zÀ-ÖØ-öø-ÿ0-9-';
@@ -40,12 +42,14 @@ const rules = (lang) => GLOSSARY.filter((g) => g[lang]).flatMap((g) => g.fr.map(
   re: new RegExp(`(?<![${W}])${lang === 'es' ? `((?:(?:${DETS})\\s+){0,2})` : '()'}(${form.replace(/-/g, '\\-')})(?![${W}])${lang === 'es' ? PART : '()'}`, 'gi'),
   to: g[lang][i] ?? g[lang][0],
   fem: !!g.esFem,
+  sing: !!g.esSing && i > 0,
 })));
 const RULES = { en: rules('en'), es: rules('es') };
 const DET_RE = new RegExp(`(?<![${W}])(${DETS})(?![${W}])`, 'gi');
 const keepCase = (src, out) => (src[0] !== src[0].toLowerCase() ? out[0].toUpperCase() + out.slice(1) : out);
-const agree = (det, fem) => {
-  const k = det.toLowerCase().replace(/\s+/g, ' ');
+const agree = (det, fem, sing) => {
+  let k = det.toLowerCase().replace(/\s+/g, ' ');
+  if (sing) k = PLURAL_SING[k] ?? k;
   const out = (fem ? MASC_FEM[k] : FEM_MASC[k]) ?? k;
   return keepCase(det, out);
 };
@@ -53,7 +57,7 @@ const agree = (det, fem) => {
 /** Remplace les termes français connus dans un texte libre en/es. */
 export function fixTerms(text, lang) {
   if (!RULES[lang] || typeof text !== 'string') return text;
-  return RULES[lang].reduce((s, { re, to, fem }) => s.replace(re, (m, dets, word, part) => (dets || '').replace(DET_RE, (d) => agree(d, fem)) + keepCase(word, to) + (part ? agreePart(part, fem) : '')), text);
+  return RULES[lang].reduce((s, { re, to, fem, sing }) => s.replace(re, (m, dets, word, part) => (dets || '').replace(DET_RE, (d) => agree(d, fem, sing)) + keepCase(word, to) + (part ? agreePart(part, fem, sing) : '')), text);
 }
 
 // Champs codés (valeurs énumérées, clés de champ, ID, dates) : jamais modifiés.

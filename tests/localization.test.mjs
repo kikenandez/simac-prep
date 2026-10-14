@@ -47,7 +47,8 @@ test('town placeholder follows the selected country', () => {
 
 test('French method terms are translated in Spanish answers', () => {
   assert.equal(fixTerms('Definir el plancher antes del próximo rendez-vous.', 'es'), 'Definir el precio mínimo antes de la próxima reunión.');
-  assert.equal(fixTerms('Cibles bien distinguidas', 'es'), 'Públicos objetivo bien distinguidos');
+  assert.equal(fixTerms('Cibles bien distinguidas', 'es'), 'Público objetivo bien distinguido');
+  assert.equal(fixTerms('las cibles definidas', 'es'), 'el público objetivo definido');
   assert.equal(fixTerms('la cible definida y el rendez-vous previsto', 'es'), 'el público objetivo definido y la reunión prevista');
   assert.equal(fixTerms('la cible principal', 'es'), 'el público objetivo principal');
   assert.equal(fixTerms('sin respuesta registrada en el débrief', 'es'), 'sin respuesta registrada en el resumen');
