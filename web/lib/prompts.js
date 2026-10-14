@@ -175,7 +175,8 @@ const PRODUCT_FIELDS = `Champs de la fiche (clé → sens) :
 name = nom du produit/service ; oneLiner = en une phrase sans jargon ; targets = cibles (qui achète / qui utilise / qui décide) ;
 problem = problème de chaque cible, avec ses mots ; who = qui parle (la personne / la marque en une phrase) ; nextStep = étape suivante voulue (le « petit oui ») ;
 mechanism = mécanisme en 3 à 5 étapes (qui fait quoi, quand, comment) ; advantages = ≥ 3 avantages tangibles et intangibles ; proofs = preuves (chiffres, références, témoignages) ;
-price = prix et unité qui parle au client ; floor = plancher (limite basse, gratuités max) ; delays = délais et conditions ; objections = 5 à 10 objections attendues ; constraints = contraintes (réglementation, ton, décisions prises).`;
+price = prix et unité qui parle au client ; floor = plancher (limite basse, gratuités max) ; delays = délais et conditions ; objections = 5 à 10 objections attendues ;
+regulation = réglementation applicable dans le pays de vente : activité réglementée ou non, et laquelle (autorisation, diplôme, agrément, assurance obligatoire, normes, déclaration ; texte ou autorité de référence), ou « non réglementée » si la personne l'a vérifié ; constraints = autres contraintes (ton, décisions prises).`;
 
 export function offerExtractMessages({ lang, description, sources, current }) {
   return [
@@ -194,7 +195,7 @@ ${PRODUCT_FIELDS}
 
 Remplis chaque champ UNIQUEMENT à partir de ce qui est dit ou lisible dans les sources. Si l'information n'existe pas, laisse la chaîne vide "" — n'invente rien.
 Pour les listes (targets, problem, mechanism, advantages, proofs, objections), une ligne par élément, séparées par "\\n".
-JSON : {"fields":{"name":"","oneLiner":"","targets":"","problem":"","who":"","nextStep":"","mechanism":"","advantages":"","proofs":"","price":"","floor":"","delays":"","objections":"","constraints":""},
+JSON : {"fields":{"name":"","oneLiner":"","targets":"","problem":"","who":"","nextStep":"","mechanism":"","advantages":"","proofs":"","price":"","floor":"","delays":"","objections":"","regulation":"","constraints":""},
  "missing":["clés restées vides, par ordre d'importance pour vendre"],
  "notes":"1-2 phrases : ce qui est flou ou contradictoire dans la description"}${tail(lang)}` },
   ];
@@ -222,7 +223,7 @@ JSON : {"field_value":"valeur propre pour le dernier champ, ou \\"\\"","next_fie
   ];
 }
 
-export function offerMaturityMessages({ lang, current }) {
+export function offerMaturityMessages({ lang, current, country = '' }) {
   return [
     { role: 'system', content: sys('maturity', lang) },
     { role: 'user', content:
@@ -232,7 +233,8 @@ export function offerMaturityMessages({ lang, current }) {
 3 = offre définie (cible, problème, mécanisme, prix), mais preuves et objections faibles ;
 4 = prête à tester (preuves, objections, étape suivante claires ; quelques trous) ;
 5 = prête à la présentation (tout est clair, chiffré, prouvé, avec plancher et objections préparées).
-Critères de la checklist : accroche sur le problème du client ; qui parle en 1 phrase ; cibles distinguées (achète/utilise/décide) ; bénéfices avant caractéristiques ; ≥ 1 preuve ; prix après la valeur et ramené à l'unité du client ; plancher connu ; 5-10 objections ; un seul petit oui.
+Critères de la checklist : accroche sur le problème du client ; qui parle en 1 phrase ; cibles distinguées (achète/utilise/décide) ; bénéfices avant caractéristiques ; ≥ 1 preuve ; prix après la valeur et ramené à l'unité du client ; plancher connu ; 5-10 objections ; un seul petit oui ; réglementation identifiée.
+CRITÈRE OBLIGATOIRE — réglementation (pays de vente : ${country || 'non précisé'}) : dis si l'activité est réglementée dans ce pays (santé, finance, assurance, alimentation, enseignement, formation, accueil d'enfants, sport, bâtiment, transport, juridique, immobilier, données personnelles, sécurité, tourisme…). Juge ce que fait l'offre, pas à qui elle se vend : un éditeur de livres, même pour enfants ou écoles, n'est en général pas réglementé ; un conseil juridique ou un produit alimentaire l'est. Si elle l'est et que le champ regulation est vide : score 3 au plus, et un manque field "regulation" qui dit quoi vérifier et auprès de qui. N'affirme aucune règle précise que tu ne peux pas citer : nomme le type d'exigence et l'autorité probable, à vérifier.
 
 FICHE :
 ${JSON.stringify(current)}
@@ -241,7 +243,8 @@ Donne aussi un avis de l'outil, "verdict", parmi exactement : "travailler l'offr
 JSON : {"score":3,"verdict":"prêt pour des réunions à blanc","label":"libellé court du niveau","summary":"2 phrases, directes, sans flatterie",
  "strengths":["2-4 points forts, citant la fiche"],
  "gaps":[{"field":"clé","why":"pourquoi ça bloque la vente","fix":"action concrète en 1 phrase"}],
- "next_step":"LA chose à faire avant le prochain rendez-vous"}${tail(lang)}` },
+ "next_step":"LA chose à faire avant le prochain rendez-vous",
+ "regulation":{"regulated":true,"domain":"type d'activité réglementée, ou \"\"","requirements":"exigences probables à vérifier (1-2 phrases), ou \"\"","authority":"autorité ou texte probable, à vérifier, ou \"\""}}${tail(lang)}` },
   ];
 }
 

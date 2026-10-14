@@ -3,7 +3,7 @@
 // rien de ce qui s'affiche ne doit montrer une clé brute.
 import { t } from './i18n.js';
 
-export const offerLabels = () => ({ name: t('Produit / service'), oneLiner: t('En une phrase'), targets: t('Cibles'), problem: t('Problème de chaque cible'), who: t('Qui parle'), nextStep: t('Étape suivante voulue'), mechanism: t('Mécanisme'), advantages: t('Avantages'), proofs: t('Preuves'), price: t('Prix'), floor: t('Plancher'), delays: t('Délais et conditions'), objections: t('Objections attendues'), constraints: t('Contraintes') });
+export const offerLabels = () => ({ name: t('Produit / service'), oneLiner: t('En une phrase'), targets: t('Cibles'), problem: t('Problème de chaque cible'), who: t('Qui parle'), nextStep: t('Étape suivante voulue'), mechanism: t('Mécanisme'), advantages: t('Avantages'), proofs: t('Preuves'), price: t('Prix'), floor: t('Plancher'), delays: t('Délais et conditions'), objections: t('Objections attendues'), regulation: t('Réglementation'), constraints: t('Contraintes') });
 export const clientLabels = () => ({ company: t('Entreprise / établissement'), sector: t('Secteur'), website: t('Site web'), location: t('Commune / pays'), contacts: t('Interlocuteurs'), meetingFormat: t('Format du rendez-vous'), decisionProcess: t('Processus de décision'), notes: t('Notes collées') });
 export const debriefLabels = () => ({ outcome: t('Résultat'), objectionsHeard: t('Objections entendues'), decisionMaker: t('Décideur (nom)'), actions: t('Actions convenues'), dates: t('Dates'), notes: t('Notes / faits nouveaux') });
 

@@ -1,7 +1,7 @@
 // Fiche offre : ordre d'importance pour vendre, manques essentiels et champs à demander — logique pure, sans DOM.
 
 // Ordre d'importance pour vendre (le même que les questions guidées) ; les OFFER_ESSENTIAL premiers sont « essentiels ».
-export const OFFER_KEY_ORDER = ['oneLiner', 'targets', 'problem', 'nextStep', 'mechanism', 'advantages', 'proofs', 'price', 'objections', 'name', 'who', 'floor', 'delays', 'constraints'];
+export const OFFER_KEY_ORDER = ['oneLiner', 'targets', 'problem', 'nextStep', 'mechanism', 'advantages', 'proofs', 'price', 'objections', 'regulation', 'name', 'who', 'floor', 'delays', 'constraints'];
 export const OFFER_ESSENTIAL = 9;
 
 const isEmpty = (obj, k) => !String(obj?.[k] || '').trim();
