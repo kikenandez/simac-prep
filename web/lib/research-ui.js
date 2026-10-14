@@ -3,6 +3,7 @@ import { localDay } from './dates.js';
 import { competitionMessages, positioningMessages } from './prompts.js';
 import { chatJSON, loadSettings } from './llm.js';
 import { t, lang } from './i18n.js';
+import { sourceKind, sourceName } from './fields.js';
 import { country, getCountry, setCountry, marketLabel, geoName, countryOptions, syncCountrySwitches } from './countries.js';
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const link = (url, label) => safeUrl(url) ? `<a href="${esc(safeUrl(url))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(label || url)} ${esc(t('(nouvel onglet)'))}">${esc(label || url)}</a>` : esc(label || url);
@@ -14,7 +15,7 @@ export const marketFingerprint = s => JSON.stringify([s.id, s.product, s.market.
 export function citations(ids, sources) {
   return (Array.isArray(ids) ? ids : []).map(id => {
     const s = activeSources(sources).find(s => sourceId(s) === id);
-    return s ? `${link(s.source, s.title || s.source)} <small>${esc(t('(réf. {ref}, consulté {seen})', { ref: s.publishedAt || t('inconnue'), seen: localDay(s.retrievedAt) || t('inconnu') }))}</small>` : `<small>${t('Source à vérifier')}</small>`;
+    return s ? `${link(s.source, sourceName(s))} <small>${esc(t('(réf. {ref}, consulté {seen})', { ref: s.publishedAt || t('inconnue'), seen: localDay(s.retrievedAt) || t('inconnu') }))}</small>` : `<small>${t('Source à vérifier')}</small>`;
   }).join(', ');
 }
 const matchLine = (r) => `<p class="match"><b>${t('Correspondance {score} / {total}', r)}</b> ${[...r.hits.map((h) => `<span class="ok">✓ ${esc(h)}</span>`), ...r.misses.map((m) => `<span class="ko">✗ ${esc(m)}</span>`)].join(' ')}</p>`;
@@ -24,7 +25,7 @@ export function renderEvidence(el, sources, changed, rank = null) {
   const rows = rank ? rankSources(sources, rank) : sources.map((source, index) => ({ source, index }));
   el.innerHTML = (rank && sources.length > 1 ? `<p class="note">${t('Classées par correspondance avec la recherche : mots utiles, marché, prix publié, page de prestataire.')}</p>` : '') + rows.map(({ source: s, index: i, ...r }) => `<div class="card evidence">
     <label class="check"><input type="checkbox" data-include="${i}" ${s.included !== false ? 'checked' : ''}> ${t('Inclure dans la préparation')}</label>
-    <b>${esc(s.kind)}</b> — ${link(s.source, s.title || s.source)}
+    <b>${esc(sourceKind(s.kind))}</b> — ${link(s.source, sourceName(s))}
     ${rank ? matchLine(r) : ''}
     <p class="note">${s.subject ? esc(t('Recherche : {subject}.', { subject: s.subject === 'organisation' ? t('organisation') : s.subject })) + ' ' : ''}${esc(t('Publication ou référence : {ref}. Consulté le {seen}.', { ref: s.publishedAt || t('inconnue'), seen: localDay(s.retrievedAt) || t('inconnu') }))}${s.stale ? ' ' + t('Le client a changé : vérifiez la pertinence avant de réinclure.') : ''}</p>
     <details><summary>${t('Vérifier le texte collecté')}${s.truncated ? ' ' + t('(tronqué)') : ''}</summary><pre class="source-text">${esc(s.text)}</pre></details>
