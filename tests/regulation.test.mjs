@@ -34,6 +34,13 @@ test('Kike’s calibration: a book publisher is not regulated; a legal advisor a
   assert.equal(applyRegulation(fiveStar, { oneLiner: 'Asesor legal para pymes' }, { gap }).score, 3);
 });
 
+test('a service that includes user training is not a training business', () => {
+  assert.deepEqual(detectDomains({ name: 'Proyecto llave en mano de CRM', mechanism: 'Paso a producción tras las pruebas, con dos capacitaciones y 30 días de garantía' }), []);
+  assert.deepEqual(detectDomains({ oneLiner: 'Implémentation logicielle avec formation des utilisateurs' }), []);
+  assert.deepEqual(detectDomains({ oneLiner: 'Organisme de formation pour artisans' }), ['education']);
+  assert.deepEqual(detectDomains({ oneLiner: 'Instituto de formación para el trabajo en soldadura' }), ['education']);
+});
+
 test('status: confirmed once the field is written, searched after a search, missing otherwise', () => {
   assert.equal(regulationStatus(coaching).status, 'none');
   assert.equal(regulationStatus(coaching, { aiRegulated: true }).status, 'missing');
