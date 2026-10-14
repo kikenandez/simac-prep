@@ -4,7 +4,7 @@
 import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } from './lib/llm.js';
 import { OFFER_KEY_ORDER, OFFER_ESSENTIAL, blockersFrom, essentialGaps } from './lib/offer.js';
 import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, clientExtractMessages, clientQuestionMessages, debriefExtractMessages } from './lib/prompts.js';
-import { readUrl, notesSource, mergeSources, activeSources, groundBrief, sourceId, upsertSources, competitorQuery, sanitizeComparison } from './lib/research.js';
+import { readUrl, searchWeb, notesSource, mergeSources, activeSources, groundBrief, sourceId, upsertSources, competitorQuery, sanitizeComparison } from './lib/research.js';
 import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
@@ -15,7 +15,8 @@ import { mailLinks } from './lib/safety.js';
 import { extractText, ACCEPT } from './lib/files.js';
 import { hasAccepted, accept, isEmail, isPending, resend, confirmEmail, getConsent } from './lib/consent.js';
 import { CONFIG } from './config.js';
-import { mountCountrySwitch, cityExample } from './lib/countries.js';
+import { mountCountrySwitch, cityExample, getCountry, geoName, marketLabel } from './lib/countries.js';
+import { applyRegulation, regulationLinks, regulationQuery } from './lib/regulation.js';
 import { offerLabels, clientLabels, debriefLabels, labelField, labelFields, sourceKind, sourceName } from './lib/fields.js';
 import { marketDefaults, researchDefaults, mountMarket, mountClientResearch, renderEvidence, citations, clientFingerprint } from './lib/research-ui.js';
 import { t, lang, locale, initI18n } from './lib/i18n.js';
@@ -31,8 +32,8 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 function blank() {
   return {
     id: newId(), date: localDay(), step: 'offer',
-    product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', constraints: '' },
-    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, blockers: [], reworked: [] },
+    product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', regulation: '', constraints: '' },
+    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, maturityRaw: null, regulationSearch: null, blockers: [], reworked: [] },
     market: marketDefaults(), research: researchDefaults(),
     client: { preparationMode: 'meeting', location: '', company: '', sector: '', website: '', contacts: [blankContact('decide')], linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
     clientChat: { description: '', chat: [], pendingField: '' },
@@ -292,7 +293,8 @@ renderers.offer = () => {
       ${field('product.price', t('Prix'), { hint: t('et unité qui parle au client') })}
       ${field('product.floor', t('Plancher'), { hint: t('limite basse, gratuités max') })}
       ${field('product.delays', t('Délais et conditions'))}
-      ${field('product.constraints', t('Contraintes'), { hint: t('réglementation, ton, décisions prises') })}
+      ${field('product.regulation', t('Réglementation'), { hint: t('activité réglementée dans le pays de vente ? autorisation, diplôme, assurance, normes — ou « non réglementée », vérifié'), type: 'textarea' })}
+      ${field('product.constraints', t('Contraintes'), { hint: t('ton, décisions prises') })}
     </div>
 
     <div id="market-research"></div>
@@ -358,8 +360,9 @@ renderers.offer = () => {
 
   $('#offer-maturity').onclick = (e) => busy(e.target, async () => {
     if (!S.product.oneLiner && !S.product.name) return toast(t('Remplissez au moins le nom et la phrase.'));
-    const r = await chatJSON(offerMaturityMessages({ lang: LANG, current: S.product }));
-    O.maturity = { ...r, score: Math.min(5, Math.max(1, Number(r.score) || 1)) };
+    const r = await chatJSON(offerMaturityMessages({ lang: LANG, current: S.product, country: geoName() }));
+    O.maturityRaw = r;
+    O.maturity = withRegulation(r);
     O.blockers = blockersFrom(O.maturity); // survivent aux réponses suivantes : seule une nouvelle maturité les lève
     O.reworked = []; // … mais un bloquant répondu depuis ne compte plus comme manque
     persist(); if (S.step === 'offer') { renderers.offer(); $('#offer-maturity-out')?.scrollIntoView({ block: 'center' }); }
@@ -469,6 +472,34 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
   });
 }
 
+// Réglementation : critère obligatoire de la maturité (plafond tant que la règle n'est ni écrite ni cherchée).
+const regulationOpts = () => ({ code: getCountry(), geography: geoName(), uiLang: LANG });
+function withRegulation(raw) {
+  const searched = Boolean(S.offer.regulationSearch?.results?.length) && S.offer.regulationSearch.country === getCountry();
+  return applyRegulation({ ...raw }, S.product, { searched, gap: {
+    why: t('Activité probablement réglementée : vendre sans connaître la règle expose à une interdiction ou une sanction, et le client posera la question.'),
+    fix: t('Cherchez la règle applicable ({country}) et écrivez-la dans « Réglementation », ou notez « non réglementée » une fois vérifié.', { country: marketLabel() }),
+  } });
+}
+function regulationCard(M) {
+  const R = M.regulation; if (!R) return '';
+  const RS = S.offer.regulationSearch;
+  const links = regulationLinks(S.product, regulationOpts()).map((l) => `<a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label)}</a>`).join(' · ');
+  const ai = [R.domain, R.requirements, R.authority].filter((x) => String(x || '').trim()).map(esc).join(' — ');
+  const head = R.confirmed ? t('Réglementation renseignée dans la fiche.')
+    : R.searched ? t('Réglementation cherchée, pas encore écrite dans la fiche : maturité limitée à 4 / 5.')
+    : R.regulated ? t('Activité probablement réglementée : maturité limitée à 3 / 5 tant que la règle n’est ni écrite ni cherchée.')
+    : t('Aucune activité réglementée repérée. Vérifiez quand même si votre activité demande une autorisation, un diplôme ou une assurance.');
+  const results = RS?.results?.length ? `<ul class="plain">${RS.results.map((s) => `<li><a href="${esc(s.source)}" target="_blank" rel="noopener">${esc(s.title || s.source)}</a></li>`).join('')}</ul>` : '';
+  return `<div class="card ${R.regulated && !R.confirmed ? 'warn' : 'soft'}" id="regulation-card" data-status="${esc(R.status)}">
+    <b>${t('Réglementation ({country})', { country: esc(marketLabel()) })}</b> ${head}
+    ${ai ? `<div class="note">${t('Avis de l’IA, à vérifier :')} ${ai}</div>` : ''}
+    ${R.confirmed ? '' : `<div class="actions" style="margin:8px 0 0"><button class="btn ghost small" id="regulation-search">${t('Chercher la réglementation')}</button>
+      <button class="btn ghost small" id="regulation-none">${t('Non réglementée (vérifié)')}</button></div>
+      <div class="note">${t('Sources officielles :')} ${links}</div>${results}`}
+  </div>`;
+}
+
 function renderMaturity() {
   const el = $('#offer-maturity-out'); if (!el) return;
   const M = S.offer.maturity; if (!M) { el.innerHTML = ''; return; }
@@ -477,11 +508,24 @@ function renderMaturity() {
       <div class="gauge">${[1, 2, 3, 4, 5].map((i) => `<span class="${i <= M.score ? 'on' : ''}"></span>`).join('')}</div>
       <div><b>${M.score} / 5 — ${esc(MATURITY[M.score] || M.label)}</b> <span class="verdict v${M.score}">${esc(t(M.verdict || VERDICT[M.score]))}</span><div class="note">${esc(M.summary)}</div></div>
     </div>
+    ${regulationCard(M)}
     <div class="grid" style="margin-top:12px">
       <div><h3>${t('Points forts')}</h3><ul class="plain">${(M.strengths || []).map((x) => `<li>${esc(x)}</li>`).join('')}</ul></div>
       <div><h3>${t('Ce qui bloque la vente')}</h3><ul class="plain">${(M.gaps || []).map((g) => `<li><b>${esc(labelField(g.field, FIELD_LABELS))}</b> — ${esc(g.why)} <i>→ ${esc(g.fix)}</i></li>`).join('')}</ul></div>
     </div>
     <div class="card soft" style="margin-bottom:0"><b>${t('À faire avant le prochain rendez-vous :')}</b> ${esc(M.next_step)}</div>`;
+  const rerate = () => { if (S.offer.maturityRaw) { S.offer.maturity = withRegulation(S.offer.maturityRaw); S.offer.blockers = blockersFrom(S.offer.maturity); } persist(); renderers.offer(); $('#regulation-card')?.scrollIntoView({ block: 'center' }); };
+  const search = $('#regulation-search');
+  if (search) search.onclick = (e) => busy(e.target, async () => {
+    const query = regulationQuery(S.product, regulationOpts());
+    let results;
+    try { results = await searchWeb(query, { jinaKey: loadSettings().jinaKey || '' }); } catch (err) { return toast(err.message, 6000); }
+    if (!results.length) return toast(t('Aucun résultat : ouvrez les sources officielles ci-dessous.'));
+    S.offer.regulationSearch = { query, country: getCountry(), at: new Date().toISOString(), results: results.map((s) => ({ source: s.source, title: s.title || '' })) };
+    rerate();
+  });
+  const none = $('#regulation-none');
+  if (none) none.onclick = () => { S.product.regulation = t('Non réglementée — vérifié le {date}', { date: new Date().toLocaleDateString(locale()) }); S.offer.reworked = [...new Set([...(S.offer.reworked || []), 'regulation'])]; rerate(); };
 }
 
 // ----------------------------------------------------------------------------- 2. CLIENT
