@@ -290,3 +290,8 @@ tr.flash td { background: var(--accent-soft); }
 .mark-unk { color: var(--muted); }
 td.mark-plus { background: color-mix(in srgb, var(--accent) 12%, transparent); }
 td.mark-minus { background: color-mix(in srgb, var(--warn) 12%, transparent); }
+/* Réglementation (étape 1) : deux questions en boutons radio */
+.reg-q { display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.reg-opt { display: inline-flex; align-items: center; gap: 6px; width: auto; margin: 0; white-space: nowrap; font-weight: normal; cursor: pointer; }
+.reg-opt input { width: auto; margin: 0; }
+.reg-proposal { margin-top: 8px; }

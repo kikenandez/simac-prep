@@ -69,33 +69,58 @@ export function regulationLinks(product, opts = {}) {
 }
 
 /**
- * État de la réglementation pour la maturité :
- * regulated = indice dans la fiche OU avis de l'IA ; confirmed = champ « Réglementation » rempli ; searched = recherche faite avec résultats.
+ * État de la réglementation pour la maturité, à partir de deux questions posées à la personne :
+ *  sector : « Savez-vous si votre activité est réglementée ? » → 'yes' | 'no' | 'unknown' | '' (pas répondu)
+ *  docs   : « Avez-vous déjà les documents / certifications exigés ? » (si sector = 'yes') → 'yes' | 'no' | 'unsure' | ''
+ * detected = indice dans la fiche OU avis de l'IA ; searched = recherche web faite avec résultats.
+ *  - sector 'no' → la personne l'a vérifié : pas de plafond ;
+ *  - sector 'yes' + docs 'yes' → prête : pas de plafond (une recherche peut confirmer) ;
+ *  - sector 'yes' + docs 'no' / 'unsure' / '' → plafond 3 ;
+ *  - 'unknown' ou pas répondu : si l'activité semble réglementée → plafond 3, ou 4 une fois la recherche faite ; sinon rien.
+ * search : 'propose' (chercher et proposer : « je ne sais pas », pas répondu, ou documents manquants) | 'confirm' (documents déclarés) | ''.
  */
-export function regulationStatus(product = {}, { aiRegulated = false, searched = false } = {}) {
+export function regulationStatus(product = {}, { aiRegulated = false, searched = false, answers = {} } = {}) {
   const domains = detectDomains(product);
-  const regulated = Boolean(aiRegulated) || domains.length > 0;
-  const confirmed = Boolean(String(product.regulation || '').trim());
-  return { regulated, domains, confirmed, searched: Boolean(searched), status: confirmed ? 'confirmed' : searched ? 'searched' : regulated ? 'missing' : 'none' };
+  const detected = Boolean(aiRegulated) || domains.length > 0;
+  const sector = ['yes', 'no', 'unknown'].includes(answers.sector) ? answers.sector : '';
+  const docs = sector === 'yes' && ['yes', 'no', 'unsure'].includes(answers.docs) ? answers.docs : '';
+  let status, cap = null;
+  if (sector === 'no') status = 'declared_no';
+  else if (sector === 'yes') { status = docs === 'yes' ? 'ready' : 'not_ready'; cap = docs === 'yes' ? null : 3; }
+  else if (detected) { status = searched ? 'searched' : 'missing'; cap = searched ? 4 : 3; }
+  else status = 'none';
+  const search = status === 'ready' ? 'confirm' : (sector === 'unknown' || (sector === '' && detected) || (sector === 'yes' && docs !== 'yes')) ? 'propose' : '';
+  return { detected, regulated: detected || sector === 'yes', domains, sector, docs, searched: Boolean(searched), status, cap, search };
 }
 
 const VERDICT_BY_SCORE = { 1: 'travailler l’offre', 2: 'travailler l’offre', 3: 'prêt pour des réunions à blanc', 4: 'prêt pour la vente', 5: 'prêt pour la vente' };
 
 /**
- * Applique le critère « réglementation identifiée » à une maturité renvoyée par l'IA.
- * Activité réglementée, règle ni écrite ni cherchée → score plafonné à 3 (réunions à blanc, pas de vente) et manque « regulation » en tête.
- * Cherchée mais pas écrite dans la fiche → plafond 4 : la présentation exige la règle écrite.
- * gap : { why, fix } dans la langue de l'interface (fournis par l'appelant).
+ * Applique le critère « réglementation » à une maturité renvoyée par l'IA (plafond selon regulationStatus).
+ * Tant qu'un plafond s'applique, un manque « regulation » figure dans les manques (il devient bloquant à 3 ou moins).
+ * gaps : { missing, searched, not_ready } → { why, fix } dans la langue de l'interface (fournis par l'appelant).
  */
-export function applyRegulation(maturity, product, { aiRegulated, searched = false, gap = {} } = {}) {
+export function applyRegulation(maturity, product, { aiRegulated, searched = false, answers = {}, gaps: texts = {} } = {}) {
   if (!maturity) return maturity;
   const ai = maturity.regulation || {};
-  const st = regulationStatus(product, { aiRegulated: aiRegulated ?? ai.regulated === true, searched });
+  const st = regulationStatus(product, { aiRegulated: aiRegulated ?? ai.regulated === true, searched, answers });
   const raw = Math.min(5, Math.max(1, Number(maturity.score) || 1));
-  const cap = !st.regulated || st.confirmed ? 5 : st.searched ? 4 : 3;
-  const score = Math.min(raw, cap);
-  const gaps = (maturity.gaps || []).filter((g) => g?.field !== 'regulation' || !st.confirmed);
-  if (cap < 5 && !gaps.some((g) => g?.field === 'regulation')) gaps.unshift({ field: 'regulation', why: gap.why || '', fix: gap.fix || '' });
+  const score = st.cap ? Math.min(raw, st.cap) : raw;
+  let gaps = (maturity.gaps || []).filter((g) => g?.field !== 'regulation' || st.cap);
+  if (st.cap) {
+    const own = { field: 'regulation', why: texts[st.status]?.why || '', fix: texts[st.status]?.fix || '' };
+    gaps = [own, ...gaps.filter((g) => g?.field !== 'regulation')];
+  }
   const verdict = score < raw ? VERDICT_BY_SCORE[score] : maturity.verdict;
-  return { ...maturity, score, rawScore: raw, verdict, gaps, regulation: { ...ai, ...st, cap: cap < 5 ? cap : null } };
+  return { ...maturity, score, rawScore: raw, verdict, gaps, regulation: { ...ai, ...st } };
+}
+
+/** Proposition de l'IA après recherche : sources limitées aux résultats réellement trouvés. */
+export function sanitizeProposal(result, results = []) {
+  const urls = new Set(results.map((r) => r.source));
+  const str = (v) => String(v ?? '').trim();
+  const requirements = (Array.isArray(result?.requirements) ? result.requirements : []).slice(0, 6)
+    .map((r) => ({ item: str(r?.item), authority: str(r?.authority), source: urls.has(str(r?.source)) ? str(r?.source) : '' }))
+    .filter((r) => r.item);
+  return { regulated: ['yes', 'no', 'unknown'].includes(result?.regulated) ? result.regulated : 'unknown', summary: str(result?.summary), requirements, field_value: str(result?.field_value) };
 }

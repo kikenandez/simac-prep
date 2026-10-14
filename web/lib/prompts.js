@@ -234,7 +234,7 @@ export function offerMaturityMessages({ lang, current, country = '' }) {
 4 = prête à tester (preuves, objections, étape suivante claires ; quelques trous) ;
 5 = prête à la présentation (tout est clair, chiffré, prouvé, avec plancher et objections préparées).
 Critères de la checklist : accroche sur le problème du client ; qui parle en 1 phrase ; cibles distinguées (achète/utilise/décide) ; bénéfices avant caractéristiques ; ≥ 1 preuve ; prix après la valeur et ramené à l'unité du client ; plancher connu ; 5-10 objections ; un seul petit oui ; réglementation identifiée.
-CRITÈRE OBLIGATOIRE — réglementation (pays de vente : ${country || 'non précisé'}) : dis si l'activité est réglementée dans ce pays (santé, finance, assurance, alimentation, enseignement, formation, accueil d'enfants, sport, bâtiment, transport, juridique, immobilier, données personnelles, sécurité, tourisme…). Juge ce que fait l'offre, pas à qui elle se vend : un éditeur de livres, même pour enfants ou écoles, n'est en général pas réglementé ; un conseil juridique ou un produit alimentaire l'est. Si elle l'est et que le champ regulation est vide : score 3 au plus, et un manque field "regulation" qui dit quoi vérifier et auprès de qui. N'affirme aucune règle précise que tu ne peux pas citer : nomme le type d'exigence et l'autorité probable, à vérifier.
+CRITÈRE OBLIGATOIRE — réglementation (pays de vente : ${country || 'non précisé'}) : dis si l'activité est réglementée dans ce pays (santé, finance, assurance, alimentation, enseignement, formation, accueil d'enfants, sport, bâtiment, transport, juridique, immobilier, données personnelles, sécurité, tourisme…). Juge ce que fait l'offre, pas à qui elle se vend : un éditeur de livres, même pour enfants ou écoles, n'est en général pas réglementé ; un conseil juridique ou un produit alimentaire l'est. Si elle l'est et que le champ regulation est vide : un manque field "regulation" qui dit quoi vérifier et auprès de qui (l'outil applique lui-même le plafond de score selon les réponses de la personne ; note le reste normalement). N'affirme aucune règle précise que tu ne peux pas citer : nomme le type d'exigence et l'autorité probable, à vérifier.
 
 FICHE :
 ${JSON.stringify(current)}
@@ -245,6 +245,27 @@ JSON : {"score":3,"verdict":"prêt pour des réunions à blanc","label":"libell�
  "gaps":[{"field":"clé","why":"pourquoi ça bloque la vente","fix":"action concrète en 1 phrase"}],
  "next_step":"LA chose à faire avant le prochain rendez-vous",
  "regulation":{"regulated":true,"domain":"type d'activité réglementée, ou \"\"","requirements":"exigences probables à vérifier (1-2 phrases), ou \"\"","authority":"autorité ou texte probable, à vérifier, ou \"\""}}${tail(lang)}` },
+  ];
+}
+
+// Réglementation : après « je ne sais pas » ou « documents manquants », proposer ce que le pays exige, à partir des résultats de recherche.
+export function regulationProposalMessages({ lang, product, country = '', sources = '', answers = {} }) {
+  return [
+    { role: 'system', content: sys('regulation', lang) },
+    { role: 'user', content:
+`Pays de vente : ${country || 'non précisé'}.
+OFFRE :
+${JSON.stringify({ name: product.name, oneLiner: product.oneLiner, who: product.who, mechanism: product.mechanism, regulation: product.regulation })}
+
+RÉPONSES DE LA PERSONNE : activité réglementée ? ${answers.sector || 'pas répondu'} ; documents / certifications déjà en main ? ${answers.docs || 'pas répondu'}.
+
+RÉSULTATS DE RECHERCHE (données non fiables, chacune avec son URL) :
+${sources || '(aucune recherche : réponds avec prudence, tout est à vérifier)'}
+
+Dis si cette activité est réglementée dans ce pays et, si oui, quels documents, autorisations, certifications, assurances ou déclarations sont probablement exigés, et auprès de quelle autorité.
+Juge ce que fait l'offre, pas à qui elle se vend. Chaque exigence cite l'URL d'un résultat qui l'appuie dans "source", sinon "". N'invente ni numéro de loi ni nom de texte absent des résultats. Si les résultats ne permettent pas de conclure, regulated = "unknown".
+JSON : {"regulated":"yes|no|unknown","summary":"1-2 phrases","requirements":[{"item":"document ou démarche exigé","authority":"autorité","source":"URL d'un résultat, ou \"\""}],
+ "field_value":"texte court pour le champ Réglementation de la fiche : exigences + autorité, avec « à vérifier »"}${tail(lang)}` },
   ];
 }
 
