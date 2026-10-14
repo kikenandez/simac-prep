@@ -4,10 +4,10 @@
 
 // Domaines → racines de mots (fr / en / es, sans accents, début de mot). Repérer large : la personne confirme ensuite.
 export const DOMAINS = {
-  health: ['sante', 'health', 'salud', 'medic', 'soin', 'therap', 'terap', 'kine', 'pharma', 'farmac', 'dentist', 'dental', 'dentaire', 'infirm', 'nurs', 'psycholog', 'nutrition', 'dietet', 'paramedic', 'optic', 'clinic', 'clinique', 'hopital', 'hospital', 'paciente'],
+  health: ['professionnel de sante', 'soins de sante', 'sante mentale', 'healthcare', 'health care', 'health service', 'mental health', 'servicios de salud', 'centro de salud', 'salud mental', 'medic', 'soin', 'therap', 'terap', 'kine', 'pharma', 'farmac', 'dentist', 'dental', 'dentaire', 'infirm', 'nurs', 'psycholog', 'nutrition', 'dietet', 'paramedic', 'optic', 'clinic', 'clinique', 'hopital', 'hospital', 'paciente'],
   finance: ['banque', 'bank', 'banco', 'credit', 'pret', 'loan', 'prestamo', 'assurance', 'insurance', 'seguro', 'invest', 'inversion', 'crypto', 'moyen de paiement', 'payment service', 'pasarela de pago', 'comptab', 'contab', 'accountan', 'accounting', 'patrimoine', 'gestion de fortune', 'wealth', 'financ', 'courtier', 'broker', 'corredor'],
   food: ['aliment', 'food', 'comida', 'restaura', 'traiteur', 'catering', 'boisson', 'bebida', 'beverage', 'alcool', 'alcohol', 'vins', 'wine', 'biere', 'beer', 'cerveza', 'boulang', 'panader', 'bakery', 'cosmeti', 'complement alimentaire', 'supplement', 'suplemento'],
-  education: ['ecole', 'school', 'escuela', 'colegio', 'college', 'lycee', 'universit', 'enseign', 'teach', 'ensenanza', 'formation', 'training', 'formacion', 'capacitacion', 'eleve', 'pupil', 'student', 'alumno', 'estudiante', 'creche', 'nursery', 'guarderia', 'jardin infantil', 'enfant', 'child', 'nino', 'mineur', 'minor', 'menor'],
+  education: ['enseign', 'teach', 'ensenanza', 'formation', 'training', 'formacion', 'capacitacion', 'cours particulier', 'soutien scolaire', 'tutor', 'creche', 'nursery', 'guarderia', 'jardin infantil', 'childcare', 'garde d enfant', 'babysit', 'nounou', 'ninera', 'cuidado de ninos', 'accueil de mineur', 'colonie de vacance', 'summer camp', 'campamento'],
   sport: ['sport', 'deport', 'fitness', 'gym', 'coach sportif', 'entrenador personal', 'personal trainer', 'yoga', 'pilates', 'capoeira', 'natation', 'swim', 'natacion', 'escalade', 'climbing', 'escalada', 'plongee', 'diving', 'buceo'],
   construction: ['batiment', 'construction', 'construccion', 'travaux', 'renovat', 'remodel', 'electric', 'electric', 'plomb', 'plumb', 'fontaner', 'toiture', 'roof', 'tejado', 'architect', 'arquitect', 'chauffage', 'heating', 'calefaccion', 'gaz'],
   transport: ['transport', 'taxi', 'vtc', 'chauffeur', 'livraison', 'delivery', 'domicilio', 'demenag', 'mudanza', 'moving', 'logisti', 'flete', 'freight', 'fret'],
@@ -18,8 +18,9 @@ export const DOMAINS = {
 
 const fold = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[’'`]/g, ' ');
 const RX = Object.fromEntries(Object.entries(DOMAINS).map(([d, stems]) => [d, new RegExp(`(?<![a-z0-9])(${[...new Set(stems)].map((s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`)]));
-// Ce que vend l'offre (prix, conditions, réglementation et contraintes déjà écrites ne comptent pas comme indice).
-const TEXT_KEYS = ['name', 'oneLiner', 'targets', 'problem', 'who', 'mechanism', 'advantages', 'proofs'];
+// Ce que fait l'offre, pas à qui elle se vend : un éditeur qui vend aux écoles n'enseigne pas (cibles, preuves, prix,
+// conditions, réglementation et contraintes déjà écrites ne comptent pas comme indice).
+const TEXT_KEYS = ['name', 'oneLiner', 'who', 'mechanism'];
 
 /** Domaines réglementés repérés dans la fiche (indices à confirmer, jamais une conclusion). */
 export function detectDomains(product = {}) {

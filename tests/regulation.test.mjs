@@ -7,17 +7,31 @@ import { blockersFrom, essentialGaps } from '../web/lib/offer.js';
 
 const coaching = { name: 'Coaching prospection 3 mois', oneLiner: 'Un accompagnement de 3 mois pour structurer la prospection d’une petite entreprise.', targets: 'Le dirigeant', problem: 'Pas le temps de prospecter', mechanism: 'Diagnostic\nFiche client\nDébrief', advantages: 'Plus de rendez-vous conclus', price: 'Paiement à 30 jours, déductible des impôts', regulation: '' };
 const capoeira = { name: 'Ateliers capoeira', oneLiner: 'Ateliers de capoeira pour les écoles', targets: 'Directeurs d’école', problem: 'Énergie des élèves', regulation: '' };
+const tutoring = { oneLiner: 'Cours particuliers de maths à domicile' };
 const dental = { name: 'Clínica dental móvil', oneLiner: 'Limpiezas dentales en la empresa', regulation: '' };
 const fiveStar = { score: 5, verdict: 'prêt pour la vente', gaps: [] };
 const gap = { why: 'why', fix: 'fix' };
 
 test('regulated activities are spotted in fr / es / en; a plain coaching offer is not, even with price or tax words', () => {
   assert.deepEqual(detectDomains(coaching), []);
-  assert.ok(detectDomains(capoeira).includes('education'));
-  assert.ok(detectDomains(capoeira).includes('sport'));
+  assert.deepEqual(detectDomains(capoeira), ['sport']);
+  assert.deepEqual(detectDomains(tutoring), ['education']);
   assert.deepEqual(detectDomains(dental), ['health']);
   assert.deepEqual(detectDomains({ oneLiner: 'Home insurance for freelancers' }), ['finance']);
   assert.deepEqual(detectDomains({ oneLiner: 'Plus d’information pour vos clients' }), [], 'mid-word match (« information ») is ignored');
+});
+
+test('Kike’s calibration: a book publisher is not regulated; a legal advisor and a food product are (fr / es / en)', () => {
+  const publishers = [
+    { name: 'Éditions Lumière', oneLiner: 'Maison d’édition de livres jeunesse et romans', targets: 'Libraires, écoles, bibliothèques', mechanism: 'Sélection des manuscrits\nImpression\nDiffusion en librairie', who: 'Éditrice indépendante' },
+    { name: 'Editorial Andina', oneLiner: 'Editorial de libros infantiles para niños', targets: 'Colegios y librerías' },
+    { name: 'Northwind Press', oneLiner: 'Independent publisher of children’s books and novels', targets: 'Bookshops, schools' },
+  ];
+  for (const p of publishers) assert.deepEqual(detectDomains(p), [], p.name);
+  for (const oneLiner of ['Conseiller juridique pour TPE', 'Asesor legal para pymes', 'Legal advisor for small businesses']) assert.deepEqual(detectDomains({ oneLiner }), ['legal'], oneLiner);
+  for (const oneLiner of ['Confitures artisanales, produit alimentaire bio', 'Producto alimenticio: salsas artesanales', 'Healthy snack food product']) assert.deepEqual(detectDomains({ oneLiner }), ['food'], oneLiner);
+  assert.equal(applyRegulation(fiveStar, publishers[0], { gap }).score, 5);
+  assert.equal(applyRegulation(fiveStar, { oneLiner: 'Asesor legal para pymes' }, { gap }).score, 3);
 });
 
 test('status: confirmed once the field is written, searched after a search, missing otherwise', () => {
