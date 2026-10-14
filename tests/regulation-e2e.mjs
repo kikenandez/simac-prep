@@ -23,43 +23,64 @@ async function open(lang, country) {
   return { page, errors };
 }
 
-// Espagnol, Colombie : clinique dentaire → activité réglementée, critère obligatoire
+const status = (page) => page.getAttribute('#regulation-card', 'data-status');
+const gapLabels = (page) => page.$$eval('#offer-maturity-out .grid > div:nth-child(2) li b', (bs) => bs.map((b) => b.textContent));
+
+// Espagnol, Colombie : clinique dentaire → activité réglementée, deux questions, plafond tant que les documents manquent
 {
   const { page, errors } = await open('es', 'CO');
   await page.fill('[data-bind="product.name"]', 'Clínica dental móvil');
   await page.fill('[data-bind="product.oneLiner"]', 'Limpiezas dentales en la empresa, sin desplazarse');
-  await page.click('#offer-maturity'); await page.waitForSelector('#regulation-card');
-  assert.equal(await page.getAttribute('#regulation-card', 'data-status'), 'missing');
+  // les questions sont là avant même la maturité
+  await page.click('[data-step=client]'); await page.click('[data-step=offer]');
+  await page.waitForSelector('#regulation-card');
+  assert.equal(await status(page), 'missing');
   const card = await page.textContent('#regulation-card');
   assert.match(card, /Regulación \(Colombia\)/);
-  assert.match(card, /madurez limitada a 3 \/ 5/);
+  assert.match(card, /¿Sabes si tu producto o servicio pertenece a un sector o mercado regulado\?/);
   assert.ok(await page.$('#regulation-card a[href="https://www.suin-juriscol.gov.co/"]'));
   assert.match(await page.getAttribute('#regulation-card a[href^="https://www.google.com/search"]', 'href'), /regulaci%C3%B3n.*Colombia/);
-  assert.match(await page.textContent('#offer-maturity-out .grid > div:nth-child(2) li:first-child'), /^Regulación — /, 'the regulation gap comes first, with its UI label');
-  assert.ok((await page.$$eval('.gauge span.on', s => s.length)) <= 3);
-  // sans clé Jina : la recherche explique pourquoi et ne lève pas le plafond
-  await page.click('#regulation-search'); await page.waitForFunction(() => /Jina/.test(document.querySelector('#toast').textContent));
-  assert.equal(await page.getAttribute('#regulation-card', 'data-status'), 'missing');
+  // maturité : plafond 3, manque Regulación en tête, et proposition lancée seule (pas de réponse, activité réglementée)
+  await page.click('#offer-maturity'); await page.waitForSelector('.gauge');
+  await page.waitForSelector('#regulation-card .reg-proposal');
+  assert.match(await page.textContent('#regulation-card .reg-proposal'), /Propuesta de la IA, sin búsqueda web/);
+  assert.equal((await gapLabels(page))[0], 'Regulación');
+  assert.ok((await page.$$eval('.gauge span.on', (s) => s.length)) <= 3);
+  // avertissement « tal cual » sous la maturité et dans la carte Regulación
+  assert.equal((await page.$$('[data-role="maturity-disclaimer"]')).length, 2);
+  assert.match(await page.textContent('#offer-maturity-out [data-role="maturity-disclaimer"]'), /«tal cual».*sector o mercado regulado.*Ningún compromiso ni responsabilidad/);
+  // la proposition remplit le champ, sans lever le plafond : ce sont les réponses qui comptent
+  await page.click('#regulation-use');
+  assert.match(await page.inputValue('[data-bind="product.regulation"]'), /^\[DEMO\] Habilitación/);
+  assert.equal(await status(page), 'missing');
+  // « Sí » → question des documents ; « No » → plafond et nouvelle proposition ; « Sí, los tengo » → plus de plafond
+  await page.check('input[name="reg-sector"][value="yes"]'); await page.waitForSelector('input[name="reg-docs"]');
+  assert.equal(await status(page), 'not_ready');
+  await page.check('input[name="reg-docs"][value="no"]'); await page.waitForSelector('#regulation-card[data-status="not_ready"] .reg-proposal');
+  assert.equal((await gapLabels(page))[0], 'Regulación');
+  await page.check('input[name="reg-docs"][value="yes"]'); await page.waitForSelector('#regulation-card[data-status="ready"]');
+  assert.match(await page.textContent('#regulation-search'), /Confirmar con una búsqueda/);
+  assert.ok(!(await gapLabels(page)).includes('Regulación'));
   await page.screenshot({ path: shots + '/regulation-es.png' });
-  // « No regulada (verificado) » : écrit dans la fiche, le critère est rempli
-  await page.click('#regulation-none'); await page.waitForSelector('#regulation-card[data-status="confirmed"]');
-  assert.match(await page.inputValue('[data-bind="product.regulation"]'), /^No regulada — verificado el /);
-  assert.doesNotMatch(await page.textContent('#offer-maturity-out'), /Regulación — /);
-  // recharger : la maturité et la réglementation sont conservées
-  await page.reload(); await page.waitForSelector('#regulation-card[data-status="confirmed"]');
+  // recharger : les réponses sont conservées
+  await page.reload(); await page.waitForSelector('#regulation-card[data-status="ready"]');
+  assert.ok(await page.isChecked('input[name="reg-docs"][value="yes"]'));
   assert.deepEqual(errors, []);
   await page.close();
 }
 
-// Français, France : coaching de prospection → rien de réglementé, simple rappel
+// Français, France : coaching de prospection → rien de réglementé ; « Je ne sais pas » lance quand même la recherche
 {
   const { page, errors } = await open('fr', 'FR');
   await page.fill('[data-bind="product.name"]', 'Coaching prospection 3 mois');
   await page.fill('[data-bind="product.oneLiner"]', 'Un accompagnement de 3 mois pour structurer la prospection d’une petite entreprise.');
-  await page.click('#offer-maturity'); await page.waitForSelector('#regulation-card');
-  assert.equal(await page.getAttribute('#regulation-card', 'data-status'), 'none');
-  assert.match(await page.textContent('#regulation-card'), /Aucune activité réglementée repérée/);
+  await page.click('#offer-maturity'); await page.waitForSelector('.gauge');
+  assert.equal(await status(page), 'none');
+  assert.match(await page.textContent('#regulation-card'), /Rien n’indique une activité réglementée/);
+  assert.equal(await page.$('#regulation-search'), null, 'no search without a reason');
   assert.ok(await page.$('#regulation-card a[href="https://www.legifrance.gouv.fr/"]'));
+  await page.check('input[name="reg-sector"][value="unknown"]'); await page.waitForSelector('#regulation-card .reg-proposal');
+  await page.check('input[name="reg-sector"][value="no"]'); await page.waitForSelector('#regulation-card[data-status="declared_no"]');
   assert.deepEqual(errors, []);
   await page.close();
 }
