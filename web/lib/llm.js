@@ -255,6 +255,14 @@ function mockChat(messages, opts) {
     const next = order.find((k) => !String(fiche[k] || '').trim());
     return delay(JSON.stringify({ field_value: m ? m[2].trim() : '', next_field: next || '', question: next ? qs[next] : '', done: !next }));
   }
+  if (task === 'regulation') {
+    const url = /https?:\/\/[^\s)"]+/.exec(last)?.[0] || '';
+    return delay(JSON.stringify({ regulated: 'yes', ...L({
+      fr: { summary: '[DEMO] Activité probablement réglementée : vérifiez l’autorisation d’exercer et l’assurance obligatoire.', requirements: [{ item: 'Autorisation ou diplôme exigé pour exercer', authority: 'Autorité du secteur (à vérifier)', source: url }], field_value: '[DEMO] Autorisation d’exercer et assurance professionnelle — à vérifier auprès de l’autorité du secteur.' },
+      en: { summary: '[DEMO] Probably a regulated activity: check the licence to operate and mandatory insurance.', requirements: [{ item: 'Licence or qualification required to operate', authority: 'Sector authority (to be checked)', source: url }], field_value: '[DEMO] Licence to operate and professional insurance — to be checked with the sector authority.' },
+      es: { summary: '[DEMO] Actividad probablemente regulada: verifica la habilitación para ejercer y el seguro obligatorio.', requirements: [{ item: 'Licencia o título exigido para ejercer', authority: 'Autoridad del sector (por verificar)', source: url }], field_value: '[DEMO] Habilitación para ejercer y seguro profesional — por verificar con la autoridad del sector.' },
+    }) }));
+  }
   if (task === 'maturity') {
     return delay(JSON.stringify({
       score: 3, verdict: 'prêt pour des réunions à blanc', // code comparé par l'app : reste en français
