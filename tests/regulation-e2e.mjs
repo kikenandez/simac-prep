@@ -65,6 +65,16 @@ const gapLabels = (page) => page.$$eval('#offer-maturity-out .grid > div:nth-chi
   // recharger : les réponses sont conservées
   await page.reload(); await page.waitForSelector('#regulation-card[data-status="ready"]');
   assert.ok(await page.isChecked('input[name="reg-docs"][value="yes"]'));
+  // autre pays : on redemande (réponses par pays) ; retour en Colombie : réponses retrouvées
+  await page.selectOption('.country-switch select >> nth=0', 'ES');
+  await page.waitForSelector('#regulation-card');
+  assert.match(await page.textContent('#regulation-card'), /Regulación \(España\)/);
+  assert.equal(await page.isChecked('input[name="reg-sector"][value="yes"]'), false);
+  assert.equal(await page.$('input[name="reg-docs"]'), null);
+  assert.equal((await gapLabels(page))[0], 'Regulación', 'Spain: no answer yet, the regulation cap is back');
+  await page.selectOption('.country-switch select >> nth=0', 'CO');
+  await page.waitForSelector('#regulation-card[data-status="ready"]');
+  assert.ok(!(await gapLabels(page)).includes('Regulación'));
   assert.deepEqual(errors, []);
   await page.close();
 }

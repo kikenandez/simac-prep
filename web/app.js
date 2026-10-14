@@ -33,7 +33,7 @@ function blank() {
   return {
     id: newId(), date: localDay(), step: 'offer',
     product: { name: '', oneLiner: '', targets: '', problem: '', who: '', nextStep: '', mechanism: '', advantages: '', proofs: '', price: '', floor: '', delays: '', objections: '', regulation: '', constraints: '' },
-    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, maturityRaw: null, regulationSearch: null, regulationAnswers: { sector: '', docs: '' }, blockers: [], reworked: [] },
+    offer: { description: '', website: '', linkedin: '', instagram: '', profileText: '', sources: [], chat: [], pendingField: '', maturity: null, maturityRaw: null, regulationSearch: null, regulationAnswers: {}, blockers: [], reworked: [] },
     market: marketDefaults(), research: researchDefaults(),
     client: { preparationMode: 'meeting', location: '', company: '', sector: '', website: '', contacts: [blankContact('decide')], linkedinUrl: '', notes: '', decisionProcess: '', meetingFormat: '' },
     clientChat: { description: '', chat: [], pendingField: '' },
@@ -320,6 +320,8 @@ renderers.offer = () => {
   renderOfferBar();
   renderGaps({ el: $('#offer-gaps'), obj: S.product, keys: OFFER_KEY_ORDER, labels: FIELD_LABELS, chatCard: '#offer-chat', prefix: 'product' });
   renderGuidedChat({ el: $('#offer-chat'), state: O, target: S.product, build: offerQuestionMessages, step: 'offer', onFilled: (key) => { O.reworked = [...new Set([...(O.reworked || []), key])]; O.maturity = null; S.market.comparison = null; invalidatePreparation(); } });
+  // le pays a pu changer : le plafond suit les réponses du pays affiché
+  if (O.maturityRaw) { O.maturity = withRegulation(O.maturityRaw); O.blockers = blockersFrom(O.maturity); }
   renderMaturity(); renderRegulation();
   mountMarket($('#market-research'), () => S, { save: persist, invalidate: invalidatePreparation, busy, toast });
   renderSourceList($('#offer-sources'), O.sources, () => { persist(); renderers.offer(); });
@@ -479,7 +481,11 @@ function renderGuidedChat({ el, state, target, build, step, onFilled }) {
 // On ne cherche que sur « je ne sais pas », sans réponse, ou documents manquants ; sinon une recherche peut confirmer.
 const MATURITY_DISCLAIMER = () => `<p class="note disclaimer" data-role="maturity-disclaimer">${t('Avis indicatif, fourni « tel quel » : le niveau de maturité et les informations réglementaires sont produits automatiquement (y compris par l’IA) et peuvent être incomplets, dépassés ou erronés. Faites-les confirmer par l’autorité compétente ou un professionnel, surtout dans un secteur ou un marché réglementé. Aucun engagement ni responsabilité de Guillermo Blanco, adp.avapmo.com ou AVApmo sur ce résultat ni sur son usage.')}</p>`;
 const regulationOpts = () => ({ code: getCountry(), geography: geoName(), uiLang: LANG });
-const regAnswers = () => (S.offer.regulationAnswers ||= { sector: '', docs: '' });
+// Réponses par pays : une activité réglementée en Colombie ne l'est pas forcément en France.
+function regAnswers(code = getCountry()) {
+  const all = (S.offer.regulationAnswers && typeof S.offer.regulationAnswers.sector !== 'string') ? S.offer.regulationAnswers : (S.offer.regulationAnswers = {});
+  return (all[code] ||= { sector: '', docs: '' });
+}
 const regSearched = () => Boolean(S.offer.regulationSearch?.results?.length) && S.offer.regulationSearch.country === getCountry();
 const regState = () => regulationStatus(S.product, { aiRegulated: S.offer.maturityRaw?.regulation?.regulated === true, searched: regSearched(), answers: regAnswers() });
 function withRegulation(raw) {
