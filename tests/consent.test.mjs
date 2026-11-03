@@ -3,15 +3,37 @@ import assert from 'node:assert/strict';
 
 // Navigateur minimal : cookies écrits, stockage local, formulaire soumis.
 const cookies = [];
+let forms = 0;
+const posts = [];
+globalThis.fetch = async (url, opts) => { posts.push({ url, opts }); return {}; };
 const store = new Map();
 globalThis.localStorage = { getItem: k => store.get(k) ?? null, setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) };
 globalThis.location = { hostname: 'simac.avapmo.com' };
 globalThis.document = {
   set cookie(v) { cookies.push(v); }, get cookie() { return ''; },
-  createElement: () => ({ setAttribute() {}, append() {}, submit() {}, remove() {} }),
+  createElement: () => ({ setAttribute() {}, append() {}, submit() { forms++; }, remove() {} }),
   body: { append() {} },
 };
-const { accept, resend, confirmEmail } = await import('../web/lib/consent.js');
+const { accept, resend, confirmEmail, hasAccepted } = await import('../web/lib/consent.js');
+const { CONFIG } = await import('../web/config.js');
+
+test('default: access opens at once and the sign-up is posted in the background, no Buttondown tab', async () => {
+  forms = 0; posts.length = 0;
+  const rec = await accept({ email: 'a@b.fr' });
+  assert.equal(rec.confirmed, true); assert.equal(hasAccepted(), true);
+  assert.equal(forms, 0);
+  assert.equal(posts.length, 1);
+  assert.equal(posts[0].url, CONFIG.emailEndpoint);
+  assert.equal(posts[0].opts.mode, 'no-cors');
+  assert.equal(posts[0].opts.body.get('email'), 'a@b.fr');
+});
+
+test('confirmation mode: the form opens in a visible tab instead of a background post', async () => {
+  CONFIG.confirmToUnlock = true; forms = 0; posts.length = 0; store.clear();
+  const rec = await accept({ email: 'a@b.fr' });
+  assert.equal(rec.confirmed, false); assert.equal(forms, 1); assert.equal(posts.length, 0);
+  CONFIG.confirmToUnlock = false; store.clear();
+});
 
 test('sign-up and resend mark a pending SIMAC confirmation for the shared /merci/ page (all *.avapmo.com)', async () => {
   cookies.length = 0;
