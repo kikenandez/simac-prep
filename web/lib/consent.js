@@ -32,20 +32,27 @@ function pendingCookie(on) {
   document.cookie = `${c.name}=${on ? 1 : ''}; Domain=${c.domain}; Path=/; Max-Age=${on ? c.maxAge : 0}; SameSite=Lax; Secure`;
 }
 
-// Formulaire Buttondown soumis dans un nouvel onglet, comme son embed officiel : si son pare-feu demande une
-// vérification anti-spam (Cloudflare Turnstile), la personne la voit et la valide. Un fetch en arrière-plan
-// la rendait invisible : réponse 400, aucun mail parti. À appeler pendant le clic (sinon bloqueur de pop-up).
+// Deux modes d'envoi vers Buttondown :
+// - accès direct (confirmToUnlock false, par défaut) : POST en arrière-plan, aucun onglet ouvert. Si le pare-feu
+//   Buttondown exige sa vérification anti-spam (Cloudflare Turnstile), l'inscription est perdue sans bruit,
+//   mais l'outil reste ouvert : rien ne bloque une démo ou un atelier.
+// - accès après confirmation (confirmToUnlock true) : formulaire soumis dans un nouvel onglet, comme l'embed officiel,
+//   pour que la personne voie et valide la vérification. À appeler pendant le clic (sinon bloqueur de pop-up).
 async function subscribe(email) {
   if (!email || !CONFIG.emailEndpoint) return false;
   pendingCookie(true);
+  const fields = [[CONFIG.emailFields.email, email], [CONFIG.emailFields.source, CONFIG.emailSource || 'simac-prep'], [CONFIG.emailFields.version, CONFIG.termsVersion]].filter(([name]) => name);
   try {
+    if (!CONFIG.confirmToUnlock) {
+      const fd = new FormData();
+      for (const [name, value] of fields) fd.append(name, value);
+      fetch(CONFIG.emailEndpoint, { method: 'POST', mode: 'no-cors', body: fd }).catch(() => {});
+      return true;
+    }
     const form = document.createElement('form');
     Object.assign(form, { action: CONFIG.emailEndpoint, method: 'post', target: '_blank', hidden: true });
     form.setAttribute('rel', 'noopener');
-    const add = (name, value) => { if (!name) return; const i = document.createElement('input'); Object.assign(i, { type: 'hidden', name, value }); form.append(i); };
-    add(CONFIG.emailFields.email, email);
-    add(CONFIG.emailFields.source, CONFIG.emailSource || 'simac-prep');
-    add(CONFIG.emailFields.version, CONFIG.termsVersion);
+    for (const [name, value] of fields) { const i = document.createElement('input'); Object.assign(i, { type: 'hidden', name, value }); form.append(i); }
     document.body.append(form); form.submit(); form.remove();
     return true;
   } catch { return false; }

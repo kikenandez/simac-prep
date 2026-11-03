@@ -12,6 +12,20 @@ p.on('console', m => { if (m.type() === 'error' && !/Failed to load resource/.te
 // L'inscription part dans un nouvel onglet (formulaire Buttondown visible : vérification anti-spam éventuelle) : route au niveau du contexte.
 const subscribePosts = [];
 await p.context().route('https://buttondown.com/**', route => { subscribePosts.push(route.request().method() + ' ' + (route.request().postData() || '')); return route.fulfill({ status: 200, contentType: 'text/html', body: '<p>ok</p>' }); });
+// Mode par défaut : accès direct, inscription en arrière-plan, aucun onglet Buttondown.
+const direct = await (async () => {
+  const q = await b.newPage(); const posts = [];
+  await q.context().route('https://buttondown.com/**', route => { posts.push(route.request().postData() || ''); return route.fulfill({ status: 200, body: 'ok' }); });
+  await q.goto('http://localhost:8765/');
+  await q.waitForSelector('#gate:not([hidden])'); await q.fill('#gate-email', 'direct@exemple.fr'); await q.check('#gate-accept'); await q.click('#gate-form .btn');
+  await q.waitForSelector('#gate[hidden]', { state: 'attached', timeout: 3000 });
+  await q.waitForTimeout(300);
+  const ok = posts.length === 1 && /direct@exemple\.fr/.test(posts[0]) && q.context().pages().length === 1;
+  await q.close(); return ok;
+})();
+if (!direct) errors.push('DIRECT accès direct : onglet ouvert, accès bloqué ou inscription absente');
+// Mode confirmation (confirmToUnlock: true), encore disponible dans config.js.
+await p.route('**/config.js', async route => { const r = await route.fetch(); route.fulfill({ response: r, body: (await r.text()).replace('confirmToUnlock: false', 'confirmToUnlock: true') }); });
 await p.goto('http://localhost:8765/');
 await p.waitForSelector('#gate:not([hidden])'); await p.fill('#gate-email', 'test@exemple.fr'); await p.check('#gate-accept'); await p.click('#gate-form .btn');
 // accès après confirmation : panneau d'attente, page d'accueil toujours fermée, renvoi bloqué 60 s
@@ -22,7 +36,7 @@ const waiting = await p.evaluate(() => !document.querySelector('#gate').hidden &
 // rechargement avant confirmation : toujours en attente
 await p.reload(); await p.waitForSelector('#gate-wait:not([hidden])');
 // lien de confirmation ouvert dans un AUTRE onglet (webmail) : l'onglet resté sur « Vérifiez votre boîte mail » s'ouvre seul
-const [mailTab] = await Promise.all([p.waitForEvent('popup'), p.evaluate(() => window.open('/?ok=1', '_blank'))]); await mailTab.waitForSelector('#gate[hidden]', { state: 'attached' }); await mailTab.close();
+const [mailTab] = await Promise.all([p.waitForEvent('popup'), p.evaluate(() => window.open('/?ok=1', '_blank'))]); await mailTab.waitForFunction(() => location.search === ''); await mailTab.close();
 await p.waitForSelector('#gate[hidden]', { state: 'attached', timeout: 3000 });
 // re-soumettre le formulaire après confirmation ne referme jamais l'accès
 const stillOpen = await p.evaluate(async () => { const m = await import('./lib/consent.js'); await m.accept({ email: 'test@exemple.fr' }); return m.hasAccepted(); });

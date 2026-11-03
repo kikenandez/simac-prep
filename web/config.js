@@ -14,7 +14,9 @@ export const CONFIG = {
   // Liste partagée avec adp.avapmo.com : Buttondown n'a qu'une redirection après confirmation.
   // https://adp.avapmo.com/merci/ (entrée FR / ES / EN) lit le cookie ci-dessous (commun à *.avapmo.com)
   // et renvoie vers https://simac.avapmo.com/?ok=1 ; sans cookie, page de confirmation dans la langue du visiteur.
-  confirmToUnlock: true,
+  // false (3 nov. 2026) : l'outil s'ouvre dès l'envoi du formulaire, inscription en arrière-plan sans onglet
+  // Buttondown. Le mode confirmation a bloqué une démo (vérification anti-spam en boucle en navigation privée).
+  confirmToUnlock: false,
   pendingCookie: { name: 'simac_pending', domain: 'avapmo.com', maxAge: 7 * 24 * 3600 },
 
   // Version des conditions : l'incrémenter force une nouvelle acceptation.
