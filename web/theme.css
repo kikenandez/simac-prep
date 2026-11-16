@@ -99,10 +99,12 @@ pre.email { border-radius: 0; background: var(--panel); }
 .soncas { gap: 0; }
 .soncas .dim { grid-template-columns: 140px 124px 1fr; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; padding: 14px 12px; }
 .soncas .dim.top { background: var(--accent-soft); border-color: var(--line); }
-.score { gap: 0; border: 1px solid var(--rule); width: max-content; }
-.score button { width: 38px; height: 38px; border: 0; border-right: 1px solid var(--rule); border-radius: 0; background: var(--panel); }
-.score button:last-child { border-right: 0; }
+/* Boutons collés (bordures superposées) ; l'étiquette « IA : n » passe à la ligne, sous les boutons. */
+.score { gap: 0; flex-wrap: wrap; align-content: flex-start; }
+.score button { width: 38px; height: 38px; border: 1px solid var(--rule); margin-left: -1px; border-radius: 0; background: var(--panel); }
+.score button:first-child { margin-left: 0; }
 .score button.on { border-color: var(--rule); }
+.score small { flex-basis: 100%; margin-top: 5px; align-self: auto !important; font-family: var(--font-mono); font-size: 11px; letter-spacing: .03em; }
 .main-message { font-family: var(--font-head); font-weight: 400; font-size: 26px; line-height: 1.2; }
 .tabs { gap: 0; border-bottom: 1px solid var(--rule); }
 .tabs button { border: 0; border-radius: 0; background: transparent; padding: 10px 16px; }
