@@ -5,7 +5,7 @@ import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } 
 import { OFFER_KEY_ORDER, OFFER_ESSENTIAL, blockersFrom, essentialGaps } from './lib/offer.js';
 import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, regulationProposalMessages, clientExtractMessages, clientQuestionMessages, debriefExtractMessages } from './lib/prompts.js';
 import { readUrl, searchWeb, notesSource, mergeSources, activeSources, groundBrief, sourceId, upsertSources, competitorQuery, sanitizeComparison } from './lib/research.js';
-import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS } from './lib/soncas.js';
+import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS, capThrees, mergeAiPerson, argsFor, argsFromText, userInput, userObservations } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { localDay } from './lib/dates.js';
@@ -53,7 +53,7 @@ function blankAction() { return { action: '', owner: 'me', due: '', output: '', 
 const actions = () => (S.debrief.actions || []).filter((a) => a.action).slice(0, MAX_ACTIONS);
 function syncPrimaryAction() { const a = S.debrief.actions?.[0] || blankAction(); Object.assign(S.debrief, { nextAction: a.action, nextOwner: a.owner, nextDue: a.due, nextOutput: a.output }); }
 function blankContact(weight = 'influence') { return { name: '', role: '', weight }; }
-function blankPerson() { return { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {} }; }
+function blankPerson() { return { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {}, notes: {}, myArgs: {}, manual: {} }; }
 /** Interlocuteurs renseignés (nom ou rôle), au plus 3. */
 const contacts = () => (S.client.contacts || []).filter((c) => c.name || c.role).slice(0, MAX_CONTACTS);
 const contactLabel = (c, i) => c?.name || c?.role || t('Personne {n}', { n: i + 1 });
@@ -703,6 +703,7 @@ function syncPeople() {
   const n = Math.max(1, S.client.contacts.length);
   while (S.persona.people.length < n) S.persona.people.push(blankPerson());
   S.persona.people.length = n;
+  S.persona.people.forEach((p) => { p.notes ||= {}; p.myArgs ||= {}; p.manual ||= {}; }); // anciens brouillons
   if (S.persona.current >= n) S.persona.current = 0;
 }
 function renderContacts() {
@@ -782,7 +783,7 @@ renderers.persona = () => {
     ${verdictBanner()}
     <div class="actions">
       <button class="btn" id="ai">${t('Proposer avec l’IA')}</button>
-      ${person().aiScores ? `<span class="note">${t('Proposition IA reçue — ajustez les scores si besoin.')}</span>` : `<span class="note">${t('Sans IA : notez à la main, puis rédigez le message.')}</span>`}
+      ${person().aiScores ? `<span class="note">${t('Proposition IA reçue — ajustez les scores si besoin.')} ${t('Vos scores, indices et arguments sont conservés si vous relancez l’IA.')}</span>` : `<span class="note">${t('Sans IA : notez à la main, ajoutez vos indices et vos arguments, puis rédigez le message.')}</span>`}
     </div>
     ${multi ? `<div class="tabs" id="people-tabs">${cs.map((c, i) => `<button class="${i === P.current ? 'on' : ''}" data-p="${i}"><span>${esc(contactLabel(c, i))} <small>(${WEIGHTS[c.weight] || ''})</small></span>${c.role ? `<em>${esc(c.role)}</em>` : ''}</button>`).join('')}</div>` : ''}
     <div class="persona-grid">
@@ -801,12 +802,12 @@ renderers.persona = () => {
   $$('#people-tabs button').forEach((b) => (b.onclick = () => { P.current = +b.dataset.p; persist(); renderers.persona(); }));
   $('#ai').onclick = (e) => busy(e.target, async () => {
     if (!S.brief) return toast(t('Générez d’abord la fiche client (étape 2).'));
-    const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, history: historyFor() }));
+    const observations = userObservations(P.people, S.client.contacts.map(contactLabel));
+    const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, history: historyFor(), observations }));
     const people = Array.isArray(r.people) ? r.people : [{ scores: r.scores, rationale: r.rationale, arguments: r.arguments }];
     S.client.contacts.forEach((c, i) => {
       const src = people[i] || people[0] || {};
-      const ai = capThrees(clampScores(src.scores));
-      P.people[i] = { scores: { ...ai }, aiScores: ai, rationale: src.rationale || {}, arguments: src.arguments || {} };
+      P.people[i] = mergeAiPerson(P.people[i] || blankPerson(), src); // ce que vous avez saisi n'est jamais écrasé
     });
     P.main_message = r.main_message || ''; P.tensions = r.tensions || []; P.gaps = r.gaps || [];
     persist(); markDone(); if (S.step === 'persona') renderers.persona();
@@ -831,32 +832,42 @@ function soncasRadar(scores, aiScores) {
   <div class="note radar-legend"><span class="sw me"></span> ${t('vous')} ${aiScores ? `<span class="sw ai"></span> ${t('proposition IA')}` : ''}</div>`;
 }
 
-/** Au plus trois dimensions à 3 : au-delà, les dernières dans l'ordre S-O-N-C-A-S-E repassent à 2. */
-function capThrees(scores) {
-  const out = { ...scores }; let n = 0;
-  for (const d of SONCAS) if (out[d.code] === 3) { n++; if (n > 3) out[d.code] = 2; }
-  return out;
-}
 function renderSoncas() {
   const P = person(); const t3 = top3(P.scores);
   $('#top3').textContent = t3.map(label).join(', ');
   if ($('#radar')) $('#radar').innerHTML = soncasRadar(P.scores, P.aiScores);
-  $('#soncas').innerHTML = SONCAS.map((d) => `
+  $('#soncas').innerHTML = SONCAS.map((d) => {
+    const manual = userInput(P).manual; const myNote = P.notes?.[d.code] || ''; const myArgs = (P.myArgs?.[d.code] || []).join('\n');
+    const aiDiffers = P.aiScores && P.aiScores[d.code] !== P.scores[d.code];
+    return `
     <div class="dim ${t3.includes(d.code) ? 'top' : ''}">
       <div><b>${label(d.code)}</b><div class="hint">${d.hint}</div></div>
       <div class="score" data-code="${d.code}">${[1, 2, 3].map((v) => `<button class="${P.scores[d.code] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}
-        ${P.aiScores && P.aiScores[d.code] !== P.scores[d.code] ? `<small class="muted" style="align-self:center">${t('IA : {n}', { n: P.aiScores[d.code] })}</small>` : ''}</div>
-      <div>${P.rationale?.[d.code] ? `<div class="note">${esc(P.rationale[d.code])}</div>` : ''}
-        ${(P.arguments?.[d.code] || []).length ? `<ul class="args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
-    </div>`).join('');
-  $$('.score button').forEach((b) => (b.onclick = () => {
+        ${aiDiffers ? `<button class="ai-score" data-ai="${d.code}" title="${t('Reprendre le score proposé par l’IA')}">${t('IA : {n}', { n: P.aiScores[d.code] })}</button>` : ''}
+        ${manual[d.code] && P.aiScores ? `<small class="muted origin">${t('fixé par vous')}</small>` : ''}</div>
+      <div>${P.rationale?.[d.code] ? `<div class="note"><span class="origin-tag">${t('IA')}</span> ${esc(P.rationale[d.code])}</div>` : ''}
+        ${(P.arguments?.[d.code] || []).length ? `<ul class="args ai-args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+        <details class="mine" ${myNote || myArgs || !P.aiScores ? 'open' : ''}>
+          <summary>${myNote || myArgs ? t('Vos informations') : t('Ajouter vos informations')}</summary>
+          <label class="mini">${t('Ce que vous savez (propos entendus, indices observés)')}<textarea rows="2" data-note="${d.code}">${esc(myNote)}</textarea></label>
+          <label class="mini">${t('Vos arguments (un par ligne)')}<textarea rows="2" data-args="${d.code}" placeholder="${t('Caractéristique → bénéfice → preuve')}">${esc(myArgs)}</textarea></label>
+        </details></div>
+    </div>`; }).join('');
+  $$('.score button[data-v]').forEach((b) => (b.onclick = () => {
     const code = b.closest('.score').dataset.code; const v = +b.dataset.v;
     if (v === 3) {
       const threes = SONCAS.map((d) => d.code).filter((c) => c !== code && P.scores[c] === 3);
       if (threes.length >= 3) { const demoted = threes[threes.length - 1]; P.scores[demoted] = 2; toast(t('Trois motivations fortes maximum : « {name} » repasse à 2.', { name: label(demoted) })); }
     }
-    P.scores[code] = v; persist(); renderSoncas();
+    P.scores[code] = v; P.manual = { ...(P.manual || {}), [code]: true }; persist(); renderSoncas();
   }));
+  $$('.score button[data-ai]').forEach((b) => (b.onclick = () => {
+    const code = b.dataset.ai; const manual = { ...(P.manual || {}) }; delete manual[code];
+    P.manual = manual; P.scores = capThrees({ ...P.scores, [code]: P.aiScores[code] }, manual); persist(); renderSoncas();
+  }));
+  // Saisie libre : enregistrée à chaque frappe, sans redessiner (le curseur reste en place).
+  $$('#soncas textarea[data-note]').forEach((el) => el.addEventListener('input', () => { P.notes = { ...(P.notes || {}), [el.dataset.note]: el.value }; persist(); }));
+  $$('#soncas textarea[data-args]').forEach((el) => el.addEventListener('input', () => { P.myArgs = { ...(P.myArgs || {}), [el.dataset.args]: argsFromText(el.value) }; persist(); }));
 }
 
 // ----------------------------------------------------------------------------- 4. SIMAC
@@ -877,7 +888,9 @@ renderers.simac = () => {
     if (!S.brief) return toast(t('Générez d’abord la fiche client (étape 2).'));
     syncPeople();
     const people = S.client.contacts.map((c, i) => { const P = S.persona.people[i]; const t3 = top3(P.scores);
-      return { name: contactLabel(c, i), role: c.role, weight: c.weight, scores: P.scores, top3: t3.map(label), arguments: Object.fromEntries(t3.map((k) => [label(k), (P.arguments?.[k] || []).slice(0, 2)])) }; });
+      const u = userInput(P);
+      return { name: contactLabel(c, i), role: c.role, weight: c.weight, scores: P.scores, top3: t3.map(label), arguments: Object.fromEntries(t3.map((k) => [label(k), argsFor(P, k)])),
+        user_notes: Object.fromEntries(Object.entries(u.notes).map(([k, v]) => [label(k), v])) }; });
     const persona = { people, main_message: S.persona.main_message, tensions: S.persona.tensions || [] };
     const simac = await chatJSON(simacMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, persona, objective: S.objective, market: S.market.comparison ? { comparison: S.market.comparison, sources: mergeSources(S.market.sources) } : null }));
     S.simac = simac; persist(); markDone(); if (S.step === 'simac') renderSimac();
@@ -1069,7 +1082,7 @@ function toRecord() {
     contact_name: cs[0].name, contact_role: cs[0].role, contact_weight: cs[0].weight,
     contact2_name: c2.name || '', contact2_role: c2.role || '', contact2_weight: c2.name || c2.role ? c2.weight : '', soncas_2: cs[1] ? packScores(pp[1].scores) : '', top3_2: cs[1] ? top3(pp[1].scores).map(label).join('|') : '',
     contact3_name: c3.name || '', contact3_role: c3.role || '', contact3_weight: c3.name || c3.role ? c3.weight : '', soncas_3: cs[2] ? packScores(pp[2].scores) : '', top3_3: cs[2] ? top3(pp[2].scores).map(label).join('|') : '',
-    research_json: JSON.stringify({ version: 1, product: S.product, market: S.market, research: S.research, client: S.client, sources: S.sources }),
+    research_json: JSON.stringify({ version: 1, product: S.product, market: S.market, research: S.research, client: S.client, sources: S.sources, persona_user: pp.map(userInput) }),
     product: S.product.name,
     objective: S.objective.primary, fallback: S.objective.fallback,
     soncas_S: sc.S, soncas_O: sc.O, soncas_N: sc.N, soncas_C: sc.C, soncas_A: sc.A, soncas_Y: sc.Y, soncas_E: sc.E,
@@ -1392,7 +1405,8 @@ const printViews = {
     const blocks = S.client.contacts.map((c, i) => { const pp = S.persona.people[i]; const t3 = top3(pp.scores);
       return `<h2>${esc(contactLabel(c, i))} <small>(${[c.role, WEIGHTS[c.weight]].filter(Boolean).map(esc).join(', ')})</small> — ${t('top 3 :')} ${t3.map(label).join(', ')}</h2>
         <table class="ptable"><thead><tr><th>${t('Motivation')}</th><th>${t('Score')}</th><th>${t('Pourquoi')}</th><th>${t('Arguments')}</th></tr></thead><tbody>
-        ${SONCAS.map((d) => `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${label(d.code)}</td><td>${pp.scores[d.code]}</td><td>${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(pp.arguments?.[d.code])}</td></tr>`).join('')}</tbody></table>`; }).join('');
+        ${SONCAS.map((d) => { const u = userInput(pp); const why = [u.notes[d.code], pp.rationale?.[d.code]].filter(Boolean).map(esc).join('<br>');
+          return `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${label(d.code)}</td><td>${pp.scores[d.code]}</td><td>${why}</td><td>${P.ul(argsFor(pp, d.code))}</td></tr>`; }).join('')}</tbody></table>`; }).join('');
     return `<h1>${t('Persona SONCAS')} — ${esc(S.client.company || '')}</h1>${blocks}
       ${(S.persona.tensions || []).length ? `<h3>${t('Tensions entre interlocuteurs')}</h3>${P.ul(S.persona.tensions)}` : ''}
       <div class="pbox"><b>${t('Message principal')}</b><br>${P.text(S.persona.main_message)}</div>`;
@@ -1565,5 +1579,7 @@ function restoreResearch(json) {
     if (data.research?.entity && /^\d{9}$/.test(data.research.entity.siren) && /^\d{14}$/.test(data.research.entity.siret)) S.research.entity = data.research.entity;
     for (const k of ['notes', 'meetingFormat', 'decisionProcess', 'location', 'linkedinUrl']) if (typeof data.client?.[k] === 'string') S.client[k] = data.client[k];
     S.client.preparationMode = data.client?.preparationMode === 'email' ? 'email' : 'meeting';
+    // Saisies manuelles SONCAS (indices, arguments, scores fixés) : les scores eux-mêmes viennent des colonnes du CSV.
+    if (Array.isArray(data.persona_user)) data.persona_user.forEach((u, i) => { const p = S.persona.people[i]; if (p) Object.assign(p, userInput(u)); });
   } catch { /* anciens exports ou recherche illisible : conserver la fiche du CSV */ }
 }
