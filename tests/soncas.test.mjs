@@ -41,6 +41,12 @@ test('user arguments come first, then the AI ones, without duplicates', () => {
   assert.deepEqual(withMine(mine, { S: ['Garantie', 'essai gratuit'] }, 'S'), ['Essai gratuit', 'Garantie']);
   assert.deepEqual(withMine(mine, {}, 'A'), []);
   assert.deepEqual(withMine(undefined, { A: ['ROI'] }, 'A'), ['ROI']);
+  // l'IA reformule l'argument de l'utilisateur dans une phrase plus longue : écarté
+  const pay = { ...blankMine(), args: { A: ['Paiement en trois fois sans frais'] } };
+  assert.deepEqual(withMine(pay, { A: ['Un paiement en trois fois sans frais, qui étale la dépense.', 'Prix connu d’avance'] }, 'A'), ['Paiement en trois fois sans frais', 'Prix connu d’avance']);
+  // un argument très court ne fait pas disparaître les phrases qui le contiennent
+  const short = { ...blankMine(), args: { A: ['Prix'] } };
+  assert.equal(withMine(short, { A: ['Prix connu d’avance'] }, 'A').length, 2);
 });
 
 test('old drafts without user input get an empty one', () => {

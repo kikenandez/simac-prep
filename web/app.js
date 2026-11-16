@@ -852,7 +852,7 @@ function renderSoncas() {
       <div class="score" data-code="${d.code}">${[1, 2, 3].map((v) => `<button class="${P.scores[d.code] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}
         ${P.aiScores && P.aiScores[d.code] !== P.scores[d.code] ? `<small class="muted" style="align-self:center">${t('IA : {n}', { n: P.aiScores[d.code] })}</small>` : ''}</div>
       <div>${P.rationale?.[d.code] ? `<div class="note">${esc(P.rationale[d.code])}</div>` : ''}
-        ${(P.arguments?.[d.code] || []).length ? `<ul class="args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+        ${aiOnly(P, d.code).length ? `<ul class="args">${aiOnly(P, d.code).map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
         ${mineBlock(P, d.code)}</div>
     </div>`).join('');
   $$('.mine textarea').forEach((ta) => (ta.oninput = () => {
@@ -871,6 +871,8 @@ function renderSoncas() {
     P.scores[code] = v; persist(); renderSoncas();
   }));
 }
+/** Arguments IA d'une motivation, sans ceux qui répètent les arguments de l'utilisateur. */
+const aiOnly = (P, code) => withMine(P.mine, P.arguments, code).slice((P.mine?.args?.[code] || []).length);
 /** Saisie de l'utilisateur pour une motivation : ses observations et ses arguments (un par ligne), ouverte s'il a déjà écrit. */
 function mineBlock(P, code) {
   P.mine = normMine(P.mine); const m = P.mine;

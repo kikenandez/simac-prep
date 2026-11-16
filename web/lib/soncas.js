@@ -90,11 +90,17 @@ export function mergeScores(ai, prev, fixed = {}) {
   return out;
 }
 
+const norm = (x) => String(x || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+/** Un argument IA répète-t-il un argument de l'utilisateur ? Même texte, ou le reprend mot pour mot dans une phrase plus longue. */
+function repeats(ai, own) {
+  const a = norm(ai), o = norm(own);
+  if (!a || !o) return false;
+  return a === o || (o.length >= 12 && a.includes(o));
+}
 /** Arguments d'une motivation : ceux de l'utilisateur d'abord, puis ceux de l'IA qui ne les répètent pas. */
 export function withMine(mine, aiArgs, code) {
   const own = mine?.args?.[code] || [];
-  const seen = new Set(own.map((a) => a.toLowerCase()));
-  return [...own, ...(aiArgs?.[code] || []).filter((a) => !seen.has(String(a).toLowerCase()))];
+  return [...own, ...(aiArgs?.[code] || []).filter((a) => !own.some((o) => repeats(a, o)))];
 }
 
 /** Ce que l'utilisateur a écrit, par personne, pour le prompt ; null s'il n'a rien écrit. */
