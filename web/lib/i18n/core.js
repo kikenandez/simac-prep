@@ -4,6 +4,19 @@ const NT = { en: '(new tab)', es: '(nueva pestaña)' };
 export default {
   // ---- index.html : page d'accueil
   'TPE / PME': { en: 'Small business', es: 'Pymes' },
+  // fiche exemple de la page d'accueil (cas démo fictif)
+  'carnet de préparation': { en: 'meeting prep notebook', es: 'cuaderno de preparación' },
+  'Exemple de fiche': { en: 'Sample sheet', es: 'Ficha de ejemplo' },
+  'Exemple · mercredi 10 h · visio 30 min': { en: 'Example · Wednesday 10 am · 30-min video call', es: 'Ejemplo · miércoles 10 h · videollamada de 30 min' },
+  'Cabinet d’architectes, 22 personnes.': { en: 'Architecture firm, 22 people.', es: 'Estudio de arquitectura, 22 personas.' },
+  'Associé fondateur · signe': { en: 'Founding partner · signs', es: 'Socio fundador · firma' },
+  'Communication · prescrit': { en: 'Communications · recommends', es: 'Comunicación · recomienda' },
+  'Argent 3 · Confort 3': { en: 'Money 3 · Comfort 3', es: 'Dinero 3 · Comodidad 3' },
+  'Orgueil 3 · Sympathie 2': { en: 'Pride 3 · Sympathy 2', es: 'Orgullo 3 · Simpatía 2' },
+  '« Une demi-matinée, zéro réunion bloquée, et un site qui ressemble enfin à l’agence. »': {
+    en: '“Half a morning, no meeting cancelled, and a website that finally looks like the firm.”',
+    es: '«Media mañana, ninguna reunión cancelada y una web que por fin se parece al estudio.»' },
+  '↑ Julien signe, Sarah convainc.<br>Le prix ? En dernier !': { en: '↑ Julien signs, Sarah persuades.<br>The price? Last!', es: '↑ Julien firma, Sarah convence.<br>¿El precio? ¡Al final!' },
   'Préparez vos rendez-vous de vente en 20 minutes': { en: 'Prepare your sales meetings in 20 minutes', es: 'Prepara tus reuniones de venta en 20 minutos' },
   'Un outil gratuit, sans compte, qui applique la méthode SIMAC et le profil SONCAS. Vos fiches sont enregistrées dans votre navigateur. Les actions IA et recherche transmettent les informations nécessaires aux fournisseurs choisis.': {
     en: 'A free tool, no account needed, that applies the SIMAC method and the SONCAS profile. Your sheets are saved in your browser. AI and research actions send the information they need to the providers you choose.',
