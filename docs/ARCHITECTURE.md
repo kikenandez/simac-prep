@@ -34,6 +34,7 @@ Les API Recherche d’entreprises et BODACC ont répondu sans clé avec CORS ouv
 - Un rendez-vous = une ligne plate (`COLUMNS` dans `store.js`), stockée dans `localStorage` (`simac.meetings`).
 - Le CSV exporté est exactement cette table ; l'import la recharge. C'est l'« amorce RAG » demandée : lisible par un humain, par un tableur, par un autre outil.
 - Récupération : score par recouvrement de tokens (société, secteur, offre, rôle, notes) + bonus même société, top 3 injectés en texte dans les prompts Fiche client et Persona. Pas d'embeddings : volumes TPE/PME (dizaines à centaines de lignes), et zéro dépendance.
+- `soncas_mine` (dernière colonne) : la saisie de l’utilisateur à l’étape Persona, en JSON, une entrée par interlocuteur : observations (`notes`) et arguments (`args`) par motivation, scores fixés à la main (`fixed`). Rangée à part de la proposition IA : une nouvelle proposition garde ces scores (les scores IA cèdent d’abord quand il y a plus de trois 3), ces observations et ces arguments, et les reçoit dans le prompt. Le SIMAC reçoit les arguments de l’utilisateur en premier. Vide si rien n’a été saisi ; les anciens CSV restent compatibles.
 - `research_json` ajoute au CSV un instantané versionné : offre, comparaison, sources, identité officielle et contexte de préparation. Il n’inclut pas les clés API. Les anciennes lignes sans ce champ restent compatibles ; la fiche et le SIMAC sont à régénérer à la réouverture.
 - Le brouillon courant est dans `simac.draft` ; « Nouveau RDV » conserve la fiche offre.
 

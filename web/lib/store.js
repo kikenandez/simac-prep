@@ -19,6 +19,7 @@ export const COLUMNS = [
   'action2', 'action2_owner', 'action2_due', 'action2_output', 'action2_status',
   'action3', 'action3_owner', 'action3_due', 'action3_output', 'action3_status',
   'lessons', 'notes', 'research_json', 'minutes_keys',
+  'soncas_mine',
 ];
 
 export function listMeetings() {
