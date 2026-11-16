@@ -97,6 +97,20 @@ await p.click('#to-persona'); await p.click('#ai'); await p.waitForSelector('.ma
 const tabs = await p.$$eval('#people-tabs button', b => b.length);
 const tensions = await p.$$eval('.card.warn h3', h => h.filter(x => /Tensions/.test(x.textContent)).length);
 await p.click('.score[data-code="O"] button[data-v="3"]');
+// saisie manuelle par motivation : observations et arguments de l'utilisateur, puis nouvelle proposition IA
+await p.click('.mine[data-code="A"] summary');
+await p.fill('.mine[data-code="A"] [data-mine="notes"]', 'A dit : « le budget est voté en juin »');
+await p.fill('.mine[data-code="A"] [data-mine="args"]', 'Paiement après le vote du budget\nPrix par élève connu d’avance');
+const aiArgsBefore = await p.$$eval('.dim', (d) => d.map((x) => x.querySelectorAll('ul.args li').length).join(','));
+await p.evaluate(() => { document.querySelector('#main h1').dataset.old = '1'; });
+await p.click('#ai'); await p.waitForFunction(() => document.querySelector('#main h1') && !document.querySelector('#main h1').dataset.old);
+const mineKept = await p.evaluate(() => {
+  const d = JSON.parse(localStorage.getItem('simac.draft')); const pp = d.persona.people[0];
+  return pp.scores.O === 3 && pp.mine.fixed.O === true && /budget est voté/.test(pp.mine.notes.A) && pp.mine.args.A.length === 2
+    && /budget est voté/.test(document.querySelector('.mine[data-code="A"] [data-mine="notes"]').value)
+    && document.querySelector('.mine[data-code="A"]').open && document.querySelectorAll('.dim')[4].querySelectorAll('ul.args li').length > 0;
+});
+const aiArgsAfter = await p.$$eval('.dim', (d) => d.map((x) => x.querySelectorAll('ul.args li').length).join(','));
 await p.click('#people-tabs button[data-p="1"]'); await p.waitForSelector('#people-tabs button[data-p="1"].on');
 const p2top = await p.$eval('#top3', el => el.textContent);
 await p.click('#people-tabs button[data-p="0"]');
@@ -119,6 +133,9 @@ await p.click('#save');
 await p.screenshot({ path: shots + '/5-followup.png', fullPage: true });
 // impression : chaque document imprimé ou enregistré en PDF porte la mention de l'outil
 await p.click('[data-step=simac]');
+await p.click('[data-step=persona]');
+const printMine = await p.evaluate(() => { dispatchEvent(new Event('beforeprint')); const t = document.querySelector('#print-view')?.textContent || ''; dispatchEvent(new Event('afterprint')); return /budget est voté/.test(t) && /Paiement après le vote du budget/.test(t); });
+await p.click('[data-step=simac]');
 const printCredit = await p.evaluate(() => { dispatchEvent(new Event('beforeprint')); const t = document.querySelector('#print-view .print-credit')?.textContent || ''; dispatchEvent(new Event('afterprint')); return /préparé avec SIMAC Prep/.test(t) && /simac\.avapmo\.com/.test(t) && /avapmo\.com\)/.test(t) && /contact@avapmo\.com/.test(t) && !document.querySelector('#print-view'); });
 if (!printCredit) { console.error('mention SIMAC Prep absente du document imprimé'); process.exit(1); }
 await p.emulateMedia({ media: 'print' }); await p.pdf({ path: shots + '/simac.pdf', format: 'A4', printBackground: true }); await p.emulateMedia({ media: 'screen' });
@@ -128,10 +145,10 @@ const rows = await p.$$eval('.card:not(.due-card) tbody tr', r => r.length);
 // relances à faire : l'action datée « en cours » du RDV enregistré est listée en tête, avec ses liens agenda
 const dueRows = await p.$$eval('#due-list tbody tr', r => r.length); const dueIcs = await p.$$eval('#due-list [data-ics]', r => r.length);
 const csv = await p.evaluate(async () => { const m = await import('./lib/store.js'); return m.exportCSV(); });
-const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); const n = m.importCSV(csv); const r = m.listMeetings()[0]; return n + '/' + m.listMeetings().length + '/' + r.top3 + '/' + r.contact2_name + '/' + r.contact3_weight + '/' + r.soncas_2 + '/' + r.next_status + '/' + r.action2; }, csv);
+const reimport = await p.evaluate(async (csv) => { const m = await import('./lib/store.js'); localStorage.removeItem('simac.meetings'); const n = m.importCSV(csv); const r = m.listMeetings()[0]; return n + '/' + m.listMeetings().length + '/' + r.top3 + '/' + r.contact2_name + '/' + r.contact3_weight + '/' + r.soncas_2 + '/' + r.next_status + '/' + r.action2 + '/' + (/budget est voté/.test(r.soncas_mine) ? 'mine' : 'no-mine'); }, csv);
 // recharger depuis l'historique : 3 interlocuteurs et leurs scores reviennent
 await p.click('[data-load]'); await p.waitForSelector('.contact-row[data-i="2"]');
-const reloaded = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return d.client.contacts.length + '/' + d.persona.people.length + '/' + d.persona.people[1].scores.N; });
+const reloaded = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return d.client.contacts.length + '/' + d.persona.people.length + '/' + d.persona.people[1].scores.N + (/budget est voté/.test(d.persona.people[0].mine?.notes?.A) && d.persona.people[0].mine.args.A.length === 2 ? '' : '/no-mine'); });
 await p.screenshot({ path: shots + '/6-history.png' });
 await p.setViewportSize({ width: 390, height: 800 }); await p.click('[data-step=persona]'); await p.screenshot({ path: shots + '/7-mobile.png' });
 const radar = await p.$$eval('#radar svg polygon.me', s => s.length);
@@ -140,6 +157,7 @@ await p.setViewportSize({ width: 1200, height: 900 }); await p.click('[data-step
 p.once('dialog', d => d.accept()); await p.click('#offer-reset');
 const blanked = await p.evaluate(() => { const d = JSON.parse(localStorage.getItem('simac.draft')); return !d.product.oneLiner && !d.client.company && d.client.contacts.length === 1 && !d.client.contacts[0].name && !d.persona.people[0].name && d.simac === null && !d.debrief.description && !d.clientChat.description && d.sources.length === 0 && d.step === 'offer' && JSON.parse(localStorage.getItem('simac.meetings')).length === 1 && !document.querySelector('#steps button.done'); });
 const ok = stillOpen && subscribedVisibly && blanked && rows === 1 && reimport.startsWith('1/1/') && /\/La professeure d’histoire\/use\/S2 O2 N3/.test(reimport) && errors.length === 0 && extracted >= 3 && maturity === 3 && gateAgain === true && waiting && confirmed && legacy && radar === 1
-  && actionRows === 2 && /\/doing\/Envoyer le devis pour 4 classes/.test(reimport) && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3' && dueRows >= 1 && dueIcs === dueRows;
-console.log(JSON.stringify({ stillOpen, subscribedVisibly, blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, whoCol, rows, reimport, reloaded, dueRows, dueIcs, errors, ok }, null, 1));
+  && actionRows === 2 && /\/doing\/Envoyer le devis pour 4 classes/.test(reimport) && afterExtract === 2 && contactRows === 3 && addGone && tabs === 3 && tensions === 1 && p2top.length > 0 && whoCol === 1 && reloaded === '3/3/3' && dueRows >= 1 && dueIcs === dueRows
+  && mineKept && aiArgsBefore === aiArgsAfter && printMine && /\/mine$/.test(reimport);
+console.log(JSON.stringify({ stillOpen, subscribedVisibly, blanked, actionRows, gateAgain, waiting, confirmed, legacy, radar, extracted, maturity, afterExtract, contactRows, addGone, tabs, tensions, p2top, mineKept, aiArgsBefore, aiArgsAfter, printMine, whoCol, rows, reimport, reloaded, dueRows, dueIcs, errors, ok }, null, 1));
 await b.close(); process.exit(ok ? 0 : 1);

@@ -535,4 +535,9 @@ export default {
   'Réglementation ({country})': { en: 'Regulation ({country})', es: 'Regulación ({country})' },
   'Avis de l’IA, à vérifier :': { en: 'AI view, to be checked:', es: 'Opinión de la IA, por verificar:' },
   'Sources officielles :': { en: 'Official sources:', es: 'Fuentes oficiales:' },
+  'Ajoutez aussi ce que vous savez, motivation par motivation : l’IA le garde et s’appuie dessus.': { en: 'Also add what you know, motivation by motivation: the AI keeps it and builds on it.', es: 'Añade también lo que sabes, motivación por motivación: la IA lo conserva y se apoya en ello.' },
+  'Vos informations': { en: 'Your information', es: 'Tu información' },
+  'Ce que vous avez entendu ou savez de cette personne': { en: 'What you heard or know about this person', es: 'Lo que has oído o sabes de esta persona' },
+  'Vos arguments, un par ligne': { en: 'Your arguments, one per line', es: 'Tus argumentos, uno por línea' },
+  'Vous :': { en: 'You:', es: 'Tú:' },
 };
