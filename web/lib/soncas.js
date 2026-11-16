@@ -47,3 +47,75 @@ export function unpackScores(str) {
 }
 
 export const WEIGHTS = { decide: t('décide'), influence: t('influence'), use: t('utilise') };
+
+// ----------------------------------------------------------------------------- saisie de l'utilisateur
+// Par motivation : ses observations (notes), ses arguments (args) et les scores qu'il a fixés lui-même (fixed).
+// Rangée à part de la proposition IA : une nouvelle proposition ne l'écrase jamais.
+const CODES = SONCAS.map((d) => d.code);
+const MAX_THREES = 3;
+
+export function blankMine() { return { notes: {}, args: {}, fixed: {} }; }
+
+/** Remet en forme une saisie venue d'un brouillon ou d'un import : seuls les codes connus et les bons types restent. */
+export function normMine(m) {
+  const out = blankMine();
+  if (!m || typeof m !== 'object') return out;
+  for (const c of CODES) {
+    if (typeof m.notes?.[c] === 'string' && m.notes[c].trim()) out.notes[c] = m.notes[c];
+    if (Array.isArray(m.args?.[c])) { const a = m.args[c].filter((x) => typeof x === 'string' && x.trim()); if (a.length) out.args[c] = a; }
+    if (m.fixed?.[c] === true) out.fixed[c] = true;
+  }
+  return out;
+}
+
+export function hasMine(m) {
+  return !!m && (Object.keys(m.notes || {}).some((c) => (m.notes[c] || '').trim()) || Object.keys(m.args || {}).some((c) => (m.args[c] || []).length) || Object.values(m.fixed || {}).some(Boolean));
+}
+
+/** Texte « un argument par ligne » → liste, sans lignes vides ni tirets de début. */
+export function lines(text) {
+  return String(text || '').split('\n').map((l) => l.replace(/^\s*[-•*]\s*/, '').trim()).filter(Boolean);
+}
+
+/** Proposition IA + scores de l'utilisateur : ses scores fixés restent ; au plus trois 3, les scores IA cèdent d'abord. */
+export function mergeScores(ai, prev, fixed = {}) {
+  const f = fixed || {};
+  const out = { ...ai };
+  for (const c of CODES) if (f[c] && prev && Number.isFinite(prev[c])) out[c] = prev[c];
+  const threes = () => CODES.filter((c) => out[c] === 3);
+  for (const c of [...CODES].reverse()) {
+    if (threes().length <= MAX_THREES) break;
+    if (out[c] === 3 && !f[c]) out[c] = 2;
+  }
+  return out;
+}
+
+/** Arguments d'une motivation : ceux de l'utilisateur d'abord, puis ceux de l'IA qui ne les répètent pas. */
+export function withMine(mine, aiArgs, code) {
+  const own = mine?.args?.[code] || [];
+  const seen = new Set(own.map((a) => a.toLowerCase()));
+  return [...own, ...(aiArgs?.[code] || []).filter((a) => !seen.has(String(a).toLowerCase()))];
+}
+
+/** Ce que l'utilisateur a écrit, par personne, pour le prompt ; null s'il n'a rien écrit. */
+export function userInput(people, names = []) {
+  const out = (people || []).map((p, i) => {
+    const m = normMine(p?.mine);
+    if (!hasMine(m)) return null;
+    const fixed_scores = Object.fromEntries(Object.keys(m.fixed).map((c) => [c, p.scores?.[c]]));
+    return { person: names[i] || `#${i + 1}`, index: i + 1, observations: m.notes, arguments: m.args, fixed_scores };
+  }).filter(Boolean);
+  return out.length ? out : null;
+}
+
+/** Colonne CSV soncas_mine : la saisie de chaque personne, en JSON ; vide si rien n'a été écrit. */
+export function packMine(people) {
+  const all = (people || []).map((p) => normMine(p?.mine));
+  return all.some(hasMine) ? JSON.stringify(all) : '';
+}
+export function unpackMine(str, n = 1) {
+  let arr = [];
+  try { arr = str ? JSON.parse(str) : []; } catch { arr = []; }
+  if (!Array.isArray(arr)) arr = [];
+  return Array.from({ length: Math.max(1, n) }, (_, i) => normMine(arr[i]));
+}

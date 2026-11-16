@@ -105,6 +105,9 @@ dl.facts dd { margin: 0; overflow-wrap: anywhere; }
 .score button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 ul.args { margin: 4px 0 0; padding-left: 18px; font-size: 14px; }
 ul.args li { margin: 2px 0; }
+.soncas .mine { margin-top: 6px; }
+.soncas .mine summary { cursor: pointer; font-size: 13px; color: var(--accent); }
+.soncas .mine textarea { width: 100%; margin-top: 6px; font-size: 14px; }
 
 .simac-block { border-left: 4px solid var(--accent); padding: 4px 0 4px 14px; margin: 14px 0; }
 .simac-block .k { font-size: 14px; color: var(--accent); font-weight: 700; }

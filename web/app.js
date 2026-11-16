@@ -5,7 +5,7 @@ import { PROVIDERS, loadSettings, saveSettings, resolve, chatJSON, listModels } 
 import { OFFER_KEY_ORDER, OFFER_ESSENTIAL, blockersFrom, essentialGaps } from './lib/offer.js';
 import { clientBriefMessages, soncasMessages, simacMessages, followupMessages, offerExtractMessages, offerQuestionMessages, offerMaturityMessages, regulationProposalMessages, clientExtractMessages, clientQuestionMessages, debriefExtractMessages } from './lib/prompts.js';
 import { readUrl, searchWeb, notesSource, mergeSources, activeSources, groundBrief, sourceId, upsertSources, competitorQuery, sanitizeComparison } from './lib/research.js';
-import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS } from './lib/soncas.js';
+import { SONCAS, DEFAULT_SCORES, clampScores, top3, label, packScores, unpackScores, WEIGHTS, blankMine, normMine, lines, mergeScores, withMine, userInput, packMine, unpackMine } from './lib/soncas.js';
 import { listMeetings, saveMeeting, deleteMeeting, exportCSV, importCSV, saveDraft, loadDraft, newId, retrieve, COLUMNS } from './lib/store.js';
 import { download } from './lib/csv.js';
 import { localDay } from './lib/dates.js';
@@ -53,7 +53,7 @@ function blankAction() { return { action: '', owner: 'me', due: '', output: '', 
 const actions = () => (S.debrief.actions || []).filter((a) => a.action).slice(0, MAX_ACTIONS);
 function syncPrimaryAction() { const a = S.debrief.actions?.[0] || blankAction(); Object.assign(S.debrief, { nextAction: a.action, nextOwner: a.owner, nextDue: a.due, nextOutput: a.output }); }
 function blankContact(weight = 'influence') { return { name: '', role: '', weight }; }
-function blankPerson() { return { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {} }; }
+function blankPerson() { return { scores: { ...DEFAULT_SCORES }, aiScores: null, rationale: {}, arguments: {}, mine: blankMine() }; }
 /** Interlocuteurs renseignés (nom ou rôle), au plus 3. */
 const contacts = () => (S.client.contacts || []).filter((c) => c.name || c.role).slice(0, MAX_CONTACTS);
 const contactLabel = (c, i) => c?.name || c?.role || t('Personne {n}', { n: i + 1 });
@@ -66,6 +66,7 @@ if (!S.id) S = blank();
 if (!Array.isArray(S.client.contacts)) { S.client.contacts = [{ name: S.client.contactName || '', role: S.client.contactRole || '', weight: 'decide' }]; delete S.client.contactName; delete S.client.contactRole; }
 if (!Array.isArray(S.persona.people)) { S.persona = { people: [{ scores: S.persona.scores || { ...DEFAULT_SCORES }, aiScores: S.persona.aiScores || null, rationale: S.persona.rationale || {}, arguments: S.persona.arguments || {} }], current: 0, main_message: S.persona.main_message || '', tensions: [], gaps: S.persona.gaps || [] }; }
 while (S.persona.people.length < S.client.contacts.length) S.persona.people.push(blankPerson());
+S.persona.people.forEach((p) => { p.mine = normMine(p.mine); });
 if (!Array.isArray(S.debrief.actions)) S.debrief.actions = [{ action: S.debrief.nextAction || '', owner: S.debrief.nextOwner || 'me', due: S.debrief.nextDue || '', output: S.debrief.nextOutput || '', status: 'todo' }];
 if (S.persona.current >= S.client.contacts.length) S.persona.current = 0;
 if (!S.offer) S.offer = blank().offer;
@@ -778,7 +779,7 @@ renderers.persona = () => {
   const P = S.persona; syncPeople(); const cs = S.client.contacts; const multi = cs.length > 1;
   $('#main').innerHTML = `
     <h1>${t('3 · Persona SONCAS et message principal')}</h1>
-    <p class="lead">${multi ? t('Les motivations d’achat à explorer, notées de 1 à 3, pour chacune des personnes présentes.') : t('Les motivations d’achat à explorer, notées de 1 à 3.')} ${t('L’IA propose d’après la fiche client ; vous corrigez.')} ${multi ? t('Un seul message principal pour le rendez-vous, calé sur la personne qui décide.') : t('Le message principal se construit sur les 3 motivations les plus fortes.')}</p>
+    <p class="lead">${multi ? t('Les motivations d’achat à explorer, notées de 1 à 3, pour chacune des personnes présentes.') : t('Les motivations d’achat à explorer, notées de 1 à 3.')} ${t('L’IA propose d’après la fiche client ; vous corrigez.')} ${t('Ajoutez aussi ce que vous savez, motivation par motivation : l’IA le garde et s’appuie dessus.')} ${multi ? t('Un seul message principal pour le rendez-vous, calé sur la personne qui décide.') : t('Le message principal se construit sur les 3 motivations les plus fortes.')}</p>
     ${verdictBanner()}
     <div class="actions">
       <button class="btn" id="ai">${t('Proposer avec l’IA')}</button>
@@ -801,12 +802,16 @@ renderers.persona = () => {
   $$('#people-tabs button').forEach((b) => (b.onclick = () => { P.current = +b.dataset.p; persist(); renderers.persona(); }));
   $('#ai').onclick = (e) => busy(e.target, async () => {
     if (!S.brief) return toast(t('Générez d’abord la fiche client (étape 2).'));
-    const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, history: historyFor() }));
+    syncPeople();
+    const mine = userInput(P.people, S.client.contacts.map((c, i) => contactLabel(c, i)));
+    const r = await chatJSON(soncasMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, history: historyFor(), mine }));
     const people = Array.isArray(r.people) ? r.people : [{ scores: r.scores, rationale: r.rationale, arguments: r.arguments }];
     S.client.contacts.forEach((c, i) => {
       const src = people[i] || people[0] || {};
+      const prev = P.people[i] || blankPerson(); const own = normMine(prev.mine);
       const ai = capThrees(clampScores(src.scores));
-      P.people[i] = { scores: { ...ai }, aiScores: ai, rationale: src.rationale || {}, arguments: src.arguments || {} };
+      // La saisie de l'utilisateur reste : ses scores fixés, ses observations, ses arguments.
+      P.people[i] = { scores: mergeScores(ai, prev.scores, own.fixed), aiScores: ai, rationale: src.rationale || {}, arguments: src.arguments || {}, mine: own };
     });
     P.main_message = r.main_message || ''; P.tensions = r.tensions || []; P.gaps = r.gaps || [];
     persist(); markDone(); if (S.step === 'persona') renderers.persona();
@@ -847,16 +852,33 @@ function renderSoncas() {
       <div class="score" data-code="${d.code}">${[1, 2, 3].map((v) => `<button class="${P.scores[d.code] === v ? 'on' : ''}" data-v="${v}">${v}</button>`).join('')}
         ${P.aiScores && P.aiScores[d.code] !== P.scores[d.code] ? `<small class="muted" style="align-self:center">${t('IA : {n}', { n: P.aiScores[d.code] })}</small>` : ''}</div>
       <div>${P.rationale?.[d.code] ? `<div class="note">${esc(P.rationale[d.code])}</div>` : ''}
-        ${(P.arguments?.[d.code] || []).length ? `<ul class="args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}</div>
+        ${(P.arguments?.[d.code] || []).length ? `<ul class="args">${P.arguments[d.code].map((a) => `<li>${esc(a)}</li>`).join('')}</ul>` : ''}
+        ${mineBlock(P, d.code)}</div>
     </div>`).join('');
+  $$('.mine textarea').forEach((ta) => (ta.oninput = () => {
+    const code = ta.closest('.mine').dataset.code; const m = P.mine;
+    if (ta.dataset.mine === 'notes') { if (ta.value.trim()) m.notes[code] = ta.value; else delete m.notes[code]; }
+    else { const a = lines(ta.value); if (a.length) m.args[code] = a; else delete m.args[code]; }
+    persist();
+  }));
   $$('.score button').forEach((b) => (b.onclick = () => {
     const code = b.closest('.score').dataset.code; const v = +b.dataset.v;
     if (v === 3) {
       const threes = SONCAS.map((d) => d.code).filter((c) => c !== code && P.scores[c] === 3);
       if (threes.length >= 3) { const demoted = threes[threes.length - 1]; P.scores[demoted] = 2; toast(t('Trois motivations fortes maximum : « {name} » repasse à 2.', { name: label(demoted) })); }
     }
+    P.mine = normMine(P.mine); P.mine.fixed[code] = true;
     P.scores[code] = v; persist(); renderSoncas();
   }));
+}
+/** Saisie de l'utilisateur pour une motivation : ses observations et ses arguments (un par ligne), ouverte s'il a déjà écrit. */
+function mineBlock(P, code) {
+  P.mine = normMine(P.mine); const m = P.mine;
+  const open = (m.notes[code] || '').trim() || (m.args[code] || []).length;
+  return `<details class="mine" data-code="${code}" ${open ? 'open' : ''}><summary>${t('Vos informations')}</summary>
+    <textarea data-mine="notes" rows="2" placeholder="${t('Ce que vous avez entendu ou savez de cette personne')}">${esc(m.notes[code] || '')}</textarea>
+    <textarea data-mine="args" rows="2" placeholder="${t('Vos arguments, un par ligne')}">${esc((m.args[code] || []).join('\n'))}</textarea>
+  </details>`;
 }
 
 // ----------------------------------------------------------------------------- 4. SIMAC
@@ -877,7 +899,10 @@ renderers.simac = () => {
     if (!S.brief) return toast(t('Générez d’abord la fiche client (étape 2).'));
     syncPeople();
     const people = S.client.contacts.map((c, i) => { const P = S.persona.people[i]; const t3 = top3(P.scores);
-      return { name: contactLabel(c, i), role: c.role, weight: c.weight, scores: P.scores, top3: t3.map(label), arguments: Object.fromEntries(t3.map((k) => [label(k), (P.arguments?.[k] || []).slice(0, 2)])) }; });
+      const own = normMine(P.mine); const observations = Object.fromEntries(t3.filter((k) => own.notes[k]).map((k) => [label(k), own.notes[k]]));
+      // Les arguments de l'utilisateur d'abord (tous), puis au plus deux de l'IA qui ne les répètent pas.
+      const args = (k) => { const n = (own.args[k] || []).length; return withMine(own, P.arguments, k).slice(0, n + 2); };
+      return { name: contactLabel(c, i), role: c.role, weight: c.weight, scores: P.scores, top3: t3.map(label), arguments: Object.fromEntries(t3.map((k) => [label(k), args(k)])), ...(Object.keys(observations).length ? { observations } : {}) }; });
     const persona = { people, main_message: S.persona.main_message, tensions: S.persona.tensions || [] };
     const simac = await chatJSON(simacMessages({ lang: LANG, product: S.product, client: clientView(), brief: S.brief, persona, objective: S.objective, market: S.market.comparison ? { comparison: S.market.comparison, sources: mergeSources(S.market.sources) } : null }));
     S.simac = simac; persist(); markDone(); if (S.step === 'simac') renderSimac();
@@ -1080,6 +1105,7 @@ function toRecord() {
     action2: A[1]?.action || '', action2_owner: A[1]?.owner || '', action2_due: A[1]?.due || '', action2_output: A[1]?.output || '', action2_status: A[1]?.status || '',
     action3: A[2]?.action || '', action3_owner: A[2]?.owner || '', action3_due: A[2]?.due || '', action3_output: A[2]?.output || '', action3_status: A[2]?.status || '',
     lessons: (S.followup?.lessons || []).join(' | '), notes: D.notes,
+    soncas_mine: packMine(pp.slice(0, cs.length)),
   };
 }
 
@@ -1127,6 +1153,7 @@ renderers.history = () => {
     S.persona.people[0].scores = capThrees(clampScores({ S: m.soncas_S, O: m.soncas_O, N: m.soncas_N, C: m.soncas_C, A: m.soncas_A, Y: m.soncas_Y, E: m.soncas_E }));
     if (cs[1]) S.persona.people[1].scores = capThrees(unpackScores(m.soncas_2));
     if (cs[2]) S.persona.people[2].scores = capThrees(unpackScores(m.soncas_3));
+    unpackMine(m.soncas_mine, cs.length).forEach((own, i) => { S.persona.people[i].mine = own; });
     S.persona.main_message = m.main_message; S.persona.tensions = m.tensions ? m.tensions.split(' | ') : [];
     const acts = [{ action: m.next_action || '', owner: m.next_owner || 'me', due: m.next_due || '', output: m.next_output || '', status: ACTION_STATUS[m.next_status] ? m.next_status : 'todo' }];
     if (m.action2) acts.push({ action: m.action2, owner: m.action2_owner || 'me', due: m.action2_due || '', output: m.action2_output || '', status: ACTION_STATUS[m.action2_status] ? m.action2_status : 'todo' });
@@ -1392,7 +1419,7 @@ const printViews = {
     const blocks = S.client.contacts.map((c, i) => { const pp = S.persona.people[i]; const t3 = top3(pp.scores);
       return `<h2>${esc(contactLabel(c, i))} <small>(${[c.role, WEIGHTS[c.weight]].filter(Boolean).map(esc).join(', ')})</small> — ${t('top 3 :')} ${t3.map(label).join(', ')}</h2>
         <table class="ptable"><thead><tr><th>${t('Motivation')}</th><th>${t('Score')}</th><th>${t('Pourquoi')}</th><th>${t('Arguments')}</th></tr></thead><tbody>
-        ${SONCAS.map((d) => `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${label(d.code)}</td><td>${pp.scores[d.code]}</td><td>${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(pp.arguments?.[d.code])}</td></tr>`).join('')}</tbody></table>`; }).join('');
+        ${SONCAS.map((d) => { const own = normMine(pp.mine); return `<tr class="${t3.includes(d.code) ? 'top' : ''}"><td>${label(d.code)}</td><td>${pp.scores[d.code]}</td><td>${own.notes[d.code] ? `<b>${t('Vous :')}</b> ${esc(own.notes[d.code])}<br>` : ''}${esc(pp.rationale?.[d.code] || '')}</td><td>${P.ul(withMine(own, pp.arguments, d.code))}</td></tr>`; }).join('')}</tbody></table>`; }).join('');
     return `<h1>${t('Persona SONCAS')} — ${esc(S.client.company || '')}</h1>${blocks}
       ${(S.persona.tensions || []).length ? `<h3>${t('Tensions entre interlocuteurs')}</h3>${P.ul(S.persona.tensions)}` : ''}
       <div class="pbox"><b>${t('Message principal')}</b><br>${P.text(S.persona.main_message)}</div>`;
