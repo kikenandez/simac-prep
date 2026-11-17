@@ -12,15 +12,53 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%231d6a57'/%3E%3Ctext x='16' y='22' font-size='17' font-family='system-ui' font-weight='700' text-anchor='middle' fill='white'%3ES%3C/text%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@700;800&family=DM+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@500&family=Public+Sans:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="theme.css">
 </head>
 <body>
   <div id="gate" class="gate" hidden>
     <div class="gate-box">
-      <div class="brand"><span class="logo">S</span> SIMAC Prep <span class="tag" data-i18n>TPE / PME</span> <span class="lang-switch"></span></div>
+      <div class="brand"><span class="logo">S</span> SIMAC Prep <span class="hand" data-i18n>carnet de préparation</span> <span class="lang-switch"></span></div>
+      <div class="gate-hero">
+      <div class="gate-main">
       <h1 data-i18n>Préparez vos rendez-vous de vente en 20 minutes</h1>
       <p class="lead" data-i18n>Un outil gratuit, sans compte, qui applique la méthode SIMAC et le profil SONCAS. Vos fiches sont enregistrées dans votre navigateur. Les actions IA et recherche transmettent les informations nécessaires aux fournisseurs choisis.</p>
+      <form id="gate-form" class="gate-form">
+        <label><span data-i18n>Votre adresse email</span> <input type="email" id="gate-email" placeholder="vous@entreprise.fr" data-i18n-attr="placeholder" autocomplete="email" required></label>
+        <label class="check"><input type="checkbox" id="gate-accept" required> <span data-i18n>J’ai lu et j’accepte les conditions d’utilisation.</span></label>
+        <button class="btn" type="submit" data-i18n>Accéder à l’outil</button>
+        <span class="note" id="gate-error"></span>
+      </form>
+      <div id="gate-wait" class="card" hidden>
+        <h2 data-i18n>Vérifiez votre boîte mail</h2>
+        <p data-i18n>Un mail de confirmation est envoyé à <b id="gate-wait-email"></b> par AVApmo (via Buttondown). Cliquez sur le lien qu’il contient pour ouvrir l’outil.</p>
+        <p class="note" data-i18n>Un onglet Buttondown s’est ouvert : s’il demande une vérification (« Verify and Subscribe »), validez-la — sinon le mail ne part pas — puis revenez ici.</p>
+        <p class="note" data-i18n>Rien reçu après quelques minutes ? Regardez dans le dossier « Indésirables » (spam) ou les onglets Promotions / Notifications.</p>
+        <p class="note" id="gate-wait-status"></p>
+        <div class="gate-form">
+          <button class="btn" type="button" id="gate-resend" data-i18n>Renvoyer le mail</button>
+          <button class="btn ghost" type="button" id="gate-change" data-i18n>Changer d’adresse</button>
+        </div>
+        <p class="note"><a href="#" id="gate-already" data-i18n>J’ai déjà confirmé</a></p>
+        <p class="note" id="gate-already-help" hidden data-i18n>L’accès s’ouvre quand le lien du mail est ouvert <b>dans ce navigateur</b>. Si vous avez cliqué depuis votre téléphone ou un autre navigateur, ouvrez le mail ici et cliquez sur le lien, ou copiez-le dans la barre d’adresse de ce navigateur.</p>
+      </div>
+      </div>
+      <aside class="gate-sample" aria-label="Exemple de fiche" data-i18n-attr="aria-label">
+        <div class="tape" aria-hidden="true"></div>
+        <article class="sample-card">
+          <p class="sample-kicker" data-i18n>Exemple · mercredi 10 h · visio 30 min</p>
+          <h2>Atelier Ligne Haute</h2>
+          <p data-i18n>Cabinet d’architectes, 22 personnes.</p>
+          <div class="sample-people">
+            <div><b>Julien</b><span data-i18n>Associé fondateur · signe</span><span data-i18n>Argent 3 · Confort 3</span></div>
+            <div><b>Sarah</b><span data-i18n>Communication · prescrit</span><span data-i18n>Orgueil 3 · Sympathie 2</span></div>
+          </div>
+          <p class="sample-quote" data-i18n>« Une demi-matinée, zéro réunion bloquée, et un site qui ressemble enfin à l’agence. »</p>
+        </article>
+        <p class="hand-note" data-i18n>↑ Julien signe, Sarah convainc.<br>Le prix ? En dernier !</p>
+      </aside>
+      </div>
       <ol class="gate-steps">
         <li data-i18n><b>Offre</b> — décrivez votre produit, joignez une plaquette : l’IA remplit la fiche et note la maturité (1-5).</li>
         <li data-i18n><b>Client</b> — qui vous allez voir (jusqu’à 3 personnes), dans quel cadre : fiche avec faits sourcés, hypothèses et questions de découverte.</li>
@@ -41,25 +79,6 @@
           <li data-i18n>Usage personnel et professionnel libre et gratuit. Code source disponible sous licence <a href="https://github.com/kikenandez/simac-prep/blob/main/LICENSE" target="_blank" rel="noopener" aria-label="MIT + Commons Clause (nouvel onglet)">MIT + Commons Clause</a> : <b>toute revente de l’outil, ou d’un service qui repose essentiellement sur lui, demande l’accord préalable de l’auteur</b> — <a href="mailto:contact@avapmo.com">contact@avapmo.com</a>.</li>
         </ul>
       </details>
-      <form id="gate-form" class="gate-form">
-        <label><span data-i18n>Votre adresse email</span> <input type="email" id="gate-email" placeholder="vous@entreprise.fr" data-i18n-attr="placeholder" autocomplete="email" required></label>
-        <label class="check"><input type="checkbox" id="gate-accept" required> <span data-i18n>J’ai lu et j’accepte les conditions d’utilisation.</span></label>
-        <button class="btn" type="submit" data-i18n>Accéder à l’outil</button>
-        <span class="note" id="gate-error"></span>
-      </form>
-      <div id="gate-wait" class="card" hidden>
-        <h2 data-i18n>Vérifiez votre boîte mail</h2>
-        <p data-i18n>Un mail de confirmation est envoyé à <b id="gate-wait-email"></b> par AVApmo (via Buttondown). Cliquez sur le lien qu’il contient pour ouvrir l’outil.</p>
-        <p class="note" data-i18n>Un onglet Buttondown s’est ouvert : s’il demande une vérification (« Verify and Subscribe »), validez-la — sinon le mail ne part pas — puis revenez ici.</p>
-        <p class="note" data-i18n>Rien reçu après quelques minutes ? Regardez dans le dossier « Indésirables » (spam) ou les onglets Promotions / Notifications.</p>
-        <p class="note" id="gate-wait-status"></p>
-        <div class="gate-form">
-          <button class="btn" type="button" id="gate-resend" data-i18n>Renvoyer le mail</button>
-          <button class="btn ghost" type="button" id="gate-change" data-i18n>Changer d’adresse</button>
-        </div>
-        <p class="note"><a href="#" id="gate-already" data-i18n>J’ai déjà confirmé</a></p>
-        <p class="note" id="gate-already-help" hidden data-i18n>L’accès s’ouvre quand le lien du mail est ouvert <b>dans ce navigateur</b>. Si vous avez cliqué depuis votre téléphone ou un autre navigateur, ouvrez le mail ici et cliquez sur le lien, ou copiez-le dans la barre d’adresse de ce navigateur.</p>
-      </div>
       <p class="note" data-i18n>Créé par <a href="https://adp.avapmo.com" target="_blank" rel="noopener" aria-label="adp.avapmo.com (nouvel onglet)">adp.avapmo.com</a>. Contact : <a href="mailto:contact@avapmo.com">contact@avapmo.com</a>. L’utilisation est gratuite.</p>
     </div>
   </div>
