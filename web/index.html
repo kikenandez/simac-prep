@@ -59,6 +59,51 @@
         <p class="hand-note" data-i18n>↑ Julien signe, Sarah convainc.<br>Le prix ? En dernier !</p>
       </aside>
       </div>
+      <section class="gate-videos" aria-labelledby="gate-videos-title">
+        <div class="video-head">
+          <h2 id="gate-videos-title" data-i18n>Voir l’outil en action</h2>
+          <p class="note video-lang" data-i18n>Vidéos en français.</p>
+        </div>
+        <div class="video-main">
+          <figure>
+            <video controls preload="none" playsinline poster="videos/video-0-en-une-minute.jpg" width="1280" height="720">
+              <source src="videos/video-0-en-une-minute.mp4" type="video/mp4">
+            </video>
+          </figure>
+          <div class="video-main-text">
+            <p class="video-kicker"><span data-i18n>Vidéo 0</span> · 1:44</p>
+            <h3 data-i18n>SIMAC Prep en une minute</h3>
+            <p data-i18n>Une photographe prépare son rendez-vous avec un cabinet d’architectes : l’offre, le client, les deux personnes à convaincre, le déroulé, puis le suivi.</p>
+            <p class="hand-note" data-i18n>← commencez par celle-ci</p>
+          </div>
+        </div>
+        <ul class="video-gallery">
+          <li>
+            <video controls preload="none" playsinline poster="videos/video-1-outil-dit-non.jpg" width="640" height="360"><source src="videos/video-1-outil-dit-non.mp4" type="video/mp4"></video>
+            <p class="video-kicker"><span data-i18n>Vidéo 1</span> · 1:20</p>
+            <h3 data-i18n>L’outil vous dit non</h3>
+            <p class="note" data-i18n>Une offre pas encore prête : l’outil le dit, et dit quoi compléter.</p>
+          </li>
+          <li>
+            <video controls preload="none" playsinline poster="videos/video-2-deux-interlocuteurs.jpg" width="640" height="360"><source src="videos/video-2-deux-interlocuteurs.mp4" type="video/mp4"></video>
+            <p class="video-kicker"><span data-i18n>Vidéo 2</span> · 2:07</p>
+            <h3 data-i18n>Un rendez-vous, deux interlocuteurs</h3>
+            <p class="note" data-i18n>Réglementation, motivations SONCAS de chacun, déroulé SIMAC et fiche imprimée.</p>
+          </li>
+          <li>
+            <video controls preload="none" playsinline poster="videos/video-3-avant-d-entrer.jpg" width="640" height="360"><source src="videos/video-3-avant-d-entrer.mp4" type="video/mp4"></video>
+            <p class="video-kicker"><span data-i18n>Vidéo 3</span> · 1:26</p>
+            <h3 data-i18n>Ce que vous savez avant d’entrer</h3>
+            <p class="note" data-i18n>Concurrents, données officielles, annonces légales : les faits sourcés d’un côté, les hypothèses de l’autre.</p>
+          </li>
+          <li>
+            <video controls preload="none" playsinline poster="videos/video-4-apres-le-rendez-vous.jpg" width="640" height="360"><source src="videos/video-4-apres-le-rendez-vous.mp4" type="video/mp4"></video>
+            <p class="video-kicker"><span data-i18n>Vidéo 4</span> · 1:22</p>
+            <h3 data-i18n>Après le rendez-vous</h3>
+            <p class="note" data-i18n>Débrief, actions à l’agenda, mail de suivi et historique.</p>
+          </li>
+        </ul>
+      </section>
       <ol class="gate-steps">
         <li data-i18n><b>Offre</b> — décrivez votre produit, joignez une plaquette : l’IA remplit la fiche et note la maturité (1-5).</li>
         <li data-i18n><b>Client</b> — qui vous allez voir (jusqu’à 3 personnes), dans quel cadre : fiche avec faits sourcés, hypothèses et questions de découverte.</li>
@@ -117,5 +162,6 @@
 
   <div id="toast" class="toast" hidden></div>
   <script type="module" src="app.js"></script>
+  <script type="module" src="lib/videos.js"></script>
 </body>
 </html>
