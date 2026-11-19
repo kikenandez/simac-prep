@@ -25,7 +25,7 @@ export default {
   'Vidéo 2': { en: 'Video 2', es: 'Vídeo 2' },
   'Vidéo 3': { en: 'Video 3', es: 'Vídeo 3' },
   'Vidéo 4': { en: 'Video 4', es: 'Vídeo 4' },
-  'SIMAC Prep en une minute': { en: 'SIMAC Prep in one minute', es: 'SIMAC Prep en un minuto' },
+  'SIMAC Prep en moins de 2 minutes': { en: 'SIMAC Prep in under 2 minutes', es: 'SIMAC Prep en menos de 2 minutos' },
   'Une photographe prépare son rendez-vous avec un cabinet d’architectes : l’offre, le client, les deux personnes à convaincre, le déroulé, puis le suivi.': {
     en: 'A photographer prepares her meeting with an architecture firm: the offer, the client, the two people to convince, the meeting script, then the follow-up.',
     es: 'Una fotógrafa prepara su reunión con un estudio de arquitectura: la oferta, el cliente, las dos personas a convencer, el guion y luego el seguimiento.' },
